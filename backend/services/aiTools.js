@@ -163,7 +163,8 @@ const searchProducts = async (userId, keywords = []) => {
             price: p.price,
             durationMinutes: p.durationMinutes || 60,
             description: p.description,
-            imageUrls: p.imageUrls || []
+            imageUrls: p.imageUrls || [],
+            variations: p.variations || []
         }));
     } catch (error) {
         console.error("Erro searchProducts:", error);

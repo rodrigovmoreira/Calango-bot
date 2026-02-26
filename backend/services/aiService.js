@@ -44,8 +44,15 @@ Atencao: Voce esta operando em um chat de WhatsApp. Siga estas regras obrigatori
         if (config.products && config.products.length > 0) {
             prompt += `\n--- CATALOGO RAPIDO (Referencia Interna) ---\n`;
             config.products.forEach(p => {
-                prompt += `Item: ${p.name} | Preco: R$ ${p.price}\n`;
+                let itemInfo = `Item: ${p.name} | Preco: R$ ${p.price}`;
+                if (p.variations && p.variations.length > 0) {
+                    const variationsText = p.variations.map(v => `${v.name} (R$${v.price})`).join(', ');
+                    itemInfo += ` | Opcoes: ${variationsText}`;
+                }
+                prompt += `${itemInfo}\n`;
             });
+
+            prompt += `\nCATALOG RULE: If the client requests a product/service that has variations (sizes, types), you MUST list these options and ask which one they prefer before confirming the final price or booking an appointment.\n`;
         }
 
         // CÉREBRO (Regras do Negócio)

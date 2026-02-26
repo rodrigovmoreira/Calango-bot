@@ -75,7 +75,13 @@ const businessConfigSchema = new mongoose.Schema({
       durationMinutes: { type: Number, default: 60 },
       description: { type: String },
       imageUrls: { type: [String], default: [] },
-      tags: { type: [String], default: [] }
+      tags: { type: [String], default: [] },
+      // NEW STRUCTURE: Variations/Sub-services
+      variations: [{
+        name: { type: String, required: true },
+        price: { type: Number, required: true },
+        durationMinutes: { type: Number, default: 60 }
+      }]
     }
   ],
 

@@ -20,7 +20,7 @@ const CatalogTab = () => {
 
   // State
   const [products, setProducts] = useState([]);
-  const [newProduct, setNewProduct] = useState({ name: '', price: '', description: '', imageUrls: [], tags: [] });
+  const [newProduct, setNewProduct] = useState({ name: '', price: '', description: '', imageUrls: [], tags: [], variations: [] });
   const [editingProductIndex, setEditingProductIndex] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -53,9 +53,27 @@ const CatalogTab = () => {
     else updated.push(productToSave);
 
     setProducts(updated);
-    setNewProduct({ name: '', price: '', description: '', imageUrls: [], tags: [] });
+    setNewProduct({ name: '', price: '', description: '', imageUrls: [], tags: [], variations: [] });
     setEditingProductIndex(null);
     onProductModalClose();
+  };
+
+  const addVariation = () => {
+    setNewProduct({
+      ...newProduct,
+      variations: [...(newProduct.variations || []), { name: '', price: '', durationMinutes: 60 }]
+    });
+  };
+
+  const updateVariation = (index, field, value) => {
+    const updatedVariations = [...newProduct.variations];
+    updatedVariations[index][field] = value;
+    setNewProduct({ ...newProduct, variations: updatedVariations });
+  };
+
+  const removeVariation = (index) => {
+    const updatedVariations = newProduct.variations.filter((_, i) => i !== index);
+    setNewProduct({ ...newProduct, variations: updatedVariations });
   };
 
   const handleRemoveProduct = (idx) => setProducts(products.filter((_, i) => i !== idx));
@@ -110,7 +128,7 @@ const CatalogTab = () => {
         <CardHeader>
           <Stack direction={{ base: 'column', md: 'row' }} justify="space-between">
             <Box><Heading size="md">Produtos & Serviços</Heading><Text fontSize="sm" color="gray.500">Para a IA consultar preços e enviar fotos.</Text></Box>
-            <Button leftIcon={<AddIcon />} variant="outline" colorScheme="blue" onClick={() => { setEditingProductIndex(null); setNewProduct({ name: '', price: '', description: '', imageUrls: [], tags: [] }); onProductModalOpen(); }}>Novo Item</Button>
+            <Button leftIcon={<AddIcon />} variant="outline" colorScheme="blue" onClick={() => { setEditingProductIndex(null); setNewProduct({ name: '', price: '', description: '', imageUrls: [], tags: [], variations: [] }); onProductModalOpen(); }}>Novo Item</Button>
           </Stack>
         </CardHeader>
         <CardBody>
@@ -125,8 +143,13 @@ const CatalogTab = () => {
                 <VStack align="start" spacing={1} flex={1}>
                   <HStack><Text fontWeight="bold">{prod.name}</Text><Badge colorScheme="green">R$ {prod.price}</Badge></HStack>
                   <Text fontSize="sm" color="gray.600">{prod.description}</Text>
+                  {prod.variations && prod.variations.length > 0 && (
+                     <Text fontSize="xs" color="gray.500" mt={1}>
+                        Opções: {prod.variations.map(v => `${v.name} (R$${v.price})`).join(', ')}
+                     </Text>
+                  )}
                   {prod.tags && prod.tags.length > 0 && (
-                    <HStack flexWrap="wrap" spacing={1}>
+                    <HStack flexWrap="wrap" spacing={1} mt={1}>
                       {prod.tags.map((t, i) => <Badge key={i} colorScheme="purple" variant="subtle" fontSize="0.6em">{t}</Badge>)}
                     </HStack>
                   )}
@@ -157,6 +180,55 @@ const CatalogTab = () => {
               <FormControl isRequired><FormLabel>Nome</FormLabel><Input value={newProduct.name} onChange={e => setNewProduct({ ...newProduct, name: e.target.value })} size={{ base: 'lg', md: 'md' }} /></FormControl>
               <FormControl isRequired><FormLabel>Preço</FormLabel><Input type="number" value={newProduct.price} onChange={e => setNewProduct({ ...newProduct, price: e.target.value })} size={{ base: 'lg', md: 'md' }} /></FormControl>
               <FormControl><FormLabel>Detalhes</FormLabel><Textarea value={newProduct.description} onChange={e => setNewProduct({ ...newProduct, description: e.target.value })} size={{ base: 'lg', md: 'md' }} /></FormControl>
+
+              {/* Variations Section */}
+              <Box w="100%" bg={gray50Bg} p={3} borderRadius="md" borderWidth="1px">
+                <HStack justify="space-between" mb={2}>
+                  <Text fontWeight="bold" fontSize="sm">Variações / Opções</Text>
+                  <Button size="xs" leftIcon={<AddIcon />} onClick={addVariation}>Add Opção</Button>
+                </HStack>
+
+                {newProduct.variations && newProduct.variations.length > 0 ? (
+                  <VStack spacing={2} align="stretch">
+                    {newProduct.variations.map((variation, index) => (
+                      <HStack key={index} spacing={2}>
+                        <Input
+                          placeholder="Nome (ex: Longo)"
+                          size="sm"
+                          value={variation.name}
+                          onChange={(e) => updateVariation(index, 'name', e.target.value)}
+                        />
+                        <Input
+                          placeholder="R$"
+                          type="number"
+                          size="sm"
+                          w="80px"
+                          value={variation.price}
+                          onChange={(e) => updateVariation(index, 'price', e.target.value)}
+                        />
+                        <Input
+                          placeholder="Min"
+                          type="number"
+                          size="sm"
+                          w="60px"
+                          value={variation.durationMinutes}
+                          onChange={(e) => updateVariation(index, 'durationMinutes', e.target.value)}
+                        />
+                         <IconButton
+                            icon={<DeleteIcon />}
+                            size="sm"
+                            colorScheme="red"
+                            variant="ghost"
+                            aria-label="Remover variação"
+                            onClick={() => removeVariation(index)}
+                         />
+                      </HStack>
+                    ))}
+                  </VStack>
+                ) : (
+                  <Text fontSize="xs" color="gray.500" fontStyle="italic">Nenhuma variação adicionada.</Text>
+                )}
+              </Box>
 
               <FormControl>
                 <FormLabel>Tags (Palavras-chave separadas por vírgula)</FormLabel>
