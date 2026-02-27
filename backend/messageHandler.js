@@ -198,7 +198,7 @@ Você pode chamá-lo(a) pelo nome esporadicamente para gerar conexão.
         }
 
         // 3. Audience Filter
-        if (shouldProcessMedia) {
+        if (shouldProcessMedia && channel !== 'web') {
             const aiMode = businessConfig.aiResponseMode || 'all';
             let audienceBlocked = false;
 

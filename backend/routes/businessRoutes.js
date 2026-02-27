@@ -130,7 +130,7 @@ router.post('/apply-preset', authenticateToken, async (req, res) => {
   try {
     const { presetKey } = req.body;
     const preset = await IndustryPreset.findOne({ key: presetKey });
-    
+
     if (!preset) return res.status(404).json({ message: 'Modelo não encontrado' });
 
     const updatedConfig = await BusinessConfig.findOneAndUpdate(
@@ -257,8 +257,8 @@ router.delete('/config/notifications/:ruleId', authenticateToken, async (req, re
     if (!config) return res.status(404).json({ message: 'Configuração não encontrada' });
 
     if (config.notificationRules) {
-        config.notificationRules = config.notificationRules.filter(r => r.id !== req.params.ruleId);
-        await config.save();
+      config.notificationRules = config.notificationRules.filter(r => r.id !== req.params.ruleId);
+      await config.save();
     }
 
     res.json({ message: 'Regra removida' });
@@ -314,8 +314,8 @@ router.post('/upload-image', authenticateToken, upload.single('image'), async (r
         console.log('✅ Upload Firebase realizado:', publicUrl);
         res.json({ imageUrl: publicUrl });
       } catch (err) {
-         console.error('Erro ao tornar público:', err);
-         res.status(500).json({ message: 'Erro ao finalizar upload.' });
+        console.error('Erro ao tornar público:', err);
+        res.status(500).json({ message: 'Erro ao finalizar upload.' });
       }
     });
 
@@ -379,17 +379,17 @@ router.post('/conversations/:contactId/messages', authenticateToken, async (req,
     // 2. Enviar Mensagem
     let sent = false;
     if (contact.channel === 'whatsapp') {
-       sent = await sendWWebJSMessage(req.user.userId, contact.phone, message);
-       if (!sent) {
-           // Se falhar o envio (WhatsApp desconectado, etc), avisa o front mas salva?
-           // Melhor retornar erro para o agente saber.
-           return res.status(500).json({ message: 'Falha ao enviar mensagem para o WhatsApp. Verifique a conexão.' });
-       }
+      sent = await sendWWebJSMessage(req.user.userId, contact.phone, message);
+      if (!sent) {
+        // Se falhar o envio (WhatsApp desconectado, etc), avisa o front mas salva?
+        // Melhor retornar erro para o agente saber.
+        return res.status(500).json({ message: 'Falha ao enviar mensagem para o WhatsApp. Verifique a conexão.' });
+      }
     } else if (contact.channel === 'web') {
-       if (req.io) {
-           req.io.to(contact.sessionId).emit('bot_message', { sender: 'agent', text: message });
-           sent = true;
-       }
+      if (req.io) {
+        req.io.to(contact.sessionId).emit('bot_message', { sender: 'agent', text: message });
+        sent = true;
+      }
     }
 
     // 3. Salvar no Banco (Como Agente)
@@ -437,34 +437,46 @@ router.post('/delete-image', authenticateToken, async (req, res) => {
 
 // ROTA DE INJEÇÃO DE TESTES (APENAS PARA DESENVOLVIMENTO)
 router.post('/test/webhook', async (req, res) => {
-    // Trava de segurança: só permite injetar testes se estiver rodando localmente
-    if (process.env.NODE_ENV === 'production') {
-        return res.status(403).json({ error: "Proibido em produção" });
+  // Trava de segurança: só permite injetar testes se estiver rodando localmente
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(403).json({ error: "Proibido em produção" });
+  }
+
+  try {
+    const { from, body, type, businessId } = req.body;
+    const { handleIncomingMessage } = require('../messageHandler');
+
+    const fakeMessage = {
+      from: from,
+      body: body,
+      type: type || 'text',
+      provider: 'test_script',
+      channel: 'web'
+    };
+
+    console.log(`\n➡️ [API TESTE] Injetando mensagem: "${body}"`);
+
+    // Dispara o cérebro do robô e CAPTURA a resposta
+    const response = await handleIncomingMessage(fakeMessage, businessId);
+
+    console.log("⬅️ [API TESTE] Retorno do MessageHandler:", response);
+
+    // Define a resposta exata que vai para o Python
+    let finalReply = "";
+    if (response && response.text) {
+      finalReply = response.text;
+    } else if (response && response.error) {
+      finalReply = `❌ [Bloqueio Interno: ${response.error}]`;
+    } else {
+      finalReply = "🤫 [Bot ignorou a mensagem intencionalmente (Filtro ou Handover)]";
     }
 
-    try {
-        const { from, body, type, businessId } = req.body;
-        
-        // Importa o orquestrador que acabamos de refatorar
-        const { handleIncomingMessage } = require('../messageHandler');
-
-        // Finge ser uma mensagem chegando do WWebJS
-        const fakeMessage = {
-            from: from,
-            body: body,
-            type: type || 'text',
-            provider: 'test_script',
-            channel: 'whatsapp' // Finge que veio do zap
-        };
-
-        // Dispara o cérebro do robô
-        await handleIncomingMessage(fakeMessage, businessId);
-
-        res.status(200).json({ status: "Mensagem injetada com sucesso no buffer!" });
-    } catch (error) {
-        console.error("Erro no webhook de teste:", error);
-        res.status(500).json({ error: error.message });
-    }
+    // Devolve o JSON no formato exato que o Python está esperando
+    res.status(200).json({ reply: finalReply });
+  } catch (error) {
+    console.error("💥 Erro no webhook de teste:", error);
+    res.status(500).json({ reply: `❌ [Crash do Servidor: ${error.message}]` });
+  }
 });
 
 module.exports = router;

@@ -10,7 +10,7 @@ BASE_URL = "http://localhost:3001/api/business/test/webhook"
 BUSINESS_ID = "698d22858f8e4151bddc90ce" 
 
 # Um número falso (se quiser testar um novo contato toda vez, mude um dígito aqui)
-NUMERO_TESTE = "5511999999001"
+NUMERO_TESTE = "5511999999001@c.us"
 
 def chat(texto, descricao=""):
     """Envia a mensagem para o Node.js e imprime a resposta do Bot"""
@@ -42,33 +42,30 @@ def chat(texto, descricao=""):
         
     # O SEGREDO DO RITMO: Espera 8 segundos antes de iniciar o próximo passo do funil
     print("⏳ (Aguardando para simular tempo de digitação humana...)")
-    time.sleep(8)
+    time.sleep(12)
 
 # ==========================================
-# EXECUÇÃO DO ROTEIRO
+# EXECUÇÃO DO ROTEIRO: FLUXO FELIZ (AGENDAMENTO)
 # ==========================================
-print("🚀 INICIANDO TESTE DE ESTRESSE E FUNIL (E2E) 🚀")
+print("🚀 INICIANDO TESTE DE FLUXO FELIZ (AGENDAMENTO COM SUCESSO) 🚀")
 
-# 1. O Início (Novo Cliente)
-chat("Oi, tudo bem?", "Quebra-Gelo e Identificação")
+# 1. O Início (Quebra-gelo)
+chat("Oi, bom dia!", "Quebra-Gelo")
 
-# 2. Salvar o Nome
-chat("Me chamo Carlos Testador", "Forçando a Tool de Salvar Nome")
+# 2. Identificação e Intenção Direta
+chat("Meu nome é Carlos. Eu dei uma olhada no Instagram de vocês e queria agendar um horário.", "Identificação (Salvar Nome) e Intenção")
 
-# 3. Pesquisa de Catálogo (Uso de Tool)
-chat("Eu queria saber quais serviços vocês oferecem e quanto custa o mais barato.", "Pesquisa de Produto")
+# 3. Pesquisa e Checagem de Agenda na mesma frase
+chat("Queria agendar aquele serviço mais em conta que vocês têm. Vocês teriam um espaço amanhã às 10h da manhã?", "Pesquisa de Catálogo e Checagem de Agenda (Tool: check)")
 
-# 4. PROBLEMA SIMULADO A: Cliente não diz a data
-chat("Legal, gostei. Quero agendar esse serviço mais barato.", "Erro A: Tentativa de agendamento sem data")
+# 4. A Confirmação do Agendamento
+# Neste ponto, a IA já deve ter validado se amanhã às 10h está livre e dito o preço.
+chat("Perfeito! Pode confirmar esse horário pra mim então, por favor.", "Ação de Agendamento (Tool: book)")
 
-# 5. Fluxo Feliz: Agendamento Relativo
-chat("Pode ser para amanhã às 14h então.", "Agendamento (Cálculo de Data/Hora e Duração)")
+# 5. Dúvida Pós-Agendamento
+chat("Tudo certo! Só pra eu me preparar, quais formas de pagamento vocês aceitam lá na hora?", "Dúvida Operacional")
 
-# 6. PROBLEMA SIMULADO B: Conflito de Horário (Double Booking)
-# Como acabamos de agendar amanhã às 14h, a IA deve negar essa próxima mensagem.
-chat("Opa, meu amigo também quer ir. Consegue agendar ele junto comigo amanhã às 14h?", "Erro B: Conflito de Agenda")
+# 6. Despedida
+chat("Show de bola, muito obrigado! Até amanhã.", "Despedida")
 
-# 7. PROBLEMA SIMULADO C: Objeção de Preço
-chat("Deixa quieto, vi aqui e tá muito caro pra mim. Vou fazer em outro lugar.", "Erro C: Objeção e Tentativa de Retenção")
-
-print("\n✅ Teste E2E Finalizado com Sucesso!")
+print("\n✅ Teste E2E (Fluxo Feliz) Finalizado com Sucesso!")
