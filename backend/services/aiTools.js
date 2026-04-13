@@ -1,6 +1,6 @@
-const Appointment = require('../models/Appointment');
-const BusinessConfig = require('../models/BusinessConfig');
-const { toZonedTime } = require('date-fns-tz');
+import Appointment from '../models/Appointment.js';
+import BusinessConfig from '../models/BusinessConfig.js';
+import { toZonedTime } from 'date-fns-tz';
 
 // Helper para converter "HH:mm" em minutos totais (ex: "09:30" -> 570)
 const getMinutes = (timeStr) => {
@@ -171,9 +171,4 @@ const searchProducts = async (userId, keywords = []) => {
     }
 };
 
-module.exports = {
-    checkAvailability,
-    createAppointmentByAI,
-    getFreeSlots,
-    searchProducts
-};
+export { checkAvailability, createAppointmentByAI, getFreeSlots, searchProducts };

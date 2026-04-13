@@ -1,4 +1,4 @@
-const twilio = require('twilio');
+import twilio from 'twilio';
 
 // Garante que o cliente só seja iniciado se as chaves existirem
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -51,4 +51,4 @@ async function sendWhatsAppMessage(to, body) {
   }
 }
 
-module.exports = { sendWhatsAppMessage };
+export { sendWhatsAppMessage };

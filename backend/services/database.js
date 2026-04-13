@@ -1,8 +1,8 @@
 // services/database.js
-require('dotenv').config();
-const mongoose = require('mongoose');
+import 'dotenv/config';
+import mongoose from 'mongoose';
 
-module.exports = () => {
+export default () => {
   console.log('🔄 Conectando ao MongoDB...');
   
   // Usar MONGO_URI do .env com fallback

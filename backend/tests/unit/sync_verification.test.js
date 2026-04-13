@@ -1,124 +1,111 @@
+import { jest } from '@jest/globals';
 
-const mongoose = require('mongoose');
-
-// Need to mock dependencies BEFORE requiring controller
-jest.mock('../../services/wwebjsService', () => ({
-    getClientSession: jest.fn()
+// Mocks antes dos imports dependentes
+jest.unstable_mockModule('../../services/wwebjsService.js', () => ({
+  getClientSession: jest.fn()
 }));
 
-// Mock Contact
-jest.mock('../../models/Contact', () => ({
+jest.unstable_mockModule('../../models/Contact.js', () => ({
+  default: {
     findOneAndUpdate: jest.fn(),
     find: jest.fn().mockReturnThis(),
     sort: jest.fn(),
     findOne: jest.fn()
+  }
 }));
 
-// Mock BusinessConfig
-jest.mock('../../models/BusinessConfig', () => ({
-    findOne: jest.fn()
+jest.unstable_mockModule('../../models/BusinessConfig.js', () => ({
+  default: { findOne: jest.fn() }
 }));
 
-// Now require controller
-const contactController = require('../../controllers/contactController');
-const wwebjsService = require('../../services/wwebjsService');
-const Contact = require('../../models/Contact');
-const BusinessConfig = require('../../models/BusinessConfig');
-
+// Imports dinâmicos (após os mocks)
+const contactControllerModule = await import('../../controllers/contactController.js');
+const contactController = contactControllerModule.default || contactControllerModule;
+const wwebjsServiceModule = await import('../../services/wwebjsService.js');
+const wwebjsService = wwebjsServiceModule;
+const ContactModule = await import('../../models/Contact.js');
+const Contact = ContactModule.default;
+const BusinessConfigModule = await import('../../models/BusinessConfig.js');
+const BusinessConfig = BusinessConfigModule.default;
 
 // Mock Express
 const req = {
-    user: { userId: 'user123' },
-    file: null,
-    body: {}
+  user: { userId: 'user123' },
+  file: null,
+  body: {}
 };
 const res = {
-    json: jest.fn(),
-    status: jest.fn().mockReturnThis()
+  json: jest.fn(),
+  status: jest.fn().mockReturnThis()
 };
 
 describe('Contact Sync Verification', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
 
-    beforeEach(() => {
-        jest.clearAllMocks();
-    });
+  test('syncContacts should filter groups and update contacts', async () => {
+    const mockBusinessId = 'biz123';
+    BusinessConfig.findOne.mockResolvedValue({ _id: mockBusinessId });
 
-    test('syncContacts should filter groups and update contacts', async () => {
-        // Setup Mocks
-        const mockBusinessId = 'biz123';
-        BusinessConfig.findOne.mockResolvedValue({ _id: mockBusinessId });
+    const mockClient = {
+      info: {},
+      getChats: jest.fn().mockResolvedValue([
+        { isGroup: true, id: { user: 'group1' } },
+        { isGroup: false, id: { user: 'status' } },
+        {
+          isGroup: false,
+          id: { user: '5511999999999' },
+          name: 'Saved Name',
+          timestamp: 1700000000,
+          getContact: jest.fn().mockResolvedValue({
+            name: 'Saved Name',
+            pushname: 'Public Name',
+            number: '5511999999999',
+            getProfilePicUrl: jest.fn().mockResolvedValue('http://pic.url')
+          }),
+          unreadCount: 5
+        },
+        {
+          isGroup: false,
+          id: { user: '5511888888888' },
+          name: '+55 11 88888-8888',
+          timestamp: 1700000000,
+          getContact: jest.fn().mockResolvedValue({
+            name: undefined,
+            pushname: 'Only Public',
+            number: '5511888888888',
+            getProfilePicUrl: jest.fn().mockRejectedValue(new Error('No pic'))
+          }),
+          unreadCount: 0
+        }
+      ])
+    };
 
-        const mockClient = {
-            info: {},
-            getChats: jest.fn().mockResolvedValue([
-                {
-                    isGroup: true,
-                    id: { user: 'group1' }
-                },
-                {
-                    isGroup: false,
-                    id: { user: 'status' }
-                },
-                {
-                    isGroup: false,
-                    id: { user: '5511999999999' }, // Valid
-                    name: 'Saved Name',
-                    timestamp: 1700000000,
-                    getContact: jest.fn().mockResolvedValue({
-                        name: 'Saved Name',
-                        pushname: 'Public Name',
-                        number: '5511999999999',
-                        getProfilePicUrl: jest.fn().mockResolvedValue('http://pic.url')
-                    }),
-                    unreadCount: 5
-                },
-                {
-                    isGroup: false,
-                    id: { user: '5511888888888' }, // Valid, no saved name
-                    name: '+55 11 88888-8888',
-                    timestamp: 1700000000,
-                    getContact: jest.fn().mockResolvedValue({
-                        name: undefined,
-                        pushname: 'Only Public',
-                        number: '5511888888888',
-                        getProfilePicUrl: jest.fn().mockRejectedValue(new Error('No pic'))
-                    }),
-                    unreadCount: 0
-                }
-            ])
-        };
+    wwebjsService.getClientSession.mockReturnValue(mockClient);
 
-        wwebjsService.getClientSession.mockReturnValue(mockClient);
+    await contactController.syncContacts(req, res);
 
-        // Execute
-        await contactController.syncContacts(req, res);
+    expect(res.json).toHaveBeenCalled();
+    const result = res.json.mock.calls[0][0];
 
-        // Assertions
-        expect(res.json).toHaveBeenCalled();
-        const result = res.json.mock.calls[0][0];
+    console.log('Result:', result);
+    expect(result.totalChatsFound).toBe(4);
+    expect(result.groupsIgnored).toBe(1);
+    expect(result.contactsImported).toBe(2);
 
-        console.log('Result:', result);
-        expect(result.totalChatsFound).toBe(4);
-        expect(result.groupsIgnored).toBe(1); // 1 group
-        expect(result.contactsImported).toBe(2); // 2 valid contacts
+    expect(Contact.findOneAndUpdate).toHaveBeenCalledTimes(2);
 
-        // Verify Upserts
-        expect(Contact.findOneAndUpdate).toHaveBeenCalledTimes(2);
+    const call1 = Contact.findOneAndUpdate.mock.calls[0];
+    expect(call1[0]).toEqual({ businessId: mockBusinessId, phone: '5511999999999' });
+    expect(call1[1].$set.name).toBe('Saved Name');
+    expect(call1[1].$set.pushname).toBe('Public Name');
+    expect(call1[1].$set.profilePicUrl).toBe('http://pic.url');
+    expect(call1[1].$setOnInsert.totalMessages).toBe(5);
 
-        // Check Call 1 (Saved Name Priority)
-        const call1 = Contact.findOneAndUpdate.mock.calls[0];
-        // Ensure arguments match what controller calls
-        expect(call1[0]).toEqual({ businessId: mockBusinessId, phone: '5511999999999' });
-        expect(call1[1].$set.name).toBe('Saved Name');
-        expect(call1[1].$set.pushname).toBe('Public Name');
-        expect(call1[1].$set.profilePicUrl).toBe('http://pic.url');
-        expect(call1[1].$setOnInsert.totalMessages).toBe(5);
-
-        // Check Call 2 (Pushname Priority)
-        const call2 = Contact.findOneAndUpdate.mock.calls[1];
-        expect(call2[0]).toEqual({ businessId: mockBusinessId, phone: '5511888888888' });
-        expect(call2[1].$set.name).toBe('Only Public');
-        // Profile pic failed, so it shouldn't be set
-        expect(call2[1].$set.profilePicUrl).toBeUndefined();
-    });
+    const call2 = Contact.findOneAndUpdate.mock.calls[1];
+    expect(call2[0]).toEqual({ businessId: mockBusinessId, phone: '5511888888888' });
+    expect(call2[1].$set.name).toBe('Only Public');
+    expect(call2[1].$set.profilePicUrl).toBeUndefined();
+  });
 });

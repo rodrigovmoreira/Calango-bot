@@ -1,5 +1,5 @@
-const axios = require('axios');
-const FormData = require('form-data');
+import axios from 'axios';
+import FormData from 'form-data';
 
 async function transcribeAudio(mediaData) {
     if (!mediaData || !mediaData.data) {
@@ -39,4 +39,4 @@ async function transcribeAudio(mediaData) {
     }
 }
 
-module.exports = { transcribeAudio };
+export { transcribeAudio };

@@ -1,7 +1,7 @@
-const mongoose = require('mongoose');
-const { GridFSBucket } = require('mongodb');
-const fs = require('fs');
-const path = require('path');
+import mongoose from 'mongoose';
+import { GridFSBucket } from 'mongodb';
+import fs from 'fs';
+import path from 'path';
 
 class UnifiedMongoStore {
     constructor({ mongoose }) {
@@ -119,4 +119,4 @@ class UnifiedMongoStore {
     }
 }
 
-module.exports = UnifiedMongoStore;
+export default UnifiedMongoStore;

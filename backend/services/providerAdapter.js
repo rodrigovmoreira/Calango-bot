@@ -85,4 +85,4 @@ const adaptWWebJSMessage = async (msg) => {
     };
 };
 
-module.exports = { adaptTwilioMessage, adaptWWebJSMessage };
+export { adaptTwilioMessage, adaptWWebJSMessage };

@@ -1,5 +1,5 @@
 // services/menuService.js
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const menuItemSchema = new mongoose.Schema({
   optionNumber: { type: String, required: true, unique: true },
@@ -76,4 +76,4 @@ class MenuService {
   }
 }
 
-module.exports = new MenuService();
+export default new MenuService();

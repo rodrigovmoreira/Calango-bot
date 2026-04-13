@@ -1,6 +1,6 @@
 // IMPORTANTE: Importe a função SEGURA de envio, não o getClientSession
-const { sendWWebJSMessage } = require('./wwebjsService');
-const { sendWhatsAppMessage } = require('./twilioService'); // Se tiver o Twilio
+import { sendWWebJSMessage } from './wwebjsService.js';
+import { sendWhatsAppMessage } from './twilioService.js'; // Se tiver o Twilio
 
 /* Envia uma mensagem unificada, independente do provedor.
    @param {string} to - Número de destino (ex: 5511999999999)
@@ -28,4 +28,4 @@ async function sendUnifiedMessage(to, message, provider, userId) {
   }
 }
 
-module.exports = { sendUnifiedMessage };
+export { sendUnifiedMessage };

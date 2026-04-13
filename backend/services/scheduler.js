@@ -1,10 +1,10 @@
-const cron = require('node-cron');
-const BusinessConfig = require('../models/BusinessConfig');
-const Contact = require('../models/Contact');
-const Appointment = require('../models/Appointment');
-const { saveMessage, getLastMessages } = require('./message');
-const { sendUnifiedMessage } = require('./responseService');
-const { callDeepSeek } = require('./aiService');
+import cron from 'node-cron';
+import BusinessConfig from '../models/BusinessConfig.js';
+import Contact from '../models/Contact.js';
+import Appointment from '../models/Appointment.js';
+import { saveMessage, getLastMessages } from './message.js';
+import { sendUnifiedMessage } from './responseService.js';
+import { callDeepSeek } from './aiService.js';
 
 // === HELPER: Calcular Data Alvo ===
 function calculateTriggerTime(appointment, rule) {
@@ -259,4 +259,4 @@ function startScheduler() {
     });
 }
 
-module.exports = { startScheduler, processSchedulerTick };
+export { startScheduler, processSchedulerTick };
