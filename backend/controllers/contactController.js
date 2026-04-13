@@ -1,10 +1,10 @@
-const Contact = require('../models/Contact');
-const BusinessConfig = require('../models/BusinessConfig');
-const Tag = require('../models/Tag'); // Kept if needed for future expansions
-const wwebjsService = require('../services/wwebjsService');
-const xlsx = require('xlsx');
-const csv = require('csv-parser');
-const { Readable } = require('stream');
+import Contact from '../models/Contact.js';
+import BusinessConfig from '../models/BusinessConfig.js';
+import Tag from '../models/Tag.js'; // Kept if needed for future expansions
+import * as wwebjsService from '../services/wwebjsService.js';
+import xlsx from 'xlsx';
+import csv from 'csv-parser';
+import { Readable } from 'stream';
 
 // Helper to get Business ID
 const getBusinessId = async (userId) => {
@@ -281,7 +281,7 @@ const syncContacts = async (req, res) => {
     }
 };
 
-module.exports = {
+export {
     getContacts,
     getContact,
     updateContact,
