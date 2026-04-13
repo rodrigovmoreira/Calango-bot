@@ -1,7 +1,7 @@
-const express = require('express');
+import express from 'express';
 const router = express.Router();
-const Appointment = require('../models/Appointment');
-const authenticateToken = require('../middleware/auth');
+import Appointment from '../models/Appointment.js';
+import authenticateToken from '../middleware/auth.js';
 
 // ROTA: GET /api/appointments (Listar)
 router.get('/', authenticateToken, async (req, res) => {
@@ -118,4 +118,4 @@ router.delete('/:id', authenticateToken, async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

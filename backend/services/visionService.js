@@ -1,6 +1,6 @@
 // ATENÇÃO: Usando a sintaxe da biblioteca nova @google/genai (v0.1.0+)
-const { GoogleGenAI } = require("@google/genai");
-const axios = require('axios');
+import { GoogleGenAI } from "@google/genai";
+import axios from 'axios';
 
 // Inicializa o cliente com a chave de API
 // O exemplo que você mandou usa new GoogleGenAI({}), assumindo que a chave vem do ambiente ou config
@@ -79,4 +79,4 @@ async function analyzeImage(mediaInput, customPrompt) {
     }
 }
 
-module.exports = { analyzeImage };
+export { analyzeImage };

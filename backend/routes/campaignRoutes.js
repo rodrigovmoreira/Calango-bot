@@ -1,10 +1,10 @@
-const express = require('express');
+import express from 'express';
 const router = express.Router();
-const Campaign = require('../models/Campaign');
-const CampaignLog = require('../models/CampaignLog');
-const Contact = require('../models/Contact');
-const BusinessConfig = require('../models/BusinessConfig');
-const authenticateToken = require('../middleware/auth');
+import Campaign from '../models/Campaign.js';
+import CampaignLog from '../models/CampaignLog.js';
+import Contact from '../models/Contact.js';
+import BusinessConfig from '../models/BusinessConfig.js';
+import authenticateToken from '../middleware/auth.js';
 
 // List all campaigns for the logged-in user
 router.get('/', authenticateToken, async (req, res) => {
@@ -182,4 +182,4 @@ router.delete('/:id', authenticateToken, async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

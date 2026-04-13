@@ -1,14 +1,14 @@
-const axios = require('axios');
-const { saveMessage, getLastMessages } = require('./services/message');
-const { analyzeImage } = require('./services/visionService');
-const { transcribeAudio } = require('./services/transcriptionService');
-const { sendUnifiedMessage } = require('./services/responseService');
-const wwebjsService = require('./services/wwebjsService');
-const BusinessConfig = require('./models/BusinessConfig');
-const Contact = require('./models/Contact'); // Import Contact model
-const aiTools = require('./services/aiTools');
-const { callDeepSeek, buildSystemPrompt, getFunnelStagePrompt, formatHistoryText } = require('./services/aiService');
-const { fromZonedTime, format } = require('date-fns-tz');
+import axios from 'axios';
+import { saveMessage, getLastMessages } from './services/message.js';
+import { analyzeImage } from './services/visionService.js';
+import { transcribeAudio } from './services/transcriptionService.js';
+import { sendUnifiedMessage } from './services/responseService.js';
+import * as wwebjsService from './services/wwebjsService.js';
+import BusinessConfig from './models/BusinessConfig.js';
+import Contact from './models/Contact.js'; // Import Contact model
+import * as aiTools from './services/aiTools.js';
+import { callDeepSeek, buildSystemPrompt, getFunnelStagePrompt, formatHistoryText } from './services/aiService.js';
+import { fromZonedTime, format } from 'date-fns-tz';
 
 const MAX_HISTORY = 15; // Increased history fetch
 
@@ -286,19 +286,19 @@ Você pode chamá-lo(a) pelo nome esporadicamente para gerar conexão.
         // --- EXECUTE BLOCKS (Responses/Logging) ---
         if (blockReason === 'handover') {
             console.log(`🛑 Handover ativo para ${from}. Robô silenciado.`);
-            if (channel === 'web' && resolve) resolve({ text: "" });
+            if (resolve) resolve({ text: "" });
             return;
         }
 
         if (blockReason === 'global') {
-            console.log(`🛑 AI Global Disabled (Observer Mode) for business ${activeBusinessId}.`);
-            if (channel === 'web' && resolve) resolve({ text: "" });
+            console.log(`🛑 AI Global Disabled (Observer Mode) for business ${businessConfig._id}.`);
+            if (resolve) resolve({ text: "" });
             return;
         }
 
         if (blockReason === 'audience') {
             console.log(`🛑 AI Audience Filter: Ignored (Mode: ${businessConfig.aiResponseMode}).`);
-            if (channel === 'web' && resolve) resolve({ text: "" });
+            if (resolve) resolve({ text: "" });
             return;
         }
 
@@ -310,13 +310,13 @@ Você pode chamá-lo(a) pelo nome esporadicamente para gerar conexão.
                 const lastMsg = lastMessages[0];
                 if (lastMsg.role === 'bot' && lastMsg.content === awayMsg) {
                     console.log(`🔕 Away Message suprimida para ${from} (loop prevent).`);
-                    if (channel === 'web' && resolve) resolve({ text: "" });
+                    if (resolve) resolve({ text: "" });
                     return;
                 }
             }
 
             await saveMessage(from, 'bot', awayMsg, 'text', null, activeBusinessId, channel);
-            if (channel === 'web' && resolve) {
+            if (resolve) {
                 resolve({ text: awayMsg });
             } else {
                 await sendUnifiedMessage(from, awayMsg, provider, businessConfig.userId);
@@ -609,12 +609,14 @@ Links: Insta=${instagram || 'N/A'}, Site=${website || 'N/A'}
             // 🔥 FEEDBACK VISUAL 2: Reforça o "Digitando..." para o tempo de delay artificial
             wwebjsService.sendStateTyping(activeBusinessId, from).catch(() => { });
 
-            const delay = Math.floor(Math.random() * (HUMAN_DELAY_MAX - HUMAN_DELAY_MIN + 1)) + HUMAN_DELAY_MIN;
-            await sleep(delay);
+            if (process.env.NODE_ENV !== 'test') {
+                const delay = Math.floor(Math.random() * (HUMAN_DELAY_MAX - HUMAN_DELAY_MIN + 1)) + HUMAN_DELAY_MIN;
+                await sleep(delay);
+            }
             await sendUnifiedMessage(from, finalResponseText, provider, businessConfig.userId);
-        } else {
-            if (resolve) resolve({ text: finalResponseText });
         }
+
+        if (resolve) resolve({ text: finalResponseText });
 
         await saveMessage(from, 'bot', finalResponseText, 'text', null, activeBusinessId, channel);
 
@@ -708,7 +710,7 @@ async function handleIncomingMessage(normalizedMsg, activeBusinessId) {
             resolve: null // Will be set for Web
         };
 
-        if (channel === 'web') {
+        if (channel === 'web' || process.env.NODE_ENV === 'test') {
             responsePromise = new Promise((resolve) => {
                 buffer.resolve = resolve;
             });
@@ -723,9 +725,9 @@ async function handleIncomingMessage(normalizedMsg, activeBusinessId) {
 
     messageBuffer.set(uniqueKey, buffer);
 
-    if (channel === 'web') {
+    if (channel === 'web' || process.env.NODE_ENV === 'test') {
         return responsePromise;
     }
 }
 
-module.exports = { handleIncomingMessage, processBufferedMessages };
+export { handleIncomingMessage, processBufferedMessages };

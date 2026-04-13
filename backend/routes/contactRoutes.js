@@ -1,9 +1,10 @@
-const express = require('express');
+import express from 'express';
 const router = express.Router();
-const contactController = require('../controllers/contactController');
-const authenticateToken = require('../middleware/auth');
-const BusinessConfig = require('../models/BusinessConfig');
-const multer = require('multer');
+import * as contactController from '../controllers/contactController.js';
+import authenticateToken from '../middleware/auth.js';
+import BusinessConfig from '../models/BusinessConfig.js';
+import Tag from '../models/Tag.js';
+import multer from 'multer';
 
 // Configure multer for file uploads
 const upload = multer({ storage: multer.memoryStorage() });
@@ -41,7 +42,6 @@ router.get('/tags', authenticateToken, async (req, res) => {
             return res.status(404).json({ message: 'Business configuration not found' });
         }
 
-        const Tag = require('../models/Tag');
         const tags = await Tag.find({ businessId }).sort({ name: 1 });
         res.json(tags.map(t => t.name));
     } catch (error) {
@@ -62,4 +62,4 @@ router.get('/:id', authenticateToken, contactController.getContact);
 // Update contact
 router.put('/:id', authenticateToken, contactController.updateContact);
 
-module.exports = router;
+export default router;

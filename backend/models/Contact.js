@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const contactSchema = new mongoose.Schema({
   // VÍNCULO DE SEGURANÇA (Multi-tenant)
@@ -84,4 +84,4 @@ contactSchema.index({ businessId: 1, lastInteraction: -1 });
 // Optimization: Scheduler Polling (find active follow-ups)
 contactSchema.index({ businessId: 1, followUpActive: 1 });
 
-module.exports = mongoose.model('Contact', contactSchema);
+export default mongoose.model('Contact', contactSchema);

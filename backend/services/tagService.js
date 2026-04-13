@@ -1,7 +1,7 @@
-const BusinessConfig = require('../models/BusinessConfig');
-const Tag = require('../models/Tag');
-const Contact = require('../models/Contact');
-const wwebjsService = require('./wwebjsService');
+import BusinessConfig from '../models/BusinessConfig.js';
+import Tag from '../models/Tag.js';
+import Contact from '../models/Contact.js';
+import * as wwebjsService from './wwebjsService.js';
 
 // Helper to escape Regex characters
 const escapeRegExp = (string) => {
@@ -254,11 +254,4 @@ const runGlobalTagSync = async () => {
     }
 };
 
-module.exports = {
-    syncWithWhatsapp,
-    syncTags,
-    createTag,
-    updateTag,
-    deleteTag,
-    runGlobalTagSync
-};
+export { syncWithWhatsapp, syncTags, createTag, updateTag, deleteTag, runGlobalTagSync };

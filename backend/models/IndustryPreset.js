@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const industryPresetSchema = new mongoose.Schema({
   // Identificação
@@ -29,4 +29,4 @@ const industryPresetSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.model('IndustryPreset', industryPresetSchema);
+export default mongoose.model('IndustryPreset', industryPresetSchema);

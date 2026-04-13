@@ -1,11 +1,11 @@
-const { bucket } = require('../config/upload');
+import { bucket } from '../config/upload.js';
 
 /**
  * Deletes a file from Firebase Storage given its public URL.
  * @param {string} imageUrl - The full public URL of the image.
  * @returns {Promise<void>}
  */
-const deleteFromFirebase = async (imageUrl) => {
+export const deleteFromFirebase = async (imageUrl) => {
   if (!imageUrl) return;
 
   try {
@@ -49,5 +49,3 @@ const deleteFromFirebase = async (imageUrl) => {
     }
   }
 };
-
-module.exports = { deleteFromFirebase };

@@ -28,7 +28,4 @@ async function setSessionState(phone, state) {
   );
 }
 
-module.exports = {
-  getOrCreateSession,
-  setSessionState
-};
+export { getOrCreateSession, setSessionState };

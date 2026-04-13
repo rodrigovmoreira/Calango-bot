@@ -1,7 +1,7 @@
-const { getClientSession } = require('../services/wwebjsService');
-const Tag = require('../models/Tag');
-const Contact = require('../models/Contact');
-const BusinessConfig = require('../models/BusinessConfig');
+import { getClientSession } from '../services/wwebjsService.js';
+import Tag from '../models/Tag.js';
+import Contact from '../models/Contact.js';
+import BusinessConfig from '../models/BusinessConfig.js';
 
 const importLabels = async (req, res) => {
   try {
@@ -91,6 +91,6 @@ const importLabels = async (req, res) => {
   }
 };
 
-module.exports = {
+export {
   importLabels
 };

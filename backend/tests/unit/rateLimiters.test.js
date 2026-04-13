@@ -1,4 +1,5 @@
-const { loginLimiter, registerLimiter, publicChatLimiter } = require('../../middleware/rateLimiters');
+import { jest } from '@jest/globals';
+import { loginLimiter, registerLimiter, publicChatLimiter } from '../../middleware/rateLimiters.js';
 
 // Mock Request and Response
 const mockReq = (ip) => ({

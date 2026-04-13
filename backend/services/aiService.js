@@ -1,5 +1,5 @@
-const axios = require('axios');
-const BusinessConfig = require('../models/BusinessConfig');
+import axios from 'axios';
+import BusinessConfig from '../models/BusinessConfig.js';
 
 function sanitizeContext(messages) {
     return messages.filter(msg => {
@@ -155,10 +155,4 @@ async function generateCampaignMessage(promptText, context) {
     } catch (e) { return promptText; }
 }
 
-module.exports = {
-    callDeepSeek,
-    buildSystemPrompt,
-    generateCampaignMessage,
-    getFunnelStagePrompt,
-    formatHistoryText
-};
+export { callDeepSeek, buildSystemPrompt, generateCampaignMessage, getFunnelStagePrompt, formatHistoryText };

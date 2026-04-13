@@ -1,7 +1,7 @@
-const Tag = require('../models/Tag');
-const BusinessConfig = require('../models/BusinessConfig');
-const Contact = require('../models/Contact');
-const tagService = require('../services/tagService');
+import Tag from '../models/Tag.js';
+import BusinessConfig from '../models/BusinessConfig.js';
+import Contact from '../models/Contact.js';
+import * as tagService from '../services/tagService.js';
 
 // Helper to get Business ID
 const getBusinessId = async (userId) => {
@@ -132,7 +132,7 @@ const deleteTag = async (req, res) => {
     }
 };
 
-module.exports = {
+export {
     syncTags,
     runGlobalTagSync,
     getTags,

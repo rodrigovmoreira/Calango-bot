@@ -1,6 +1,6 @@
-const mongoose = require('mongoose');
-const Contact = require('../models/Contact');
-const Message = require('../models/Message');
+import mongoose from 'mongoose';
+import Contact from '../models/Contact.js';
+import Message from '../models/Message.js';
 
 async function saveMessage(identifier, role, content, messageType = 'text', visionResult = null, businessId, channel = 'whatsapp', pushName = null) {
   try {
@@ -222,4 +222,4 @@ async function deleteMessages(contactId, businessId) {
   }
 }
 
-module.exports = { saveMessage, getImageHistory, getLastMessages, getConversations, getMessagesForContact, deleteMessages };
+export { saveMessage, getImageHistory, getLastMessages, getConversations, getMessagesForContact, deleteMessages };

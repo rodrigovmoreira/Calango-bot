@@ -1,5 +1,5 @@
 // Simulates a simple phone validator for unit testing purposes
-const validatePhone = (phone) => {
+export const validatePhone = (phone) => {
   if (!phone) return false;
   // Remove non-digits
   const clean = phone.toString().replace(/\D/g, '');
@@ -12,10 +12,8 @@ const validatePhone = (phone) => {
 };
 
 // Formats to international standard +55...
-const formatToE164 = (phone) => {
+export const formatToE164 = (phone) => {
   if (!validatePhone(phone)) return null;
   const clean = phone.toString().replace(/\D/g, '');
   return `+55${clean}`;
 };
-
-module.exports = { validatePhone, formatToE164 };

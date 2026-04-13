@@ -1,7 +1,7 @@
-const Contact = require('../models/Contact');
-const BusinessConfig = require('../models/BusinessConfig');
+import Contact from '../models/Contact.js';
+import BusinessConfig from '../models/BusinessConfig.js';
 
-exports.getDashboardSummary = async (req, res) => {
+export const getDashboardSummary = async (req, res) => {
   try {
     const userId = req.user.userId;
 

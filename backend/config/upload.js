@@ -1,5 +1,11 @@
-const multer = require('multer');
-const admin = require('firebase-admin');
+import multer from 'multer';
+import admin from 'firebase-admin';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // 1. Configura Firebase Admin
 let serviceAccount;
@@ -10,7 +16,7 @@ try {
     serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
   } else {
     // Desenvolvimento: Arquivo local
-    serviceAccount = require('./firebase-credentials.json');
+    serviceAccount = JSON.parse(fs.readFileSync(path.join(__dirname, 'firebase-credentials.json'), 'utf8'));
   }
 
   // Inicializa apenas se ainda não estiver inicializado
@@ -45,4 +51,4 @@ const upload = multer({
 // Exporta o 'upload' (middleware) e o 'bucket' (para salvar manualmente)
 const bucket = admin.storage().bucket();
 
-module.exports = { upload, bucket };
+export { upload, bucket };

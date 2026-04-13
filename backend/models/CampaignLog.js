@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const campaignLogSchema = new mongoose.Schema({
   campaignId: {
@@ -40,4 +40,4 @@ const campaignLogSchema = new mongoose.Schema({
 campaignLogSchema.index({ campaignId: 1, contactId: 1, sentAt: -1 });
 campaignLogSchema.index({ campaignId: 1, contactId: 1, relatedId: 1 });
 
-module.exports = mongoose.model('CampaignLog', campaignLogSchema);
+export default mongoose.model('CampaignLog', campaignLogSchema);

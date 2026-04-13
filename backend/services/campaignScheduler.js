@@ -1,13 +1,13 @@
-const cron = require('node-cron');
-const mongoose = require('mongoose');
-const Campaign = require('../models/Campaign');
-const CampaignLog = require('../models/CampaignLog');
-const Contact = require('../models/Contact');
-const Appointment = require('../models/Appointment');
-const BusinessConfig = require('../models/BusinessConfig');
-const { callDeepSeek } = require('./aiService'); // Use direct caller
-const { sendUnifiedMessage } = require('./responseService');
-const { getLastMessages } = require('./message');
+import cron from 'node-cron';
+import mongoose from 'mongoose';
+import Campaign from '../models/Campaign.js';
+import CampaignLog from '../models/CampaignLog.js';
+import Contact from '../models/Contact.js';
+import Appointment from '../models/Appointment.js';
+import BusinessConfig from '../models/BusinessConfig.js';
+import { callDeepSeek } from './aiService.js';
+import { sendUnifiedMessage } from './responseService.js';
+import { getLastMessages } from './message.js';
 
 // Runs every minute to check for triggers
 const CRON_EXPRESSION = '* * * * *';
@@ -306,4 +306,4 @@ function initScheduler() {
   console.log('🚀 Campaign Scheduler initialized.');
 }
 
-module.exports = { initScheduler, processCampaigns };
+export { initScheduler, processCampaigns };

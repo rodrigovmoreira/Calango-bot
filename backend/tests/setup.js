@@ -1,16 +1,18 @@
+import { jest } from '@jest/globals';
+
 // Mock Firebase Admin BEFORE any other imports
 // This prevents 'config/upload.js' from crashing when it calls admin.storage().bucket()
-jest.mock('firebase-admin', () => {
-  const mockBucket = {
-    file: jest.fn(() => ({
-      save: jest.fn().mockResolvedValue(true),
-      delete: jest.fn().mockResolvedValue(true),
-      makePublic: jest.fn().mockResolvedValue(true),
-      publicUrl: jest.fn().mockReturnValue('https://mock-storage.com/file.jpg'),
-    })),
-  };
+const mockBucket = {
+  file: jest.fn(() => ({
+    save: jest.fn().mockResolvedValue(true),
+    delete: jest.fn().mockResolvedValue(true),
+    makePublic: jest.fn().mockResolvedValue(true),
+    publicUrl: jest.fn().mockReturnValue('https://mock-storage.com/file.jpg'),
+  })),
+};
 
-  return {
+jest.unstable_mockModule('firebase-admin', () => ({
+  default: {
     credential: {
       cert: jest.fn().mockReturnValue({}),
     },
@@ -19,11 +21,11 @@ jest.mock('firebase-admin', () => {
     storage: jest.fn(() => ({
       bucket: jest.fn(() => mockBucket),
     })),
-  };
-});
+  }
+}));
 
-const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
+import mongoose from 'mongoose';
+import { MongoMemoryServer } from 'mongodb-memory-server';
 
 let mongoServer;
 
@@ -64,4 +66,4 @@ async function clearDatabase() {
   }
 }
 
-module.exports = { clearDatabase };
+export { clearDatabase };

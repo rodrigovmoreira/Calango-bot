@@ -1,8 +1,8 @@
-const passport = require('passport');
-const GoogleStrategy = require('passport-google-oauth20').Strategy;
-const SystemUser = require('../models/SystemUser');
-const BusinessConfig = require('../models/BusinessConfig');
-const crypto = require('crypto');
+import passport from 'passport';
+import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
+import SystemUser from '../models/SystemUser.js';
+import BusinessConfig from '../models/BusinessConfig.js';
+import crypto from 'crypto';
 
 passport.use(
   new GoogleStrategy(

@@ -1,4 +1,4 @@
-const { validatePhone, formatToE164 } = require('../../utils/validators');
+import { validatePhone, formatToE164 } from '../../utils/validators.js';
 
 describe('Phone Validator Utility', () => {
   test('should validate correct mobile numbers', () => {

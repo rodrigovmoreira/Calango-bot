@@ -1,11 +1,11 @@
-const fs = require('fs');
-const { Client, RemoteAuth, MessageMedia } = require('whatsapp-web.js');
-const mongoose = require('mongoose');
-//const { MongoStore } = require('wwebjs-mongo');
-const UnifiedMongoStore = require('./UnifiedMongoStore');
-
-const { adaptWWebJSMessage } = require('./providerAdapter');
-const BusinessConfig = require('../models/BusinessConfig');
+import fs from 'fs';
+import pkg from 'whatsapp-web.js';
+const { Client, RemoteAuth, MessageMedia } = pkg;
+import mongoose from 'mongoose';
+//import { MongoStore } from 'wwebjs-mongo';
+import UnifiedMongoStore from './UnifiedMongoStore.js';
+import { adaptWWebJSMessage } from './providerAdapter.js';
+import BusinessConfig from '../models/BusinessConfig.js';
 
 // MAPAS DE ESTADO
 const sessions = new Map();
@@ -188,7 +188,7 @@ const startSession = async (userIdRaw) => {
 
     if (msg.type === 'e2e_notification' || msg.type === 'notification_template') return;
     try {
-      const { handleIncomingMessage } = require('../messageHandler');
+      const { handleIncomingMessage } = await import('../messageHandler.js');
       const normalizedMsg = await adaptWWebJSMessage(msg);
       await handleIncomingMessage(normalizedMsg, config._id);
     } catch (error) {
@@ -442,7 +442,7 @@ const getSessionStatus = (userId) => statuses.get(userId) || 'disconnected';
 const getSessionQR = (userId) => qrCodes.get(userId);
 const getClientSession = (userId) => sessions.get(userId.toString());
 
-module.exports = {
+export {
   initializeWWebJS,
   startSession,
   stopSession,

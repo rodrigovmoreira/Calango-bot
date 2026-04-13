@@ -17,51 +17,60 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 // ===================================================================================
 
-const path = require('path');
-require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
+// Pré-carrega as variáveis de ambiente antes das outras libs
+import './config/env.js';
 
-const express = require('express');
-const mongoose = require('mongoose');
-const http = require('http');
-const { Server } = require("socket.io");
-const cors = require('cors');
-const helmet = require('helmet');
-const cookieParser = require('cookie-parser');
-const passport = require('passport');
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+import express from 'express';
+import mongoose from 'mongoose';
+import http from 'http';
+import { Server } from 'socket.io';
+import cors from 'cors';
+import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
+import passport from 'passport';
 
 // Config do Passport
-require('./config/passport');
+import './config/passport.js';
 
 // Serviços e Banco de Dados
-const connectDB = require('./services/database');
-const { startScheduler } = require('./services/scheduler');
-const { initScheduler: initCampaignScheduler } = require('./services/campaignScheduler');
-const { runGlobalTagSync } = require('./controllers/tagController');
-const { adaptTwilioMessage } = require('./services/providerAdapter');
-const { handleIncomingMessage } = require('./messageHandler');
-const {
+import connectDB from './services/database.js';
+import * as scheduler from './services/scheduler.js';
+const { startScheduler } = scheduler;
+import * as campaignScheduler from './services/campaignScheduler.js';
+const { initScheduler: initCampaignScheduler } = campaignScheduler;
+import * as tagController from './controllers/tagController.js';
+const { runGlobalTagSync } = tagController;
+import { adaptTwilioMessage } from './services/providerAdapter.js';
+import { handleIncomingMessage } from './messageHandler.js';
+import {
   initializeWWebJS,
   startSession,
   getSessionStatus,
   getSessionQR,
   closeAllSessions
-} = require('./services/wwebjsService');
+} from './services/wwebjsService.js';
 
 // --- IMPORTAÇÃO DOS NOVOS PLUGINS (ROTAS) ---
-const authRoutes = require('./routes/authRoutes');
-const businessRoutes = require('./routes/businessRoutes');
-const appointmentRoutes = require('./routes/appointmentRoutes');
-const whatsappRoutes = require('./routes/whatsappRoutes');
-const publicChatRoutes = require('./routes/publicChatRoutes');
-const campaignRoutes = require('./routes/campaignRoutes');
-const contactRoutes = require('./routes/contactRoutes');
-const dashboardRoutes = require('./routes/dashboardRoutes');
-const tagRoutes = require('./routes/tagRoutes');
+import authRoutes from './routes/authRoutes.js';
+import businessRoutes from './routes/businessRoutes.js';
+import appointmentRoutes from './routes/appointmentRoutes.js';
+import whatsappRoutes from './routes/whatsappRoutes.js';
+import publicChatRoutes from './routes/publicChatRoutes.js';
+import campaignRoutes from './routes/campaignRoutes.js';
+import contactRoutes from './routes/contactRoutes.js';
+import dashboardRoutes from './routes/dashboardRoutes.js';
+import tagRoutes from './routes/tagRoutes.js';
 
 // Carregar Models (Garantia de registro)
-require('./models/SystemUser');
-const BusinessConfig = require('./models/BusinessConfig');
-require('./models/Appointment');
+import './models/SystemUser.js';
+import BusinessConfig from './models/BusinessConfig.js';
+import './models/Appointment.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -268,8 +277,8 @@ const cleanup = async () => {
 process.on('SIGINT', cleanup);
 process.on('SIGTERM', cleanup);
 
-if (require.main === module) {
+if (process.argv[1] === __filename) {
   start();
 }
 
-module.exports = { app, server, start };
+export { app, server, start };
