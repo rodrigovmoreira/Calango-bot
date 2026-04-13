@@ -77,4 +77,4 @@ const publicChatLimiter = createRateLimiter({
   keyPrefix: 'public_chat'
 });
 
-module.exports = { loginLimiter, registerLimiter, publicChatLimiter, createRateLimiter };
+export { loginLimiter, registerLimiter, publicChatLimiter, createRateLimiter };

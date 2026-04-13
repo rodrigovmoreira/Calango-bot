@@ -1,3 +1,5 @@
+import { jest } from '@jest/globals';
+
 const mockWWebJS = {
   initializeWWebJS: jest.fn(),
   getSessionStatus: jest.fn(() => ({ status: 'CONNECTED' })),
@@ -19,4 +21,4 @@ const mockResponseService = {
   sendUnifiedMessage: jest.fn(() => Promise.resolve(true)),
 };
 
-module.exports = { mockWWebJS, mockAIService, mockResponseService };
+export { mockWWebJS, mockAIService, mockResponseService };

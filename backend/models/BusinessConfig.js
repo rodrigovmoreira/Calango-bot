@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const businessConfigSchema = new mongoose.Schema({
   userId: {
@@ -128,4 +128,4 @@ const businessConfigSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.model('BusinessConfig', businessConfigSchema);
+export default mongoose.model('BusinessConfig', businessConfigSchema);

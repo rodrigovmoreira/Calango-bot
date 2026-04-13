@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const campaignSchema = new mongoose.Schema({
   userId: {
@@ -88,4 +88,4 @@ const campaignSchema = new mongoose.Schema({
   }
 });
 
-module.exports = mongoose.model('Campaign', campaignSchema);
+export default mongoose.model('Campaign', campaignSchema);

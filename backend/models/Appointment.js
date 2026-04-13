@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const appointmentSchema = new mongoose.Schema({
   userId: {
@@ -55,4 +55,4 @@ const appointmentSchema = new mongoose.Schema({
 // Optimization for Scheduler (frequent query by user, status, and date range)
 appointmentSchema.index({ userId: 1, status: 1, start: 1 });
 
-module.exports = mongoose.model('Appointment', appointmentSchema);
+export default mongoose.model('Appointment', appointmentSchema);

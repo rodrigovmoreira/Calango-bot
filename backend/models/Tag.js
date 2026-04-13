@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const tagSchema = new mongoose.Schema({
   businessId: {
@@ -30,4 +30,4 @@ const tagSchema = new mongoose.Schema({
 // Ensure unique tag names per business
 tagSchema.index({ businessId: 1, name: 1 }, { unique: true });
 
-module.exports = mongoose.model('Tag', tagSchema);
+export default mongoose.model('Tag', tagSchema);

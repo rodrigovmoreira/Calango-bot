@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const messageSchema = new mongoose.Schema({
   contactId: { type: mongoose.Schema.Types.ObjectId, ref: 'Contact', required: true },
@@ -39,4 +39,4 @@ messageSchema.index({ contactId: 1, timestamp: -1 });
 // Use 'ChatMessage' to maintain backward compatibility with existing collection
 const Message = mongoose.models.ChatMessage || mongoose.model('ChatMessage', messageSchema);
 
-module.exports = Message;
+export default Message;
