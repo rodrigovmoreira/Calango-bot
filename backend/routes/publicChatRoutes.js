@@ -1,9 +1,8 @@
-const express = require('express');
+import express from 'express';
 const router = express.Router();
-const BusinessConfig = require('../models/BusinessConfig');
-const Message = require('../models/Message');
-const { handleIncomingMessage } = require('../messageHandler');
-const { publicChatLimiter } = require('../middleware/rateLimiters');
+import BusinessConfig from '../models/BusinessConfig.js';
+import Message from '../models/Message.js';
+import { publicChatLimiter } from '../middleware/rateLimiters.js';
 
 router.post('/send', publicChatLimiter, async (req, res) => {
   try {
@@ -31,6 +30,7 @@ router.post('/send', publicChatLimiter, async (req, res) => {
     };
 
     // Call Handler and Wait for Response
+    const { handleIncomingMessage } = await import('../messageHandler.js');
     const response = await handleIncomingMessage(normalizedMsg, businessId);
 
     // Return the response AND emit to socket
@@ -94,4 +94,4 @@ router.get('/config/:businessId', async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

@@ -1,7 +1,7 @@
-const express = require('express');
+import express from 'express';
 const router = express.Router();
-const tagController = require('../controllers/tagController');
-const authenticateToken = require('../middleware/auth');
+import * as tagController from '../controllers/tagController.js';
+import authenticateToken from '../middleware/auth.js';
 
 // Apply authentication to all tag routes
 router.use(authenticateToken);
@@ -21,4 +21,4 @@ router.put('/:id', tagController.updateTag);
 // DELETE /api/tags/:id - Delete tag
 router.delete('/:id', tagController.deleteTag);
 
-module.exports = router;
+export default router;

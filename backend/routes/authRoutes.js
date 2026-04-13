@@ -1,14 +1,14 @@
-const express = require('express');
+import express from 'express';
 const router = express.Router();
-const jwt = require('jsonwebtoken');
-const passport = require('passport');
-const crypto = require('crypto');
-const SystemUser = require('../models/SystemUser');
-const BusinessConfig = require('../models/BusinessConfig');
-const authenticateToken = require('../middleware/auth');
-const { stopSession } = require('../services/wwebjsService');
-const { sendVerificationEmail } = require('../services/emailService');
-const { loginLimiter, registerLimiter } = require('../middleware/rateLimiters');
+import jwt from 'jsonwebtoken';
+import passport from 'passport';
+import crypto from 'crypto';
+import SystemUser from '../models/SystemUser.js';
+import BusinessConfig from '../models/BusinessConfig.js';
+import authenticateToken from '../middleware/auth.js';
+import { stopSession } from '../services/wwebjsService.js';
+import { sendVerificationEmail } from '../services/emailService.js';
+import { loginLimiter, registerLimiter } from '../middleware/rateLimiters.js';
 
 // ROTA: /api/auth/login
 router.post('/login', loginLimiter, async (req, res) => {
@@ -181,4 +181,4 @@ router.put('/update', authenticateToken, async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

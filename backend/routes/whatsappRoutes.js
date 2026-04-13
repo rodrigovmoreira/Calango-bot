@@ -1,12 +1,12 @@
-const express = require('express');
+import express from 'express';
 const router = express.Router();
-const authenticateToken = require('../middleware/auth');
-const { 
+import authenticateToken from '../middleware/auth.js';
+import { 
   startSession, 
   stopSession, 
   getSessionStatus 
-} = require('../services/wwebjsService');
-const whatsappController = require('../controllers/whatsappController');
+} from '../services/wwebjsService.js';
+import * as whatsappController from '../controllers/whatsappController.js';
 
 // ROTA: GET /api/whatsapp/status
 router.get('/status', authenticateToken, (req, res) => {
@@ -41,4 +41,4 @@ router.post('/logout', authenticateToken, async (req, res) => {
 // ROTA: POST /api/whatsapp/import-labels
 router.post('/import-labels', authenticateToken, whatsappController.importLabels);
 
-module.exports = router;
+export default router;

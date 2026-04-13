@@ -1,17 +1,18 @@
-const express = require('express');
+import express from 'express';
 const router = express.Router();
-const BusinessConfig = require('../models/BusinessConfig');
-const IndustryPreset = require('../models/IndustryPreset');
-const CustomPrompt = require('../models/CustomPrompt');
-const Contact = require('../models/Contact');
-const Tag = require('../models/Tag');
-const authenticateToken = require('../middleware/auth');
-const messageService = require('../services/message'); // <--- IMPORTEI O SERVICE
-const { sendWWebJSMessage } = require('../services/wwebjsService');
-const { upload, bucket } = require('../config/upload'); // Destructuring to get bucket too
-const { deleteFromFirebase } = require('../utils/firebaseHelper');
-const sharp = require('sharp');
-const { v4: uuidv4 } = require('uuid');
+import BusinessConfig from '../models/BusinessConfig.js';
+import IndustryPreset from '../models/IndustryPreset.js';
+import CustomPrompt from '../models/CustomPrompt.js';
+import Contact from '../models/Contact.js';
+import Tag from '../models/Tag.js';
+import authenticateToken from '../middleware/auth.js';
+import * as messageService from '../services/message.js'; // <--- IMPORTEI O SERVICE
+import { sendWWebJSMessage } from '../services/wwebjsService.js';
+import pkgUpload from '../config/upload.js'; // Assuming it's commonjs or let's use import
+const { upload, bucket } = pkgUpload;
+import { deleteFromFirebase } from '../utils/firebaseHelper.js';
+import sharp from 'sharp';
+import { v4 as uuidv4 } from 'uuid';
 
 // === CONFIGURAÇÕES GERAIS ===
 
@@ -444,7 +445,7 @@ router.post('/test/webhook', async (req, res) => {
 
   try {
     const { from, body, type, businessId } = req.body;
-    const { handleIncomingMessage } = require('../messageHandler');
+    const { handleIncomingMessage } = await import('../messageHandler.js');
 
     const fakeMessage = {
       from: from,
@@ -479,4 +480,4 @@ router.post('/test/webhook', async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;
