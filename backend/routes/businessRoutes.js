@@ -8,8 +8,7 @@ import Tag from '../models/Tag.js';
 import authenticateToken from '../middleware/auth.js';
 import * as messageService from '../services/message.js'; // <--- IMPORTEI O SERVICE
 import { sendWWebJSMessage } from '../services/wwebjsService.js';
-import pkgUpload from '../config/upload.js'; // Assuming it's commonjs or let's use import
-const { upload, bucket } = pkgUpload;
+import { upload, bucket } from '../config/upload.js';
 import { deleteFromFirebase } from '../utils/firebaseHelper.js';
 import sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';

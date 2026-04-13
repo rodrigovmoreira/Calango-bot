@@ -1,45 +1,69 @@
-const BusinessConfig = require('../../models/BusinessConfig');
-const Contact = require('../../models/Contact');
-const { analyzeImage } = require('../../services/visionService');
-const { transcribeAudio } = require('../../services/transcriptionService');
-const { saveMessage, getLastMessages } = require('../../services/message');
-const { callDeepSeek, buildSystemPrompt } = require('../../services/aiService');
-const { sendUnifiedMessage } = require('../../services/responseService');
+import { jest } from '@jest/globals';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Mock dependencies with factories to prevent module loading execution
-jest.mock('../../models/BusinessConfig', () => ({
-    findById: jest.fn()
+jest.unstable_mockModule(path.resolve(__dirname, '../../models/BusinessConfig.js'), () => ({
+    default: { findById: jest.fn() }
 }));
-jest.mock('../../models/Contact', () => ({
-    findOne: jest.fn(),
-    create: jest.fn()
+jest.unstable_mockModule(path.resolve(__dirname, '../../models/Contact.js'), () => ({
+    default: {
+        findOne: jest.fn(),
+        create: jest.fn(),
+        updateOne: jest.fn()
+    } // Need updateOne since Handler uses it
 }));
-jest.mock('../../services/visionService', () => ({
+jest.unstable_mockModule(path.resolve(__dirname, '../../services/visionService.js'), () => ({
     analyzeImage: jest.fn()
 }));
-jest.mock('../../services/transcriptionService', () => ({
+jest.unstable_mockModule(path.resolve(__dirname, '../../services/transcriptionService.js'), () => ({
     transcribeAudio: jest.fn()
 }));
-jest.mock('../../services/message', () => ({
+jest.unstable_mockModule(path.resolve(__dirname, '../../services/message.js'), () => ({
     saveMessage: jest.fn(),
     getLastMessages: jest.fn()
 }));
-jest.mock('../../services/aiService', () => ({
+jest.unstable_mockModule(path.resolve(__dirname, '../../services/aiService.js'), () => ({
     callDeepSeek: jest.fn(),
-    buildSystemPrompt: jest.fn()
+    buildSystemPrompt: jest.fn(),
+    getFunnelStagePrompt: jest.fn(),
+    formatHistoryText: jest.fn()
 }));
-jest.mock('../../services/responseService', () => ({
+jest.unstable_mockModule(path.resolve(__dirname, '../../services/responseService.js'), () => ({
     sendUnifiedMessage: jest.fn()
 }));
-jest.mock('../../services/wwebjsService', () => ({
-    sendImage: jest.fn()
+jest.unstable_mockModule(path.resolve(__dirname, '../../services/wwebjsService.js'), () => ({
+    sendImage: jest.fn(),
+    sendStateTyping: jest.fn().mockResolvedValue(true)
+}));
+jest.unstable_mockModule(path.resolve(__dirname, '../../services/aiTools.js'), () => ({
+    checkAvailability: jest.fn(),
+    createAppointmentByAI: jest.fn(),
+    searchProducts: jest.fn()
 }));
 
 // Also mock potentially troublesome external libs if they leak through
-jest.mock('@google/genai', () => ({ GoogleGenAI: class {} }), { virtual: true });
+jest.unstable_mockModule('@google/genai', () => ({ GoogleGenAI: class {} }), { virtual: true });
 
-// Require the module under test AFTER mocks are set up
-const { handleIncomingMessage, processBufferedMessages } = require('../../messageHandler');
+const messageHandlerModule = await import('../../messageHandler.js');
+const { handleIncomingMessage, processBufferedMessages } = messageHandlerModule;
+
+const BusinessConfigModule = await import('../../models/BusinessConfig.js');
+const BusinessConfig = BusinessConfigModule.default;
+const ContactModule = await import('../../models/Contact.js');
+const Contact = ContactModule.default;
+const visionService = await import('../../services/visionService.js');
+const { analyzeImage } = visionService;
+const transcriptionService = await import('../../services/transcriptionService.js');
+const { transcribeAudio } = transcriptionService;
+const messageService = await import('../../services/message.js');
+const { saveMessage, getLastMessages } = messageService;
+const aiService = await import('../../services/aiService.js');
+const { callDeepSeek, buildSystemPrompt } = aiService;
+const responseService = await import('../../services/responseService.js');
+const { sendUnifiedMessage } = responseService;
 
 // Mock timers for buffer processing
 jest.useFakeTimers();
@@ -72,7 +96,7 @@ describe('Lazy Media Processing in MessageHandler', () => {
 
     test('should NOT process media if Handover is active (Lazy Check)', async () => {
         // Setup Handover
-        Contact.findOne.mockResolvedValue({ isHandover: true });
+        Contact.findOne.mockResolvedValue({ isHandover: true, _id: 'c1', followUpActive: false });
 
         // Simulate Incoming Image (Web Channel avoids sleep delay)
         const mediaData = { data: 'base64image', mimetype: 'image/jpeg' };
@@ -83,7 +107,7 @@ describe('Lazy Media Processing in MessageHandler', () => {
             type: 'image',
             mediaData,
             provider: 'whatsapp',
-            channel: 'web'
+            channel: 'whatsapp'
         }, mockBusinessId);
 
         // Fast-forward buffer timer
@@ -95,7 +119,7 @@ describe('Lazy Media Processing in MessageHandler', () => {
         // Expectations
         expect(analyzeImage).not.toHaveBeenCalled(); // Lazy!
         expect(saveMessage).toHaveBeenCalledWith(
-            mockFrom, 'user', expect.stringContaining('[Imagem recebida]'), 'text', null, mockBusinessId, 'web', undefined
+            mockFrom, 'user', expect.stringContaining('[Imagem recebida]'), 'text', null, mockBusinessId, 'whatsapp', undefined
         );
         expect(callDeepSeek).not.toHaveBeenCalled(); // Handover stops AI
     });
@@ -114,7 +138,7 @@ describe('Lazy Media Processing in MessageHandler', () => {
             type: 'audio',
             mediaData,
             provider: 'whatsapp',
-            channel: 'web'
+            channel: 'whatsapp'
         }, mockBusinessId);
 
         jest.runAllTimers();
@@ -122,7 +146,7 @@ describe('Lazy Media Processing in MessageHandler', () => {
 
         expect(transcribeAudio).not.toHaveBeenCalled();
         expect(saveMessage).toHaveBeenCalledWith(
-            mockFrom, 'user', expect.stringContaining('[Áudio recebido]'), 'text', null, mockBusinessId, 'web', undefined
+            mockFrom, 'user', expect.stringContaining('[Áudio recebido]'), 'text', null, mockBusinessId, 'whatsapp', undefined
         );
         expect(callDeepSeek).not.toHaveBeenCalled();
     });
@@ -139,7 +163,7 @@ describe('Lazy Media Processing in MessageHandler', () => {
             type: 'image',
             mediaData,
             provider: 'whatsapp',
-            channel: 'web'
+            channel: 'whatsapp'
         }, mockBusinessId);
 
         jest.runAllTimers();
@@ -149,7 +173,7 @@ describe('Lazy Media Processing in MessageHandler', () => {
 
         // Verify saveMessage content includes description
         expect(saveMessage).toHaveBeenCalledWith(
-            mockFrom, 'user', expect.stringContaining('[VISÃO]: A lovely cat'), 'text', null, mockBusinessId, 'web', undefined
+            mockFrom, 'user', expect.stringContaining('[VISÃO]: A lovely cat'), 'text', null, mockBusinessId, 'whatsapp', undefined
         );
 
         // Verify AI called
@@ -167,7 +191,7 @@ describe('Lazy Media Processing in MessageHandler', () => {
             type: 'audio',
             mediaData,
             provider: 'whatsapp',
-            channel: 'web'
+            channel: 'whatsapp'
         }, mockBusinessId);
 
         jest.runAllTimers();
@@ -175,7 +199,7 @@ describe('Lazy Media Processing in MessageHandler', () => {
 
         expect(transcribeAudio).toHaveBeenCalledWith(mediaData);
         expect(saveMessage).toHaveBeenCalledWith(
-            mockFrom, 'user', expect.stringContaining('[Áudio]: "Hello world"'), 'text', null, mockBusinessId, 'web', undefined
+            mockFrom, 'user', expect.stringContaining('[Áudio]: "Hello world"'), 'text', null, mockBusinessId, 'whatsapp', undefined
         );
     });
 
@@ -199,7 +223,7 @@ describe('Lazy Media Processing in MessageHandler', () => {
             type: 'image',
             mediaData,
             provider: 'whatsapp',
-            channel: 'web'
+            channel: 'whatsapp'
         }, mockBusinessId);
 
         jest.runAllTimers();
@@ -207,7 +231,7 @@ describe('Lazy Media Processing in MessageHandler', () => {
 
         expect(analyzeImage).not.toHaveBeenCalled();
         expect(saveMessage).toHaveBeenCalledWith(
-            mockFrom, 'user', expect.stringContaining('[Imagem recebida]'), 'text', null, mockBusinessId, 'web', undefined
+            mockFrom, 'user', expect.stringContaining('[Imagem recebida]'), 'text', null, mockBusinessId, 'whatsapp', undefined
         );
     });
 });

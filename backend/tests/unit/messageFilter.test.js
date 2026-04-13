@@ -1,18 +1,56 @@
-const { handleIncomingMessage } = require('../../messageHandler');
-const BusinessConfig = require('../../models/BusinessConfig');
-const Contact = require('../../models/Contact');
-const messageService = require('../../services/message');
-const aiService = require('../../services/aiService');
+import { jest } from '@jest/globals';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-jest.mock('../../models/BusinessConfig');
-jest.mock('../../models/Contact');
-jest.mock('../../services/message');
-jest.mock('../../services/aiService');
-jest.mock('../../services/visionService');
-jest.mock('../../services/transcriptionService');
-jest.mock('../../services/responseService');
-jest.mock('../../services/wwebjsService');
-jest.mock('../../services/aiTools');
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Mock dependencies
+jest.unstable_mockModule(path.resolve(__dirname, '../../models/BusinessConfig.js'), () => ({
+    default: { findById: jest.fn() }
+}));
+jest.unstable_mockModule(path.resolve(__dirname, '../../models/Contact.js'), () => ({
+    default: {
+        findOne: jest.fn(),
+        updateOne: jest.fn()
+    }
+}));
+jest.unstable_mockModule(path.resolve(__dirname, '../../services/message.js'), () => ({
+    saveMessage: jest.fn(),
+    getLastMessages: jest.fn()
+}));
+jest.unstable_mockModule(path.resolve(__dirname, '../../services/aiService.js'), () => ({
+    buildSystemPrompt: jest.fn(),
+    callDeepSeek: jest.fn(),
+    getFunnelStagePrompt: jest.fn(),
+    formatHistoryText: jest.fn()
+}));
+jest.unstable_mockModule(path.resolve(__dirname, '../../services/visionService.js'), () => ({
+    analyzeImage: jest.fn()
+}));
+jest.unstable_mockModule(path.resolve(__dirname, '../../services/transcriptionService.js'), () => ({
+    transcribeAudio: jest.fn()
+}));
+jest.unstable_mockModule(path.resolve(__dirname, '../../services/responseService.js'), () => ({
+    sendUnifiedMessage: jest.fn()
+}));
+jest.unstable_mockModule(path.resolve(__dirname, '../../services/wwebjsService.js'), () => ({
+    sendStateTyping: jest.fn().mockResolvedValue(true)
+}));
+jest.unstable_mockModule(path.resolve(__dirname, '../../services/aiTools.js'), () => ({
+    checkAvailability: jest.fn(),
+    createAppointmentByAI: jest.fn(),
+    searchProducts: jest.fn()
+}));
+
+// Load module under test
+const messageHandlerModule = await import('../../messageHandler.js');
+const { handleIncomingMessage } = messageHandlerModule;
+const BusinessConfigModule = await import('../../models/BusinessConfig.js');
+const BusinessConfig = BusinessConfigModule.default;
+const ContactModule = await import('../../models/Contact.js');
+const Contact = ContactModule.default;
+const messageService = await import('../../services/message.js');
+const aiService = await import('../../services/aiService.js');
 
 describe('Message Handler Audience Filtering', () => {
     beforeEach(() => {
@@ -50,7 +88,7 @@ describe('Message Handler Audience Filtering', () => {
         setupMocks('all', [], [], { tags: [], totalMessages: 10 });
 
         const promise = handleIncomingMessage({
-            from: '123', body: 'Hi', type: 'text', activeBusinessId: 'biz1', channel: 'web'
+            from: '123', body: 'Hi', type: 'text', activeBusinessId: 'biz1', channel: 'whatsapp'
         }, 'biz1');
 
         jest.runAllTimers();
@@ -64,7 +102,7 @@ describe('Message Handler Audience Filtering', () => {
         setupMocks('new_contacts', [], [], null); // Contact not found (will be created by saveMessage)
 
         const promise = handleIncomingMessage({
-            from: '123', body: 'Hi', type: 'text', activeBusinessId: 'biz1', channel: 'web'
+            from: '123', body: 'Hi', type: 'text', activeBusinessId: 'biz1', channel: 'whatsapp'
         }, 'biz1');
 
         jest.runAllTimers();
@@ -76,12 +114,12 @@ describe('Message Handler Audience Filtering', () => {
     test('Mode "new_contacts": Should respond if contact has NO history (Fresh)', async () => {
         setupMocks('new_contacts', [], [], {
             tags: [],
-            totalMessages: 1, // Changed from 0: SaveMessage runs before, so 1 message means "just this one"
+            totalMessages: 0, // 0 prior messages
             createdAt: new Date() // Just created
         });
 
         const promise = handleIncomingMessage({
-            from: '123', body: 'Hi', type: 'text', activeBusinessId: 'biz1', channel: 'web'
+            from: '123', body: 'Hi', type: 'text', activeBusinessId: 'biz1', channel: 'whatsapp'
         }, 'biz1');
 
         jest.runAllTimers();
@@ -98,7 +136,7 @@ describe('Message Handler Audience Filtering', () => {
         });
 
         const promise = handleIncomingMessage({
-            from: '123', body: 'Hi', type: 'text', activeBusinessId: 'biz1', channel: 'web'
+            from: '123', body: 'Hi', type: 'text', activeBusinessId: 'biz1', channel: 'whatsapp'
         }, 'biz1');
 
         jest.runAllTimers();
@@ -119,7 +157,7 @@ describe('Message Handler Audience Filtering', () => {
         });
 
         const promise = handleIncomingMessage({
-            from: '123', body: 'Hi', type: 'text', activeBusinessId: 'biz1', channel: 'web'
+            from: '123', body: 'Hi', type: 'text', activeBusinessId: 'biz1', channel: 'whatsapp'
         }, 'biz1');
 
         jest.runAllTimers();
@@ -133,7 +171,7 @@ describe('Message Handler Audience Filtering', () => {
         setupMocks('whitelist', [], [], { tags: ['VIP'] }); // Empty whitelist
 
         const promise = handleIncomingMessage({
-            from: '123', body: 'Hi', type: 'text', activeBusinessId: 'biz1', channel: 'web'
+            from: '123', body: 'Hi', type: 'text', activeBusinessId: 'biz1', channel: 'whatsapp'
         }, 'biz1');
 
         jest.runAllTimers();
@@ -147,7 +185,7 @@ describe('Message Handler Audience Filtering', () => {
         setupMocks('whitelist', ['VIP'], [], { tags: ['Lead'] });
 
         const promise = handleIncomingMessage({
-            from: '123', body: 'Hi', type: 'text', activeBusinessId: 'biz1', channel: 'web'
+            from: '123', body: 'Hi', type: 'text', activeBusinessId: 'biz1', channel: 'whatsapp'
         }, 'biz1');
 
         jest.runAllTimers();
@@ -161,7 +199,7 @@ describe('Message Handler Audience Filtering', () => {
         setupMocks('whitelist', ['VIP'], [], { tags: ['Lead', 'VIP'] });
 
         const promise = handleIncomingMessage({
-            from: '123', body: 'Hi', type: 'text', activeBusinessId: 'biz1', channel: 'web'
+            from: '123', body: 'Hi', type: 'text', activeBusinessId: 'biz1', channel: 'whatsapp'
         }, 'biz1');
 
         jest.runAllTimers();
@@ -174,7 +212,7 @@ describe('Message Handler Audience Filtering', () => {
         setupMocks('blacklist', [], ['Family'], { tags: ['Family', 'Friend'] });
 
         const promise = handleIncomingMessage({
-            from: '123', body: 'Hi', type: 'text', activeBusinessId: 'biz1', channel: 'web'
+            from: '123', body: 'Hi', type: 'text', activeBusinessId: 'biz1', channel: 'whatsapp'
         }, 'biz1');
 
         jest.runAllTimers();
