@@ -6,12 +6,10 @@ import CustomPrompt from '../models/CustomPrompt.js';
 import Contact from '../models/Contact.js';
 import Tag from '../models/Tag.js';
 import authenticateToken from '../middleware/auth.js';
-import * as messageService from '../services/message.js'; // <--- IMPORTEI O SERVICE
+import * as messageService from '../services/message.js';
 import { sendWWebJSMessage } from '../services/wwebjsService.js';
-import { upload, bucket } from '../config/upload.js';
 import { deleteFromFirebase } from '../utils/firebaseHelper.js';
-import sharp from 'sharp';
-import { v4 as uuidv4 } from 'uuid';
+import axios from 'axios';
 
 // === CONFIGURAÇÕES GERAIS ===
 
@@ -270,60 +268,40 @@ router.delete('/config/notifications/:ruleId', authenticateToken, async (req, re
 
 // ==========================================
 // 📸 ROTA DE UPLOAD DE IMAGEM (FIREBASE)
-// ==========================================
-router.post('/upload-image', authenticateToken, upload.single('image'), async (req, res) => {
+router.post('/request-upload-url', authenticateToken, async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ message: 'Nenhuma imagem enviada.' });
+    const { fileName, contentType } = req.body;
+
+    if (!fileName || !contentType) {
+      return res.status(400).json({ message: 'Nome do arquivo e contentType são obrigatórios.' });
     }
 
-    // 1. Processar imagem com Sharp (Redimensionar e converter para JPEG)
-    const processedBuffer = await sharp(req.file.buffer)
-      .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
-      .toFormat('jpeg', { quality: 80 })
-      .toBuffer();
+    const squamataUrl = process.env.SQUAMATA_API_URL || 'http://localhost:3005';
+    const squamataKey = process.env.SQUAMATA_API_KEY;
 
-    // 2. Criar nome único e referência no Storage
-    // SEPARAR AVATARES DE PRODUTOS
-    const type = req.body.type === 'avatar' ? 'avatars' : 'products';
-    const filename = `${type}/${uuidv4()}.jpg`;
+    if (!squamataKey) {
+      return res.status(500).json({ message: 'Serviço de upload não configurado' });
+    }
 
-    const file = bucket.file(filename);
+    // Chama Squamata para gerar URL assinada (para PUT)
+    const response = await axios.post(
+      `${squamataUrl}/generate-upload-url`,
+      { fileName, contentType },
+      { headers: { 'Authorization': squamataKey } }
+    );
 
-    // 3. Upload Stream para Firebase
-    const stream = file.createWriteStream({
-      metadata: {
-        contentType: 'image/jpeg'
-      }
+    // Constrói URL pública para download (sem assinatura - nunca expira)
+    const bucketName = process.env.FIREBASE_BUCKET_URL || 'calango-chatbot.firebasestorage.app';
+    const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(response.data.filePath)}?alt=media`;
+
+    res.json({
+      uploadUrl: response.data.uploadUrl,
+      filePath: response.data.filePath,
+      downloadUrl: downloadUrl
     });
-
-    stream.on('error', (err) => {
-      console.error('Erro no stream de upload:', err);
-      res.status(500).json({ message: 'Erro ao fazer upload da imagem.' });
-    });
-
-    stream.on('finish', async () => {
-      try {
-        // 4. Tornar público e gerar URL
-        await file.makePublic();
-
-        // URL Pública Padrão (Firebase/GCS)
-        // https://storage.googleapis.com/BUCKET_NAME/products/filename.jpg
-        const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filename}`;
-
-        console.log('✅ Upload Firebase realizado:', publicUrl);
-        res.json({ imageUrl: publicUrl });
-      } catch (err) {
-        console.error('Erro ao tornar público:', err);
-        res.status(500).json({ message: 'Erro ao finalizar upload.' });
-      }
-    });
-
-    stream.end(processedBuffer);
-
   } catch (error) {
-    console.error('Erro no upload:', error);
-    res.status(500).json({ message: 'Erro interno no upload.' });
+    console.error('Erro ao gerar URL:', error.message);
+    res.status(500).json({ message: 'Erro ao gerar URL de upload' });
   }
 });
 
@@ -421,19 +399,9 @@ router.delete('/conversations/:contactId/messages', authenticateToken, async (re
   }
 });
 
-// DELETE /api/business/delete-image
-router.post('/delete-image', authenticateToken, async (req, res) => {
-  try {
-    const { imageUrl } = req.body;
-    if (!imageUrl) return res.status(400).json({ message: 'URL da imagem não fornecida.' });
-
-    await deleteFromFirebase(imageUrl);
-    res.json({ message: 'Imagem removida com sucesso.' });
-  } catch (error) {
-    console.error('Erro delete-image:', error);
-    res.status(500).json({ message: 'Erro ao deletar imagem.' });
-  }
-});
+// Note: Image deletion is now handled by Firebase Admin SDK via Squamata or
+// can be handled directly by the client if needed
+// This endpoint is deprecated and will be removed in future versions
 
 // ROTA DE INJEÇÃO DE TESTES (APENAS PARA DESENVOLVIMENTO)
 router.post('/test/webhook', async (req, res) => {

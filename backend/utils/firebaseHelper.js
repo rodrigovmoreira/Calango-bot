@@ -1,4 +1,37 @@
-import { bucket } from '../config/upload.js';
+import admin from 'firebase-admin';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Initialize Firebase Admin if not already initialized
+let bucket;
+
+try {
+  if (!admin.apps.length) {
+    let serviceAccount;
+    
+    if (process.env.FIREBASE_CREDENTIALS) {
+      // Production: JSON stringified in environment variable
+      serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
+    } else {
+      // Development: Local file
+      const credPath = path.join(__dirname, '../config/firebase-credentials.json');
+      serviceAccount = JSON.parse(fs.readFileSync(credPath, 'utf8'));
+    }
+
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      storageBucket: process.env.FIREBASE_BUCKET_URL
+    });
+  }
+  
+  bucket = admin.storage().bucket();
+} catch (error) {
+  console.error('⚠️ Error initializing Firebase for firebaseHelper:', error.message);
+}
 
 /**
  * Deletes a file from Firebase Storage given its public URL.

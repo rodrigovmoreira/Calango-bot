@@ -8,6 +8,7 @@ import {
 import { AddIcon, EditIcon, DeleteIcon } from '@chakra-ui/icons';
 import { useApp } from '../../context/AppContext';
 import { businessAPI } from '../../services/api';
+import { uploadMultipleFiles } from '../../utils/uploadHelper';
 
 const CatalogTab = () => {
   const { state, dispatch } = useApp();
@@ -66,20 +67,14 @@ const CatalogTab = () => {
 
     setIsUploading(true);
     try {
-      const uploadPromises = files.map(file => {
-        const formData = new FormData();
-        formData.append('image', file);
-        return businessAPI.uploadImage(formData);
-      });
-      const responses = await Promise.all(uploadPromises);
-      const newUrls = responses.map(res => res.data.imageUrl);
-
+      const newUrls = await uploadMultipleFiles(files, 'products');
       setNewProduct(prev => ({
         ...prev,
         imageUrls: [...(prev.imageUrls || []), ...newUrls]
       }));
       toast({ title: `${newUrls.length} imagens enviadas!`, status: 'success' });
     } catch (error) {
+      console.error('Erro ao enviar imagem:', error);
       toast({ title: 'Erro ao enviar imagem', description: error.message, status: 'error' });
     } finally {
       setIsUploading(false);
@@ -178,7 +173,11 @@ const CatalogTab = () => {
                   <HStack mt={2} spacing={2} overflowX="auto" py={2}>
                     {newProduct.imageUrls.map((url, i) => (
                       <Box key={i} w="60px" h="60px" borderRadius="md" overflow="hidden" border="1px solid gray" position="relative" flexShrink={0}>
-                        <img src={url} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <img 
+                          src={url} 
+                          alt="preview" 
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
                         <IconButton
                           icon={<DeleteIcon boxSize={3} />}
                           size={{ base: 'sm', md: 'xs' }}

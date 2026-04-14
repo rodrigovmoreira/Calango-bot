@@ -9,7 +9,8 @@ import {
   EditIcon, WarningTwoIcon, ChevronDownIcon,
 } from '@chakra-ui/icons';
 import { useApp } from '../context/AppContext';
-import { authAPI, businessAPI } from '../services/api';
+import { authAPI } from '../services/api';
+import { uploadFileToFirebase } from '../utils/uploadHelper';
 
 // Imported Components
 import { Sidebar, LinkItems, MobileNav } from '../components/Sidebar';
@@ -77,13 +78,13 @@ const Dashboard = ({ initialTab = 0 }) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    const formData = new FormData();
-    formData.append('image', file);
-    formData.append('type', 'avatar'); // <--- AVISO: É um avatar, não produto!
-
     try {
-      const response = await businessAPI.uploadImage(formData);
-      setProfileData(prev => ({ ...prev, avatarUrl: response.data.imageUrl }));
+      // Novo fluxo: usa uploadFileToFirebase que:
+      // 1. Solicita URL assinada do Squamata Upload
+      // 2. Faz upload direto para Firebase
+      // 3. Retorna a URL final
+      const { imageUrl } = await uploadFileToFirebase(file, 'avatars');
+      setProfileData(prev => ({ ...prev, avatarUrl: imageUrl }));
       toast({ title: 'Avatar enviado!', status: 'success' });
     } catch (error) {
       console.error('Erro ao enviar avatar:', error);

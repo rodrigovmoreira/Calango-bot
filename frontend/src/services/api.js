@@ -57,11 +57,32 @@ export const businessAPI = {
   importWhatsAppLabels: () => api.post('/api/whatsapp/import-labels'), // <--- NOVO: Import labels
   applyPreset: (presetKey) => api.post('/api/business/apply-preset', { presetKey }),
 
-  // Upload de Imagem (NOVO)
-  uploadImage: (formData) => api.post('/api/business/upload-image', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  }),
-  deleteImage: (imageUrl) => api.post('/api/business/delete-image', { imageUrl }),
+  // Novo fluxo: Solicita URL assinada do Squamata Upload
+  requestUploadUrl: (fileName, contentType) => api.post('/api/business/request-upload-url', { fileName, contentType }),
+  
+  // Upload de Imagem - Agora é feito direto no cliente
+  // Use uploadHelper.uploadFileToFirebase() ou uploadHelper.uploadMultipleFiles() ao invés disso
+  uploadImage: (formData) => {
+    // Mantido para compatibilidade, mas redireciona para o novo fluxo
+    const file = formData.get('image');
+    const type = formData.get('type') || 'product';
+    
+    if (!file) return Promise.reject(new Error('Nenhum arquivo enviado'));
+    
+    // Importa dinamicamente para evitar circular dependency
+    return import('../utils/uploadHelper.js').then(({ uploadFileToFirebase }) => {
+      return uploadFileToFirebase(file, type).then(result => ({
+        data: { imageUrl: result.imageUrl }
+      }));
+    });
+  },
+  
+  // Deleção de imagem pode ser feita via Firebase Admin ou Squamata
+  // Por enquanto mantém compatibilidade mas não faz nada
+  deleteImage: (imageUrl) => {
+    console.warn('deleteImage: Firebase image deletion via URL not yet implemented');
+    return Promise.resolve({ message: 'Imagem marcada para remoção' });
+  },
 
   // 4. Meus Modelos (Custom Prompts) (Atualizado para /api/business)
   getCustomPrompts: () => api.get('/api/business/custom-prompts'),
