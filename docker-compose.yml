@@ -10,7 +10,7 @@ services:
     ports:
       - "3003:3001" # Host na 3003, mas o Node.js dentro continua achando que é 3001
     env_file:
-      - ./backend/.env
+      - .env
     networks:
       - calango-network
 
@@ -26,7 +26,7 @@ services:
     ports:
       - "3004:3000" # Host na 3004, Container na 3000
     env_file:
-      - ./frontend/.env
+      - .env
     networks:
       - calango-network
 
