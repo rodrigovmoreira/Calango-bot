@@ -20,7 +20,7 @@ services:
       dockerfile: Dockerfile
       args:
         # Aponta para a porta 3003 que acabamos de abrir para o backend do bot
-        - REACT_APP_API_URL=http://calango-inc-appserver:3003/api
+        - REACT_APP_API_URL=http://calango-inc-appserver:3003
     container_name: calango-bot-frontend
     restart: unless-stopped
     ports:
