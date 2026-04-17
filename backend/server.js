@@ -77,9 +77,14 @@ const server = http.createServer(app);
 const PORT = process.env.PORT || 3001;
 
 // Configuração de CORS e Socket
+const envOrigins = process.env.CORS_ALLOWED_ORIGINS 
+  ? process.env.CORS_ALLOWED_ORIGINS.split(',') 
+  : [];
+
 const allowedOrigins = [
   "http://localhost:3000",
-  "https://mindful-happiness-production.up.railway.app"
+  "https://mindful-happiness-production.up.railway.app",
+  ...envOrigins
 ];
 
 const io = new Server(server, {
