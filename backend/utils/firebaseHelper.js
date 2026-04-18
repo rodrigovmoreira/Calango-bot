@@ -24,7 +24,7 @@ try {
 
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
-      storageBucket: process.env.FIREBASE_BUCKET_URL
+      storageBucket: process.env.REACT_APP_FIREBASE_BUCKET
     });
   }
   

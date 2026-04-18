@@ -276,8 +276,8 @@ router.post('/request-upload-url', authenticateToken, async (req, res) => {
       return res.status(400).json({ message: 'Nome do arquivo e contentType são obrigatórios.' });
     }
 
-    const squamataUrl = process.env.SQUAMATA_API_URL || 'http://localhost:3005';
-    const squamataKey = process.env.SQUAMATA_API_KEY;
+    const squamataUrl = process.env.REACT_APP_SQUAMATA_UPLOAD_API_URL || 'http://localhost:3005';
+    const squamataKey = process.env.REACT_APP_SQUAMATA_UPLOAD_API_KEY;
 
     if (!squamataKey) {
       return res.status(500).json({ message: 'Serviço de upload não configurado' });
@@ -291,7 +291,7 @@ router.post('/request-upload-url', authenticateToken, async (req, res) => {
     );
 
     // Constrói URL pública para download (sem assinatura - nunca expira)
-    const bucketName = process.env.FIREBASE_BUCKET_URL || 'calango-chatbot.firebasestorage.app';
+    const bucketName = process.env.REACT_APP_FIREBASE_BUCKET || 'calango-chatbot.firebasestorage.app';
     const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(response.data.filePath)}?alt=media`;
 
     res.json({

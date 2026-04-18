@@ -1,24 +1,42 @@
-import api from '../services/api';
+// Removemos a importação do 'api' do axios, vamos usar o fetch nativo!
 
 export async function uploadFileToFirebase(file, type = 'product') {
   try {
     const fileExtension = file.name.split('.').pop() || 'jpg';
     const fileName = `${type}_${Date.now()}.${fileExtension}`;
-    const contentType = 'image/jpeg';
+    const contentType = file.type || 'image/jpeg';
 
-    // 1. Pede URL assinada para upload ao backend
-    const { data } = await api.post('/api/business/request-upload-url', {
-      fileName,
-      contentType
-    });
+    // Variáveis de ambiente com os nomes novos e padronizados
+    const uploadApiUrl = process.env.REACT_APP_SQUAMATA_UPLOAD_API_URL;
+    const uploadApiKey = process.env.REACT_APP_SQUAMATA_UPLOAD_API_KEY;
+    const bucketName = process.env.REACT_APP_FIREBASE_BUCKET;
 
-    const { uploadUrl, filePath, downloadUrl } = data;
-
-    if (!uploadUrl) {
-      throw new Error('Backend não retornou uploadUrl');
+    if (!uploadApiUrl || !uploadApiKey) {
+      throw new Error('Configurações do Squamata Upload ausentes no .env');
     }
 
-    // 2. Faz upload direto para Firebase
+    // 1. Pede URL assinada direto para o Squamata-upload
+    const response = await fetch(`${uploadApiUrl}/generate-upload-url`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': uploadApiKey // O "Porteiro" do squamata-upload exige isso
+      },
+      body: JSON.stringify({ fileName, contentType })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Erro no Squamata Upload: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const { uploadUrl, filePath } = data;
+
+    if (!uploadUrl) {
+      throw new Error('Squamata Upload não retornou uploadUrl');
+    }
+
+    // 2. Faz upload direto para Firebase usando a URL Assinada
     const uploadResponse = await fetch(uploadUrl, {
       method: 'PUT',
       headers: { 'Content-Type': contentType },
@@ -29,10 +47,9 @@ export async function uploadFileToFirebase(file, type = 'product') {
       throw new Error(`Firebase rejeitou upload (${uploadResponse.status})`);
     }
 
-    // 3. Retorna URL de download (pública, sem assinatura)
-    if (!downloadUrl) {
-      throw new Error('Backend não retornou downloadUrl');
-    }
+    // 3. Monta a URL pública de download manualmente
+    // O Firebase Storage sempre usa este padrão de URL:
+    const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(filePath)}?alt=media`;
 
     console.log('[uploadHelper] ✅ Upload realizado:', filePath);
 

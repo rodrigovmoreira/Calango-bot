@@ -66,9 +66,9 @@ function main() {
     'Arquivo .env do backend'
   );
   if (fs.existsSync('c:\\Calango-bot\\backend\\.env')) {
-    allGood &= checkEnvVariable('c:\\Calango-bot\\backend\\.env', 'SQUAMATA_API_URL');
-    allGood &= checkEnvVariable('c:\\Calango-bot\\backend\\.env', 'SQUAMATA_API_KEY');
-    allGood &= checkEnvVariable('c:\\Calango-bot\\backend\\.env', 'FIREBASE_BUCKET_URL');
+    allGood &= checkEnvVariable('c:\\Calango-bot\\backend\\.env', 'REACT_APP_SQUAMATA_UPLOAD_API_URL');
+    allGood &= checkEnvVariable('c:\\Calango-bot\\backend\\.env', 'REACT_APP_SQUAMATA_UPLOAD_API_KEY');
+    allGood &= checkEnvVariable('c:\\Calango-bot\\backend\\.env', 'REACT_APP_FIREBASE_BUCKET');
   }
 
   // 2. Verificar arquivos frontend
