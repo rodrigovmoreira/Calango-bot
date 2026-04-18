@@ -74,7 +74,7 @@ import './models/Appointment.js';
 
 const app = express();
 const server = http.createServer(app);
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3003;
 
 // Configuração de CORS e Socket
 const envOrigins = process.env.CORS_ALLOWED_ORIGINS 

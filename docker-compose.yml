@@ -6,31 +6,32 @@ services:
     container_name: calango-bot-backend
     restart: unless-stopped
     ports:
-      - "3003:3001" # Host na 3003, mas o Node.js dentro continua achando que é 3001
+      - "3003:3003"
+    environment:
+      - PORT=3003
     env_file:
       - .env
     networks:
-      - calango-network
+      - squamata-global
 
   calango-bot-frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        # Aponta para a porta 3003 que acabamos de abrir para o backend do bot
-        - REACT_APP_API_URL=http://calango-inc-appserver:3003
+        - REACT_APP_API_URL=http://localhost:3003
         - REACT_APP_FIREBASE_BUCKET=${REACT_APP_FIREBASE_BUCKET}
         - REACT_APP_SQUAMATA_UPLOAD_API_URL=${REACT_APP_SQUAMATA_UPLOAD_API_URL}
         - REACT_APP_SQUAMATA_UPLOAD_API_KEY=${REACT_APP_SQUAMATA_UPLOAD_API_KEY}
     container_name: calango-bot-frontend
     restart: unless-stopped
     ports:
-      - "3004:3000" # Host na 3004, Container na 3000
+      - "3004:3000"
     env_file:
       - .env
     networks:
-      - calango-network
+      - squamata-global
 
 networks:
-  calango-network:
-    driver: bridge
+  squamata-global:
+    external: true
