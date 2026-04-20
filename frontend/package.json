@@ -30,7 +30,7 @@
   },
   "scripts": {
     "start": "env-cmd -f ../.env react-scripts start",
-    "build": "env-cmd -f ../.env react-scripts build",
+    "build": "react-scripts build",
     "test": "react-scripts test --transformIgnorePatterns \"node_modules/(?!axios)/\"",
     "eject": "react-scripts eject"
   },

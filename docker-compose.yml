@@ -19,7 +19,8 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - REACT_APP_API_URL=http://localhost:3003
+        - REACT_APP_API_URL=${REACT_APP_API_URL}
+        - REACT_APP_WS_URL=${REACT_APP_WS_URL}
         - REACT_APP_FIREBASE_BUCKET=${REACT_APP_FIREBASE_BUCKET}
         - REACT_APP_SQUAMATA_UPLOAD_API_URL=${REACT_APP_SQUAMATA_UPLOAD_API_URL}
         - REACT_APP_SQUAMATA_UPLOAD_API_KEY=${REACT_APP_SQUAMATA_UPLOAD_API_KEY}
