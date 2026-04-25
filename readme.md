@@ -1,4 +1,4 @@
-# 🤖 Chatbot SaaS 
+# 🤖 Calango Bot 
 
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-green?logo=node.js)](https://nodejs.org/)
 [![Twilio](https://img.shields.io/badge/Twilio-API-red?logo=twilio)](https://www.twilio.com/)
