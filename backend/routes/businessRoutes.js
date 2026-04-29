@@ -8,7 +8,6 @@ import Tag from '../models/Tag.js';
 import authenticateToken from '../middleware/auth.js';
 import * as messageService from '../services/message.js';
 import { sendWWebJSMessage } from '../services/wwebjsService.js';
-import { deleteFromFirebase } from '../utils/firebaseHelper.js';
 import axios from 'axios';
 
 // === CONFIGURAÇÕES GERAIS ===
@@ -53,61 +52,29 @@ router.get('/config', authenticateToken, async (req, res) => {
   }
 });
 
-// PUT /api/business/config
 router.put('/config', authenticateToken, async (req, res) => {
   try {
-    // 1. Antes de salvar, buscamos a config antiga para comparar imagens
-    const oldConfig = await BusinessConfig.findOne({ userId: req.user.userId });
+    console.log('📦 [PUT Config] Atualizando configurações para o usuário:', req.user.userId);
 
-    if (oldConfig && oldConfig.products && req.body.products) {
-      // Coletar todas as URLs de imagens que existiam
-      const oldImages = new Set();
-      oldConfig.products.forEach(p => {
-        if (p.imageUrls && Array.isArray(p.imageUrls)) {
-          p.imageUrls.forEach(url => oldImages.add(url));
-        }
-      });
-
-      // Coletar todas as URLs que estão chegando agora
-      const newImages = new Set();
-      req.body.products.forEach(p => {
-        if (p.imageUrls && Array.isArray(p.imageUrls)) {
-          p.imageUrls.forEach(url => newImages.add(url));
-        }
-      });
-
-      // Encontrar as que sumiram (foram deletadas)
-      const imagesToDelete = [...oldImages].filter(url => !newImages.has(url));
-
-      // Deletar do Firebase
-      if (imagesToDelete.length > 0) {
-        console.log(`🗑️ Detectada exclusão de ${imagesToDelete.length} imagens. Limpando Storage...`);
-        // Não esperamos o delete para não travar a resposta da API (Fire & Forget ou Promise.allSettled)
-        Promise.allSettled(imagesToDelete.map(url => deleteFromFirebase(url)));
-      }
-    }
-
-    console.log('📦 [PUT Config] Incoming Body:', req.body);
-
+    // Criamos o payload de atualização. 
+    // Removemos toda a lógica antiga de comparação e deleção de imagens do Firebase
     const updatePayload = {
       ...req.body,
-      aiResponseMode: req.body.aiResponseMode,
-      aiWhitelistTags: req.body.aiWhitelistTags,
-      aiBlacklistTags: req.body.aiBlacklistTags,
       updatedAt: new Date()
     };
 
+    // O comando findOneAndUpdate com 'upsert: true' cria o registro caso ele não exista
     const config = await BusinessConfig.findOneAndUpdate(
       { userId: req.user.userId },
       { $set: updatePayload },
       { new: true, upsert: true }
     );
 
-    console.log('💾 [PUT Config] Mongoose Update Result:', config);
+    console.log('💾 [PUT Config] Configurações salvas com sucesso no MongoDB');
     res.json(config);
   } catch (error) {
-    console.error('Erro update config:', error);
-    res.status(500).json({ message: 'Erro update config' });
+    console.error('❌ Erro no PUT /api/business/config:', error);
+    res.status(500).json({ message: 'Erro ao salvar configurações do negócio' });
   }
 });
 
