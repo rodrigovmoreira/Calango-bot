@@ -84,9 +84,9 @@ const businessConfigSchema = new mongoose.Schema({
 
       // Lista dinâmica de escolhas (Variantes)
       customAttributes: [{
-        label: { type: String, required: true }, 
+        label: { type: String, required: true }, // ex: "Local do Corpo" ou "Ponto da Carne"
         options: [{
-          name: { type: String, required: true }, 
+          name: { type: String, required: true }, // ex: "Braço" ou "Mal passado"
           price: { type: Number, default: 0 }     // O valor específico desta opção
         }]
       }],

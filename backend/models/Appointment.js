@@ -12,7 +12,7 @@ const appointmentSchema = new mongoose.Schema({
   clientPhone: { type: String, required: true }, // Formato: 5511999999999
 
   // Dados do Evento (Padrão Google Calendar)
-  title: { type: String, required: true }, // Ex: "Descrição da execução do serviço"
+  title: { type: String, required: true }, // Ex: "Sessão Fechamento Braço"
   description: { type: String }, // Detalhes extras
   
   start: { type: Date, required: true }, // Data e Hora de Início
