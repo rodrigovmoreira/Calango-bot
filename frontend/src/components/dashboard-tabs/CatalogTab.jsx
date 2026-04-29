@@ -361,7 +361,7 @@ const CatalogTab = () => {
                               {attr.options.map((opt, optIndex) => (
                                 <HStack key={optIndex}>
                                   <FormControl isRequired>
-                                    <Input placeholder="Opção (ex: Braço)" value={opt.name} onChange={(e) => updateOption(attrIndex, optIndex, 'name', e.target.value)} size="sm" />
+                                    <Input placeholder="Opção de serviço" value={opt.name} onChange={(e) => updateOption(attrIndex, optIndex, 'name', e.target.value)} size="sm" />
                                   </FormControl>
                                   <FormControl isRequired w="120px">
                                     <Input type="number" placeholder="Preço (R$)" value={opt.price} onChange={(e) => updateOption(attrIndex, optIndex, 'price', e.target.value)} size="sm" />
