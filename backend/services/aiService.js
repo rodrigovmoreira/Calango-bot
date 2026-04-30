@@ -41,18 +41,7 @@ Atencao: Voce esta operando em um chat de WhatsApp. Siga estas regras obrigatori
 4. CONTINUIDADE: Verifique o historico. Nao repita saudacoes (como "Ola!", "Tudo bem?") se voces ja se falaram na conversa recente.
 `;
 
-        if (config.products && config.products.length > 0) {
-            prompt += `\n--- CATALOGO RAPIDO (Referencia Interna) ---\n`;
-            config.products.forEach(p => {
-                prompt += `Item: ${p.name} | Preco: R$ ${p.price}\n`;
-                if (p.customAttributes && p.customAttributes.length > 0) {
-                    p.customAttributes.forEach(attr => {
-                        prompt += `  - Atributo: ${attr.label} (Opcoes: ${attr.options.map(opt => `${opt.name}: R$ ${opt.price}`).join(', ')})\n`;
-                    });
-                }
-            });
-            prompt += `\nCATALOG RULE (GUIA VISUAL): Se um produto pesquisado possuir um "visualGuideUrl" e "customAttributes" (variacoes), VOCE DEVE usar a ferramenta "send_visual_guide" para enviar a imagem do guia e pedir ao cliente para escolher uma das opcoes baseada na imagem antes de calcular o orcamento final. O orcamento final eh a soma do preco base com o preco da opcao escolhida.\n`;
-        }
+        prompt += `\n--- INSTRUÇÕES DE CATÁLOGO ---\nPara dar orçamentos, SEMPRE use a ferramenta searchProducts. Se o produto retornado possuir 'visualGuideUrl', você DEVE enviar essa URL para o cliente ver e pedir para ele escolher uma opção baseada nos 'customAttributes' antes de passar o preço final. O orçamento final é a soma do preço base com o preço da opção escolhida.\n`;
 
         // CÉREBRO (Regras do Negócio)
         prompt += `\n--- REGRAS DO NEGOCIO (CEREBRO) ---\n`;
@@ -115,35 +104,83 @@ function formatHistoryText(historyMessages, botName) {
     return historyText;
 }
 
-async function callDeepSeek(messages) {
+import { searchProducts } from './aiTools.js';
+
+async function callDeepSeek(messages, businessId) {
     try {
         const apiKey = process.env.DEEPSEEK_API_KEY;
         const apiUrl = process.env.DEEPSEEK_API_URL || "https://api.deepseek.com/chat/completions";
         const model = process.env.DEEPSEEK_MODEL || "deepseek-chat";
 
-        // Limpa span/loop infinito
         let finalMessages = sanitizeContext(messages);
 
-        const response = await axios.post(
-            apiUrl,
-            {
-                model: model,
-                messages: finalMessages,
-                max_tokens: 900,
-                temperature: 0.7,
-                stream: false,
-                response_format: { type: 'text' }
-            },
-            {
-                headers: {
-                    'Authorization': `Bearer ${apiKey}`,
-                    'Content-Type': 'application/json'
-                },
-                timeout: 60000
-            }
-        );
+        const payload = {
+            model: model,
+            messages: finalMessages,
+            max_tokens: 900,
+            temperature: 0.7,
+            stream: false,
+            tools: [
+                {
+                    type: "function",
+                    function: {
+                        name: "searchProducts",
+                        description: "Busca produtos, preços, variações (customAttributes) e guias visuais (visualGuideUrl) no banco de dados da empresa",
+                        parameters: {
+                            type: "object",
+                            properties: {
+                                keywords: {
+                                    type: "array",
+                                    items: { type: "string" },
+                                    description: "Lista de palavras-chave para buscar produtos"
+                                }
+                            },
+                            required: ["keywords"]
+                        }
+                    }
+                }
+            ]
+        };
 
-        return response.data.choices[0].message.content;
+        const response = await axios.post(apiUrl, payload, {
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            timeout: 60000
+        });
+
+        const choice = response.data.choices[0];
+        const message = choice.message;
+
+        if (message.tool_calls && message.tool_calls.length > 0) {
+            // Append assistant message with tool calls
+            finalMessages.push(message);
+
+            for (const toolCall of message.tool_calls) {
+                if (toolCall.function.name === 'searchProducts') {
+                    const args = JSON.parse(toolCall.function.arguments);
+                    let result;
+                    try {
+                        result = await searchProducts(businessId, args.keywords);
+                    } catch (err) {
+                        console.error("Erro executando searchProducts:", err);
+                        result = { error: "Erro ao buscar produtos." };
+                    }
+                    // Append tool result
+                    finalMessages.push({
+                        role: "tool",
+                        tool_call_id: toolCall.id,
+                        content: JSON.stringify(result)
+                    });
+                }
+            }
+
+            // Recursive call with new messages
+            return await callDeepSeek(finalMessages, businessId);
+        }
+
+        return message.content;
     } catch (error) {
         console.error("❌ Erro DeepSeek API:", error.response?.data || error.message);
         throw error;
@@ -151,12 +188,12 @@ async function callDeepSeek(messages) {
 }
 
 // Mantido para compatibilidade com Campanhas
-async function generateCampaignMessage(promptText, context) {
+async function generateCampaignMessage(promptText, context, businessId) {
     // ... (Código original da campanha mantido igual) ...
     try {
         const systemPrompt = `SYSTEM: Write a short marketing message. Recipient: ${context.name || 'Cliente'}. No Markdown.`;
         const messages = [{ role: 'system', content: systemPrompt }, { role: 'user', content: promptText }];
-        const content = await callDeepSeek(messages);
+        const content = await callDeepSeek(messages, businessId);
         return content.trim();
     } catch (e) { return promptText; }
 }
