@@ -24,13 +24,23 @@ const adaptTwilioMessage = (twilioBody) => {
 // --- TRADUTOR DO WHATSAPP-WEB.JS (CORRIGIDO) ---
 const adaptWWebJSMessage = async (msg) => {
     let name = 'Cliente';
+    let realPhone = msg.from; // Fallback inicial caso a busca do contato falhe
+
     try {
         const contact = await msg.getContact();
         name = contact.pushname || contact.name || 'Cliente';
-    } catch (e) { console.warn('Erro contato WWebJS'); }
+        
+        // O PULO DO GATO: Se o WhatsApp esconder o número no 'from' (usando @lid), 
+        // pegamos a propriedade 'number' que contém o telefone real (ex: 5511962903775)
+        if (contact.number) {
+            realPhone = contact.number;
+        }
+    } catch (e) { 
+        console.warn('Erro ao buscar contato WWebJS'); 
+    }
     
-    // LOG DE DIAGNÓSTICO (RAIO-X)
-    console.log(`🔍 [ADAPTER] Msg recebida. Type: ${msg.type}, hasMedia: ${msg.hasMedia}`);
+    // LOG DE DIAGNÓSTICO (RAIO-X) - Agora mostrando o número real
+    console.log(`🔍 [ADAPTER] Msg de: ${realPhone} | Type: ${msg.type}, hasMedia: ${msg.hasMedia}`);
 
     let type = 'text';
     let mediaData = null;
@@ -74,7 +84,7 @@ const adaptWWebJSMessage = async (msg) => {
     }
 
     return {
-        from: normalizePhone(msg.from),
+        from: normalizePhone(realPhone), // Usando o número real limpo
         body: msg.body || '',
         name: name,
         type: type, // Aqui garantimos que só é 'image' se tiver mediaData
