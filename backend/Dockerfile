@@ -16,7 +16,7 @@ COPY package*.json ./
 
 # Instala as dependências como root (necessário na imagem do puppeteer)
 USER root
-RUN npm install
+RUN npm ci
 # Volta para o usuário padrão de segurança
 USER pptruser
 
