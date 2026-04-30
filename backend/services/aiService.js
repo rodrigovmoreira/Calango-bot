@@ -45,7 +45,13 @@ Atencao: Voce esta operando em um chat de WhatsApp. Siga estas regras obrigatori
             prompt += `\n--- CATALOGO RAPIDO (Referencia Interna) ---\n`;
             config.products.forEach(p => {
                 prompt += `Item: ${p.name} | Preco: R$ ${p.price}\n`;
+                if (p.customAttributes && p.customAttributes.length > 0) {
+                    p.customAttributes.forEach(attr => {
+                        prompt += `  - Atributo: ${attr.label} (Opcoes: ${attr.options.map(opt => `${opt.name}: R$ ${opt.price}`).join(', ')})\n`;
+                    });
+                }
             });
+            prompt += `\nCATALOG RULE (GUIA VISUAL): Se um produto pesquisado possuir um "visualGuideUrl" e "customAttributes" (variacoes), VOCE DEVE usar a ferramenta "send_visual_guide" para enviar a imagem do guia e pedir ao cliente para escolher uma das opcoes baseada na imagem antes de calcular o orcamento final. O orcamento final eh a soma do preco base com o preco da opcao escolhida.\n`;
         }
 
         // CÉREBRO (Regras do Negócio)

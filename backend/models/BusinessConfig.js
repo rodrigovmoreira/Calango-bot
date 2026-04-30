@@ -71,10 +71,25 @@ const businessConfigSchema = new mongoose.Schema({
   products: [
     {
       name: { type: String, required: true },
-      price: { type: Number, required: true },
+      price: { type: Number, required: true }, // Serve como "Preço Final" para simples ou "Preço Base" para avançados
       durationMinutes: { type: Number, default: 60 },
       description: { type: String },
+      type: {
+        type: String,
+        enum: ['physical', 'digital', 'service'],
+        default: 'physical'
+      },
       imageUrls: { type: [String], default: [] },
+      visualGuideUrl: { type: String }, // URL da imagem de referência (ex: mapa do corpo)
+
+      // Lista dinâmica de escolhas (Variantes)
+      customAttributes: [{
+        label: { type: String, required: true }, // ex: "Local do Corpo" ou "Ponto da Carne"
+        options: [{
+          name: { type: String, required: true }, // ex: "Braço" ou "Mal passado"
+          price: { type: Number, default: 0 }     // O valor específico desta opção
+        }]
+      }],
       tags: { type: [String], default: [] }
     }
   ],

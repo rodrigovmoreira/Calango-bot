@@ -415,6 +415,7 @@ Cliente: ${userMessage}`;
         const contactTags = getTagNames(contact ? contact.tags : []);
         const funnelSteps = businessConfig.funnelSteps || [];
         const stageContext = getFunnelStagePrompt(funnelSteps, contactTags);
+        const tagsContext = contactTags.length > 0 ? `--- TAGS DO CLIENTE (CRM) ---\n[${contactTags.join(', ')}]\n` : "";
 
         // D. History Formatting (Text Block Strategy)
         const rawDbHistory = await getLastMessages(from, MAX_HISTORY, activeBusinessId, channel);
@@ -442,12 +443,21 @@ Se precisar usar uma ferramenta, envie SOMENTE o bloco JSON correspondente.
 4. **CATÁLOGO**
    - JSON: {"action": "search_catalog", "keywords": ["termo1"]}
 
+5. **ENVIAR GUIA VISUAL**
+   - Use SOMENTE APÓS pesquisar no catálogo e identificar que o produto tem um visualGuideUrl. Opcionalmente adicione tags para registrar a escolha do cliente.
+   - JSON: {"action": "send_visual_guide", "url": "url_da_imagem", "message": "Mensagem para o cliente"}
+
+6. **ADICIONAR TAG (CRM)**
+   - Use para marcar uma escolha, preferência ou variação selecionada pelo cliente.
+   - JSON: {"action": "add_tag", "tag": "Nome da Tag"}
+
 Se for apenas conversar, responda texto normal.
 `;
 
         const systemInstruction = `
 ${basePrompt}
 ${welcomeContext}
+${tagsContext}
 ${stageContext}
 ${toolsInstruction}
 ${historyText}
@@ -546,6 +556,7 @@ Links: Insta=${instagram || 'N/A'}, Site=${website || 'N/A'}
                         const products = await aiTools.searchProducts(businessConfig.userId, command.keywords);
                         if (products.length > 0) {
                             let count = 0;
+                            let sentProductsData = [];
                             for (const p of products) {
                                 if (count >= 5) break;
                                 const caption = `${p.name} - R$ ${p.price}\n${p.description || ''}`;
@@ -561,10 +572,42 @@ Links: Insta=${instagram || 'N/A'}, Site=${website || 'N/A'}
                                 } else {
                                     if (channel !== 'web') await sendUnifiedMessage(from, caption, provider, businessConfig.userId);
                                 }
+                                sentProductsData.push(p);
                             }
-                            toolResult = `Encontrei ${products.length} produtos e já enviei ${count} com fotos.`;
+                            // Convertendo para string segura para evitar estourar max context ou json malformado, vamos injetar apenas metadata essencial
+                            toolResult = `Encontrei ${products.length} produtos e já enviei ${count} com fotos. Dados (Apenas para seu conhecimento interno): ${JSON.stringify(sentProductsData.map(p => ({name: p.name, visualGuideUrl: p.visualGuideUrl, customAttributes: p.customAttributes})))}`;
                         } else {
                             toolResult = "Nenhum produto encontrado.";
+                        }
+                    }
+
+                    if (command.action === 'send_visual_guide') {
+                        if (command.url) {
+                            if (channel !== 'web') {
+                                await wwebjsService.sendImage(businessConfig.userId, from, command.url, command.message || "Aqui está o guia visual.");
+                            }
+                            toolResult = "SUCESSO: Imagem do guia visual enviada. Aguarde o cliente escolher a opção.";
+                        } else {
+                            toolResult = "Erro: url não fornecida.";
+                        }
+                    }
+
+                    if (command.action === 'add_tag') {
+                        if (command.tag) {
+                            // Encontrar a Tag ou criar
+                            let tagDoc = await import('./models/Tag.js').then(m => m.default).then(Tag => Tag.findOne({ businessId: businessConfig.userId, name: command.tag }));
+                            if (!tagDoc) {
+                                const Tag = (await import('./models/Tag.js')).default;
+                                tagDoc = await Tag.create({ businessId: businessConfig.userId, name: command.tag, color: '#A0AEC0' });
+                            }
+                            // Adicionar ao contato
+                            await Contact.updateOne(
+                                contactQuery,
+                                { $addToSet: { tags: tagDoc._id } }
+                            );
+                            toolResult = `SUCESSO: Tag "${command.tag}" adicionada ao contato.`;
+                        } else {
+                            toolResult = "Erro: tag não fornecida.";
                         }
                     }
 
