@@ -575,7 +575,7 @@ Links: Insta=${instagram || 'N/A'}, Site=${website || 'N/A'}
                                 sentProductsData.push(p);
                             }
                             // Convertendo para string segura para evitar estourar max context ou json malformado, vamos injetar apenas metadata essencial
-                            toolResult = `Encontrei ${products.length} produtos e já enviei ${count} com fotos. Dados (Apenas para seu conhecimento interno): ${JSON.stringify(sentProductsData.map(p => ({ name: p.name, visualGuideUrl: p.visualGuideUrl, customAttributes: p.customAttributes })))}`;
+                            toolResult = `Encontrei ${products.length} produtos e já enviei ${count} com fotos. Dados (Apenas para seu conhecimento interno): ${JSON.stringify(sentProductsData.map(p => ({name: p.name, visualGuideUrl: p.visualGuideUrl, customAttributes: p.customAttributes})))}`;
                         } else {
                             toolResult = "Nenhum produto encontrado.";
                         }
@@ -648,31 +648,19 @@ Links: Insta=${instagram || 'N/A'}, Site=${website || 'N/A'}
             return;
         }
 
-        if (channel === 'web') {
-            // Se veio do site, devolve SÓ para o WebSocket do site
-            if (resolve) {
-                resolve({ text: finalResponseText });
-            }
-        } else if (channel === 'whatsapp') {
-            // 🔥 FEEDBACK VISUAL 2: Reforça o "Digitando..." para o WhatsApp
+        if (channel !== 'web') {
+            // 🔥 FEEDBACK VISUAL 2: Reforça o "Digitando..." para o tempo de delay artificial
             wwebjsService.sendStateTyping(activeBusinessId, from).catch(() => { });
 
-            // Delay humano artificial
             if (process.env.NODE_ENV !== 'test') {
                 const delay = Math.floor(Math.random() * (HUMAN_DELAY_MAX - HUMAN_DELAY_MIN + 1)) + HUMAN_DELAY_MIN;
                 await sleep(delay);
             }
-
-            // Se veio do WhatsApp, aciona o provedor com o número real do cliente
-            await sendUnifiedMessage(
-                from,
-                finalResponseText,
-                provider,
-                businessConfig.userId
-            );
+            await sendUnifiedMessage(from, finalResponseText, provider, businessConfig.userId);
         }
 
-        // Salva no banco de dados a mensagem que o bot acabou de enviar
+        if (resolve) resolve({ text: finalResponseText });
+
         await saveMessage(from, 'bot', finalResponseText, 'text', null, activeBusinessId, channel);
 
         // ⏱️ DAR CORDA NO RELÓGIO: Ativa/reseta o monitoramento de inatividade (Follow-up)

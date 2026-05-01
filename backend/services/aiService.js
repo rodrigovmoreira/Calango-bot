@@ -106,7 +106,12 @@ function formatHistoryText(historyMessages, botName) {
 
 import { searchProducts } from './aiTools.js';
 
-async function callDeepSeek(messages, businessId) {
+async function callDeepSeek(messages, businessId, depth = 0) {
+    if (depth > 5) {
+        console.warn("⚠️ callDeepSeek atingiu limite de recursão (depth > 5). Abortando.");
+        return "Desculpe, ocorreu um erro ao processar sua solicitação.";
+    }
+
     try {
         const apiKey = process.env.DEEPSEEK_API_KEY;
         const apiUrl = process.env.DEEPSEEK_API_URL || "https://api.deepseek.com/chat/completions";
@@ -150,37 +155,47 @@ async function callDeepSeek(messages, businessId) {
             timeout: 60000
         });
 
-        const choice = response.data.choices[0];
-        const message = choice.message;
+        const responseMessage = response.data.choices[0].message;
 
-        if (message.tool_calls && message.tool_calls.length > 0) {
-            // Append assistant message with tool calls
-            finalMessages.push(message);
+        // Se a IA pediu para usar ferramentas
+        if (responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
+            // 1. OBRIGATÓRIO: Push da resposta original do assistente EXATAMENTE como veio
+            finalMessages.push(responseMessage);
 
-            for (const toolCall of message.tool_calls) {
-                if (toolCall.function.name === 'searchProducts') {
+            // 2. Loop sobre TODAS as ferramentas solicitadas (a IA pode pedir mais de uma simultaneamente)
+            for (const toolCall of responseMessage.tool_calls) {
+                let toolResultStr = "";
+
+                try {
                     const args = JSON.parse(toolCall.function.arguments);
-                    let result;
-                    try {
-                        result = await searchProducts(businessId, args.keywords);
-                    } catch (err) {
-                        console.error("Erro executando searchProducts:", err);
-                        result = { error: "Erro ao buscar produtos." };
+
+                    if (toolCall.function.name === 'searchProducts') {
+                        // Chama a função real
+                        const resultData = await searchProducts(businessId, args.keywords);
+                        // O resultado DEVE ser transformado em string JSON
+                        toolResultStr = JSON.stringify(resultData);
+                    } else {
+                        toolResultStr = JSON.stringify({ error: "Ferramenta não reconhecida" });
                     }
-                    // Append tool result
-                    finalMessages.push({
-                        role: "tool",
-                        tool_call_id: toolCall.id,
-                        content: JSON.stringify(result)
-                    });
+                } catch (err) {
+                    console.error("Erro ao executar tool:", err);
+                    toolResultStr = JSON.stringify({ error: "Falha ao executar ferramenta" });
                 }
+
+                // 3. OBRIGATÓRIO: Push da resposta da ferramenta com o ID e role corretos
+                finalMessages.push({
+                    role: "tool",
+                    tool_call_id: toolCall.id,
+                    name: toolCall.function.name, // DeepSeek/OpenAI exigem o nome da função aqui
+                    content: toolResultStr // Obrigatório ser String
+                });
             }
 
-            // Recursive call with new messages
-            return await callDeepSeek(finalMessages, businessId);
+            // 4. Chama a IA novamente de forma recursiva com o contexto atualizado
+            return await callDeepSeek(finalMessages, businessId, depth + 1);
         }
 
-        return message.content;
+        return responseMessage.content;
     } catch (error) {
         console.error("❌ Erro DeepSeek API:", error.response?.data || error.message);
         throw error;
