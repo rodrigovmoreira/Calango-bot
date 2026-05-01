@@ -43,6 +43,8 @@ Atencao: Voce esta operando em um chat de WhatsApp. Siga estas regras obrigatori
 
         prompt += `\n--- INSTRUÇÕES DE CATÁLOGO ---\nPara dar orçamentos, SEMPRE use a ferramenta searchProducts. Se o produto retornado possuir 'visualGuideUrl', você DEVE enviar essa URL para o cliente ver e pedir para ele escolher uma opção baseada nos 'customAttributes' antes de passar o preço final. O orçamento final é a soma do preço base com o preço da opção escolhida.\n`;
 
+        prompt += `\nREGRAS DE INTERAÇÃO: Se o cliente disser apenas 'Oi', 'Olá', 'Tudo bem' ou enviar uma saudação, APENAS responda de forma educada e pergunte como pode ajudar. NÃO utilize a ferramenta searchProducts nestes casos.\n`;
+
         // CÉREBRO (Regras do Negócio)
         prompt += `\n--- REGRAS DO NEGOCIO (CEREBRO) ---\n`;
         prompt += config.customInstructions || config.prompts?.chatSystem || "";
@@ -130,7 +132,7 @@ async function callDeepSeek(messages, businessId, depth = 0) {
                     type: "function",
                     function: {
                         name: "searchProducts",
-                        description: "Busca produtos, preços, variações (customAttributes) e guias visuais (visualGuideUrl) no banco de dados da empresa",
+                        description: "Use esta ferramenta APENAS quando o cliente solicitar explicitamente preços, orçamentos, ou informações sobre um serviço/tatuagem específico. NUNCA use esta ferramenta para saudações (ex: Oi, Bom dia) ou perguntas genéricas.",
                         parameters: {
                             type: "object",
                             properties: {
@@ -161,6 +163,8 @@ async function callDeepSeek(messages, businessId, depth = 0) {
         if (responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
             // 1. OBRIGATÓRIO: Push da resposta original do assistente EXATAMENTE como veio
             finalMessages.push(responseMessage);
+
+            console.log('🛠️ IA ACIONOU TOOL:', JSON.stringify(responseMessage.tool_calls.map(t => ({ name: t.function.name, args: t.function.arguments }))));
 
             // 2. Loop sobre TODAS as ferramentas solicitadas (a IA pode pedir mais de uma simultaneamente)
             for (const toolCall of responseMessage.tool_calls) {
