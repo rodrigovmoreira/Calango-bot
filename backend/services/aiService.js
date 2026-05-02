@@ -12,9 +12,7 @@ function sanitizeContext(messages) {
     });
 }
 
-/**
- * Constrói o Prompt do Sistema com Identidade, Tom, Catálogo e Regras de Humanização.
- */
+//Constrói o Prompt do Sistema com Identidade, Tom, Catálogo e Regras de Humanização.
 async function buildSystemPrompt(businessId) {
     try {
         const config = await BusinessConfig.findById(businessId);
@@ -132,7 +130,7 @@ async function callDeepSeek(messages, businessId, depth = 0) {
                     type: "function",
                     function: {
                         name: "searchProducts",
-                        description: "Use esta ferramenta APENAS quando o cliente solicitar explicitamente preços, orçamentos, ou informações sobre um serviço/tatuagem específico. NUNCA use esta ferramenta para saudações (ex: Oi, Bom dia) ou perguntas genéricas.",
+                        description: "Use esta ferramenta APENAS quando o cliente solicitar explicitamente preços, orçamentos, ou informações sobre um serviço específico. NUNCA use esta ferramenta para responder perguntas genéricas.",
                         parameters: {
                             type: "object",
                             properties: {
