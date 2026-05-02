@@ -143,10 +143,10 @@ const getFreeSlots = async (userId, dateStr) => {
     }
 };
 
-// 4. FERRAMENTA: Buscar Produtos (Mantido igual, funciona bem)
-const searchProducts = async (userId, keywords = []) => {
+// 4. FERRAMENTA: Buscar Produtos (Function Calling Atualizado)
+const searchProducts = async (businessId, keywords = []) => {
     try {
-        const config = await BusinessConfig.findOne({ userId });
+        const config = await BusinessConfig.findById(businessId);
         if (!config || !config.products) return [];
 
         const searchTerms = keywords.map(k => k.trim().toLowerCase()).filter(k => k.length > 0);

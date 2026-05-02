@@ -194,7 +194,7 @@ Baseado no histórico, escreva UMA ÚNICA MENSAGEM curta e natural para enviar a
 Seja humano, evite parecer um robô. NÃO USE ASTERISCOS (**) NEM MARKDOWN.
 `;
                             // 3. Chama o DeepSeek
-                            const aiResponse = await callDeepSeek([{ role: "system", content: prompt }]);
+                            const aiResponse = await callDeepSeek([{ role: "system", content: prompt }], contact.businessId);
 
                             // Limpeza simples de tags HTML/Markdown caso a IA viaje
                             let cleanResponse = aiResponse.replace(/<[^>]*>?/gm, '').replace(/\*\*/g, '').trim();
