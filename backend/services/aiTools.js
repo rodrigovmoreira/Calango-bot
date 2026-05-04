@@ -143,20 +143,38 @@ const getFreeSlots = async (userId, dateStr) => {
     }
 };
 
+// Helper de normalização (remove acentos e converte para minúsculas)
+const normalizeText = (text) => {
+    if (!text) return "";
+    return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+};
+
 // 4. FERRAMENTA: Buscar Produtos (Function Calling Atualizado)
 const searchProducts = async (businessId, keywords = []) => {
     try {
         const config = await BusinessConfig.findById(businessId);
-        if (!config || !config.products) return [];
+        if (!config || !config.products || config.products.length === 0) {
+            return { error: "Nenhum produto cadastrado.", message: "Informe ao usuário que o catálogo de produtos/serviços está vazio no momento." };
+        }
 
-        const searchTerms = keywords.map(k => k.trim().toLowerCase()).filter(k => k.length > 0);
-        if (searchTerms.length === 0) return [];
+        const searchTerms = keywords.map(normalizeText).filter(k => k.length > 0);
+        if (searchTerms.length === 0) {
+            return { error: "Palavras-chave vazias.", message: "Peça ao usuário para fornecer o nome do produto/serviço que está procurando." };
+        }
 
         const results = config.products.filter(p => {
-            const productName = p.name.trim().toLowerCase();
-            const productTags = (p.tags || []).map(t => t.trim().toLowerCase());
+            const productName = normalizeText(p.name);
+            const productTags = (p.tags || []).map(normalizeText);
             return searchTerms.some(term => productName.includes(term) || productTags.some(tag => tag.includes(term)));
         });
+
+        if (results.length === 0) {
+            const availableProducts = config.products.map(p => p.name).slice(0, 5).join(", ");
+            return {
+                error: "Produto não encontrado.",
+                message: `Diga ao usuário que não temos o produto buscado. Sugira as seguintes opções que temos disponíveis: ${availableProducts}`
+            };
+        }
 
         return results.map(p => ({
             name: p.name,
@@ -170,7 +188,7 @@ const searchProducts = async (businessId, keywords = []) => {
         }));
     } catch (error) {
         console.error("Erro searchProducts:", error);
-        return [];
+        return { error: "Falha na busca.", message: "Ocorreu um erro interno ao buscar produtos. Diga ao usuário que você está com problemas técnicos para consultar o catálogo." };
     }
 };
 

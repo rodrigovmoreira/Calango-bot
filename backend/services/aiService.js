@@ -108,8 +108,36 @@ import { searchProducts } from './aiTools.js';
 
 async function callDeepSeek(messages, businessId, depth = 0) {
     if (depth > 5) {
-        console.warn("⚠️ callDeepSeek atingiu limite de recursão (depth > 5). Abortando.");
-        return "Desculpe, ocorreu um erro ao processar sua solicitação.";
+        console.warn(`⚠️ Limite de recursão (depth > 5) atingido para businessId: ${businessId}. Forçando fallback humano.`);
+
+        // Em vez de abortar quebrando o fluxo, forçamos a IA a dar uma resposta final
+        // sem permissão para usar ferramentas.
+        const fallbackMessages = [
+            ...messages,
+            {
+                role: "system",
+                content: "SISTEMA CRÍTICO: Você atingiu o limite de tentativas de busca. VOCÊ ESTÁ PROIBIDO DE USAR FERRAMENTAS AGORA. Responda imediatamente ao usuário pedindo desculpas pela confusão, dizendo que não conseguiu encontrar a informação exata, e peça para ele reformular a pergunta ou descrever melhor o que deseja."
+            }
+        ];
+
+        // Faz a chamada final sem passar as "tools" no payload
+        try {
+            const finalResponse = await axios.post('https://api.deepseek.com/chat/completions', {
+                model: process.env.DEEPSEEK_MODEL || "deepseek-chat",
+                messages: fallbackMessages,
+                temperature: 0.7,
+                max_tokens: 500
+            }, {
+                headers: {
+                    'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            return finalResponse.data.choices[0].message.content;
+        } catch (e) {
+            // Falha catastrófica total
+            return "Puxa, fiquei um pouco confuso agora. Você poderia me dar mais detalhes sobre o serviço que está procurando?";
+        }
     }
 
     try {
