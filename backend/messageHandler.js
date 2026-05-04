@@ -349,7 +349,7 @@ Cliente: ${userMessage}`;
                     try {
                         finalResponse = await callDeepSeek([
                             { role: "user", content: menuPrompt }
-                        ]);
+                        ], activeBusinessId);
                     } catch (e) { console.error("Erro IA Menu:", e); }
                 }
 
@@ -491,7 +491,7 @@ Links: Insta=${instagram || 'N/A'}, Site=${website || 'N/A'}
 
         try {
             // 1. Chamada inicial à IA
-            const rawResponseText = await callDeepSeek(aiMessages);
+            const rawResponseText = await callDeepSeek(aiMessages, activeBusinessId);
 
             const thoughtMatch = rawResponseText.match(/<thinking>([\s\S]*?)<\/thinking>/i);
             if (thoughtMatch) console.log(`🧠 [IA PENSOU]: ${thoughtMatch[1].substring(0, 100)}...`);
@@ -553,7 +553,7 @@ Links: Insta=${instagram || 'N/A'}, Site=${website || 'N/A'}
                     }
 
                     if (command.action === 'search_catalog') {
-                        const products = await aiTools.searchProducts(businessConfig.userId, command.keywords);
+                        const products = await aiTools.searchProducts(activeBusinessId, command.keywords);
                         if (products.length > 0) {
                             let count = 0;
                             let sentProductsData = [];
@@ -615,7 +615,7 @@ Links: Insta=${instagram || 'N/A'}, Site=${website || 'N/A'}
                     aiMessages.push({ role: "assistant", content: rawResponseText });
                     aiMessages.push({ role: "user", content: `[SISTEMA]: Resultado da ação: ${toolResult}. Agora responda ao cliente.` });
 
-                    const rawFinalResponse = await callDeepSeek(aiMessages);
+                    const rawFinalResponse = await callDeepSeek(aiMessages, activeBusinessId);
 
                     // 🛡️ TRAVA DE SEGURANÇA 2: Limpar pensamento TAMBÉM na resposta pós-ação
                     finalResponseText = stripThinking(rawFinalResponse);

@@ -244,7 +244,7 @@ ${historyText || "No previous history."}
         ];
 
         // 3. Call AI
-        const rawResponse = await callDeepSeek(prompt);
+        const rawResponse = await callDeepSeek(prompt, appointment.userId || contact.businessId);
         
         // 4. Strip Thoughts
         messageToSend = stripThinking(rawResponse);
