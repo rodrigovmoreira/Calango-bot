@@ -80,7 +80,7 @@ const businessConfigSchema = new mongoose.Schema({
         default: 'physical'
       },
       imageUrls: { type: [String], default: [] },
-      visualGuideUrl: { type: String }, // URL da imagem de referência (ex: mapa do corpo)
+      visualGuideUrls: { type: [String], default: [] }, // URLs das imagens de referência (ex: mapa do corpo)
 
       // Lista dinâmica de escolhas (Variantes)
       customAttributes: [{

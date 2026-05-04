@@ -39,7 +39,7 @@ Atencao: Voce esta operando em um chat de WhatsApp. Siga estas regras obrigatori
 4. CONTINUIDADE: Verifique o historico. Nao repita saudacoes (como "Ola!", "Tudo bem?") se voces ja se falaram na conversa recente.
 `;
 
-        prompt += `\n--- INSTRUÇÕES DE CATÁLOGO ---\nPara dar orçamentos, SEMPRE use a ferramenta searchProducts. Se o produto retornado possuir 'visualGuideUrl', você DEVE enviar essa URL para o cliente ver e pedir para ele escolher uma opção baseada nos 'customAttributes' antes de passar o preço final. O orçamento final é a soma do preço base com o preço da opção escolhida.\n`;
+        prompt += `\n--- INSTRUÇÕES DE CATÁLOGO ---\nPara dar orçamentos, SEMPRE use a ferramenta searchProducts. Se o produto retornado possuir 'visualGuideUrls' (um array de imagens guia), você DEVE usar a ação 'send_visual_guide' passando a PRIMEIRA URL (índice 0) para o cliente ver e pedir para ele escolher uma opção baseada nos 'customAttributes' antes de passar o preço final. Se o cliente pedir para ver MAIS imagens do guia visual, utilize a ação 'send_more_visual_guides' passando as imagens restantes do produto. O orçamento final é a soma do preço base com o preço da opção escolhida.\n`;
 
         prompt += `\nREGRAS DE INTERAÇÃO: Se o cliente disser apenas 'Oi', 'Olá', 'Tudo bem' ou enviar uma saudação, APENAS responda de forma educada e pergunte como pode ajudar. NÃO utilize a ferramenta searchProducts nestes casos.\n`;
 

@@ -444,10 +444,14 @@ Se precisar usar uma ferramenta, envie SOMENTE o bloco JSON correspondente.
    - JSON: {"action": "search_catalog", "keywords": ["termo1"]}
 
 5. **ENVIAR GUIA VISUAL**
-   - Use SOMENTE APÓS pesquisar no catálogo e identificar que o produto tem um visualGuideUrl. Opcionalmente adicione tags para registrar a escolha do cliente.
-   - JSON: {"action": "send_visual_guide", "url": "url_da_imagem", "message": "Mensagem para o cliente"}
+   - Use SOMENTE APÓS pesquisar no catálogo e identificar que o produto tem `visualGuideUrls`. Você deve enviar a PRIMEIRA URL (índice 0) deste array. Opcionalmente adicione tags para registrar a escolha do cliente.
+   - JSON: {"action": "send_visual_guide", "url": "url_da_primeira_imagem", "message": "Mensagem para o cliente"}
 
-6. **ADICIONAR TAG (CRM)**
+6. **ENVIAR MAIS GUIAS VISUAIS**
+   - Use APENAS se o cliente pedir para ver MAIS imagens de guia visual de um produto que você já encontrou no catálogo e que possua mais de uma imagem em `visualGuideUrls`. Envie o array contendo as imagens restantes.
+   - JSON: {"action": "send_more_visual_guides", "urls": ["url2", "url3"], "message": "Mensagem para o cliente"}
+
+7. **ADICIONAR TAG (CRM)**
    - Use para marcar uma escolha, preferência ou variação selecionada pelo cliente.
    - JSON: {"action": "add_tag", "tag": "Nome da Tag"}
 
@@ -575,7 +579,7 @@ Links: Insta=${instagram || 'N/A'}, Site=${website || 'N/A'}
                                 sentProductsData.push(p);
                             }
                             // Convertendo para string segura para evitar estourar max context ou json malformado, vamos injetar apenas metadata essencial
-                            toolResult = `Encontrei ${products.length} produtos e já enviei ${count} com fotos. Dados (Apenas para seu conhecimento interno): ${JSON.stringify(sentProductsData.map(p => ({name: p.name, visualGuideUrl: p.visualGuideUrl, customAttributes: p.customAttributes})))}`;
+                            toolResult = `Encontrei ${products.length} produtos e já enviei ${count} com fotos. Dados (Apenas para seu conhecimento interno): ${JSON.stringify(sentProductsData.map(p => ({name: p.name, visualGuideUrls: p.visualGuideUrls, customAttributes: p.customAttributes})))}`;
                         } else {
                             toolResult = "Nenhum produto encontrado.";
                         }
@@ -584,11 +588,28 @@ Links: Insta=${instagram || 'N/A'}, Site=${website || 'N/A'}
                     if (command.action === 'send_visual_guide') {
                         if (command.url) {
                             if (channel !== 'web') {
-                                await wwebjsService.sendImage(businessConfig.userId, from, command.url, command.message || "Aqui está o guia visual.");
+                                await wwebjsService.sendImage(businessConfig.userId, from, command.url, command.message || "Aqui está o guia visual principal.");
                             }
-                            toolResult = "SUCESSO: Imagem do guia visual enviada. Aguarde o cliente escolher a opção.";
+                            toolResult = "SUCESSO: Primeira imagem do guia visual enviada. Aguarde o cliente escolher a opção ou pedir mais imagens se houver.";
                         } else {
                             toolResult = "Erro: url não fornecida.";
+                        }
+                    }
+
+                    if (command.action === 'send_more_visual_guides') {
+                        if (command.urls && Array.isArray(command.urls) && command.urls.length > 0) {
+                            if (channel !== 'web') {
+                                const urlsToSend = command.urls.slice(0, 5); // Limita a 5 imagens
+                                if (command.message) {
+                                    await sendUnifiedMessage(from, command.message, provider, businessConfig.userId);
+                                }
+                                for (let url of urlsToSend) {
+                                    await wwebjsService.sendImage(businessConfig.userId, from, url, "");
+                                }
+                            }
+                            toolResult = `SUCESSO: ${Math.min(command.urls.length, 5)} imagens adicionais do guia visual enviadas.`;
+                        } else {
+                            toolResult = "Erro: urls não fornecidas ou array vazio.";
                         }
                     }
 

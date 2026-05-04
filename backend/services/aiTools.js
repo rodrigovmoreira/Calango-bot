@@ -183,7 +183,7 @@ const searchProducts = async (businessId, keywords = []) => {
             durationMinutes: p.durationMinutes || 60,
             description: p.description,
             imageUrls: p.imageUrls || [],
-            visualGuideUrl: p.visualGuideUrl,
+            visualGuideUrls: p.visualGuideUrls || [],
             customAttributes: p.customAttributes || []
         }));
     } catch (error) {

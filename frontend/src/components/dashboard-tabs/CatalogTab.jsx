@@ -25,12 +25,21 @@ const CatalogTab = () => {
   const [products, setProducts] = useState([]);
   const [newProduct, setNewProduct] = useState({
     name: '', price: '', description: '', imageUrls: [], tags: [],
-    type: 'physical', visualGuideUrl: '', customAttributes: []
+    type: 'physical', visualGuideUrls: [], customAttributes: []
   });
   const [editingProductIndex, setEditingProductIndex] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isUploadingGuide, setIsUploadingGuide] = useState(false);
   const [isAdvancedMode, setIsAdvancedMode] = useState(false);
+
+  // Image Zoom Modal State
+  const { isOpen: isImageModalOpen, onOpen: onImageModalOpen, onClose: onImageModalClose } = useDisclosure();
+  const [zoomedImageUrl, setZoomedImageUrl] = useState('');
+
+  const handleImageZoom = (url) => {
+    setZoomedImageUrl(url);
+    onImageModalOpen();
+  };
 
   // Sync
   useEffect(() => {
@@ -79,7 +88,7 @@ const CatalogTab = () => {
       ...newProduct,
       tags: finalTags,
       // Se não estiver no modo avançado, limpa os campos avançados antes de salvar
-      visualGuideUrl: isAdvancedMode ? newProduct.visualGuideUrl : '',
+      visualGuideUrls: isAdvancedMode ? newProduct.visualGuideUrls : [],
       customAttributes: isAdvancedMode ? newProduct.customAttributes : []
     };
     const updated = [...products];
@@ -87,7 +96,7 @@ const CatalogTab = () => {
     else updated.push(productToSave);
 
     setProducts(updated);
-    setNewProduct({ name: '', price: '', description: '', imageUrls: [], tags: [], type: 'physical', visualGuideUrl: '', customAttributes: [] });
+    setNewProduct({ name: '', price: '', description: '', imageUrls: [], tags: [], type: 'physical', visualGuideUrls: [], customAttributes: [] });
     setEditingProductIndex(null);
     setIsAdvancedMode(false);
     onProductModalClose();
@@ -102,13 +111,11 @@ const CatalogTab = () => {
     setIsUploadingGuide(true);
     try {
       const newUrls = await uploadMultipleFiles(files, 'products');
-      if (newUrls && newUrls.length > 0) {
-        setNewProduct(prev => ({
-          ...prev,
-          visualGuideUrl: newUrls[0]
-        }));
-        toast({ title: 'Guia Visual enviado!', status: 'success' });
-      }
+      setNewProduct(prev => ({
+        ...prev,
+        visualGuideUrls: [...(prev.visualGuideUrls || []), ...newUrls]
+      }));
+      toast({ title: `${newUrls.length} imagem(ns) de Guia Visual enviada(s)!`, status: 'success' });
     } catch (error) {
       console.error('Erro ao enviar Guia Visual:', error);
       toast({ title: 'Erro ao enviar imagem', description: error.message, status: 'error' });
@@ -117,8 +124,8 @@ const CatalogTab = () => {
     }
   };
 
-  const handleDeleteGuide = async () => {
-    const urlToRemove = newProduct.visualGuideUrl;
+  const handleDeleteGuide = async (indexToRemove) => {
+    const urlToRemove = newProduct.visualGuideUrls[indexToRemove];
     if (urlToRemove && urlToRemove.startsWith('http')) {
       try {
         await businessAPI.deleteImage(urlToRemove);
@@ -129,7 +136,10 @@ const CatalogTab = () => {
         return;
       }
     }
-    setNewProduct(prev => ({ ...prev, visualGuideUrl: '' }));
+    setNewProduct(prev => ({
+      ...prev,
+      visualGuideUrls: prev.visualGuideUrls.filter((_, i) => i !== indexToRemove)
+    }));
   };
 
   const addCustomAttribute = () => {
@@ -225,7 +235,7 @@ const CatalogTab = () => {
             <Box><Heading size="md">Produtos & Serviços</Heading><Text fontSize="sm" color="gray.500">Para a IA consultar preços e enviar fotos.</Text></Box>
             <Button leftIcon={<AddIcon />} variant="outline" colorScheme="blue" onClick={() => {
               setEditingProductIndex(null);
-              setNewProduct({ name: '', price: '', description: '', imageUrls: [], tags: [], type: 'physical', visualGuideUrl: '', customAttributes: [] });
+              setNewProduct({ name: '', price: '', description: '', imageUrls: [], tags: [], type: 'physical', visualGuideUrls: [], customAttributes: [] });
               setIsAdvancedMode(false);
               onProductModalOpen();
             }}>Novo Item</Button>
@@ -255,11 +265,11 @@ const CatalogTab = () => {
                       setNewProduct({
                         ...prod,
                         type: prod.type || 'physical',
-                        visualGuideUrl: prod.visualGuideUrl || '',
+                        visualGuideUrls: prod.visualGuideUrls || (prod.visualGuideUrl ? [prod.visualGuideUrl] : []), // Legacy support
                         customAttributes: prod.customAttributes || []
                       });
                       setEditingProductIndex(idx);
-                      setIsAdvancedMode(!!(prod.visualGuideUrl || (prod.customAttributes && prod.customAttributes.length > 0)));
+                      setIsAdvancedMode(!!((prod.visualGuideUrls && prod.visualGuideUrls.length > 0) || prod.visualGuideUrl || (prod.customAttributes && prod.customAttributes.length > 0)));
                       onProductModalOpen();
                     }} />
                   </Tooltip>
@@ -310,26 +320,36 @@ const CatalogTab = () => {
 
                     <FormControl>
                       <FormLabel>Guia Visual (Opcional)</FormLabel>
-                      <Text fontSize="xs" color="gray.500" mb={2}>Uma imagem de referência para o cliente (ex: mapa do corpo, peças do carro).</Text>
-                      {!newProduct.visualGuideUrl ? (
-                        <HStack>
-                          <Input type="file" accept="image/*" onChange={handleGuideUpload} p={1} isDisabled={isUploadingGuide} />
-                          {isUploadingGuide && <Spinner size="sm" />}
+                      <Text fontSize="xs" color="gray.500" mb={2}>Imagens de referência para o cliente (ex: mapa do corpo, peças do carro).</Text>
+                      <HStack>
+                        <Input type="file" multiple accept="image/*" onChange={handleGuideUpload} p={1} isDisabled={isUploadingGuide} />
+                        {isUploadingGuide && <Spinner size="sm" />}
+                      </HStack>
+                      {newProduct.visualGuideUrls && newProduct.visualGuideUrls.length > 0 && (
+                        <HStack mt={2} spacing={2} overflowX="auto" py={2}>
+                          {newProduct.visualGuideUrls.map((url, i) => (
+                            <Box key={i} w="120px" h="120px" borderRadius="md" overflow="hidden" border="1px solid gray" position="relative" flexShrink={0}>
+                              <img
+                                src={url}
+                                alt={`Guia Visual ${i + 1}`}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer' }}
+                                onClick={() => handleImageZoom(url)}
+                              />
+                              <IconButton
+                                icon={<DeleteIcon boxSize={3} />}
+                                size={{ base: 'sm', md: 'xs' }}
+                                colorScheme="red"
+                                position="absolute"
+                                top={0}
+                                right={0}
+                                onClick={() => handleDeleteGuide(i)}
+                                aria-label="Remover Guia Visual"
+                                borderRadius="none"
+                                borderBottomLeftRadius="md"
+                              />
+                            </Box>
+                          ))}
                         </HStack>
-                      ) : (
-                        <Box w="120px" h="120px" borderRadius="md" overflow="hidden" border="1px solid gray" position="relative">
-                          <img src={newProduct.visualGuideUrl} alt="Guia Visual" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          <IconButton
-                            icon={<DeleteIcon />}
-                            size="sm"
-                            colorScheme="red"
-                            position="absolute"
-                            top={1}
-                            right={1}
-                            onClick={handleDeleteGuide}
-                            aria-label="Remover Guia Visual"
-                          />
-                        </Box>
                       )}
                     </FormControl>
 
@@ -405,7 +425,8 @@ const CatalogTab = () => {
                         <img 
                           src={url} 
                           alt="preview" 
-                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer' }}
+                          onClick={() => handleImageZoom(url)}
                         />
                         <IconButton
                           icon={<DeleteIcon boxSize={3} />}
@@ -428,6 +449,17 @@ const CatalogTab = () => {
             </VStack>
           </ModalBody>
           <ModalFooter><Button variant="ghost" mr={3} onClick={onProductModalClose}>Cancelar</Button><Button colorScheme="blue" onClick={handleAddProduct} isLoading={isUploading}>Salvar</Button></ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Modal Zoom Imagem */}
+      <Modal isOpen={isImageModalOpen} onClose={onImageModalClose} isCentered size="4xl">
+        <ModalOverlay />
+        <ModalContent bg="transparent" boxShadow="none">
+          <ModalCloseButton color="white" bg="blackAlpha.700" _hover={{ bg: "blackAlpha.900" }} zIndex={10} />
+          <ModalBody p={0} display="flex" justifyContent="center" alignItems="center">
+            <img src={zoomedImageUrl} alt="Zoom" style={{ maxWidth: '100%', maxHeight: '90vh', objectFit: 'contain' }} />
+          </ModalBody>
         </ModalContent>
       </Modal>
     </Box>
