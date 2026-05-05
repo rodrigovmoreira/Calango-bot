@@ -1,0 +1,40 @@
+# Dependências (O MAIS IMPORTANTE PARA RESOLVER SEU ERRO)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Diretórios de Build (O Docker deve gerar os seus próprios)
+build/
+dist/
+.next/
+
+# Arquivos de ambiente e segredos (Segurança)
+.env
+.env.*
+!.env.example
+!.env-CONFIG.md
+
+# Arquivos de versionamento e IDEs
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# Diretórios de Testes (Vi que você tem essa pasta no frontend)
+test-results/
+coverage/
+
+# Arquivos do próprio Docker (evita invalidar o cache à toa)
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Arquivos markdown (opicional, mas deixa o container mais leve)
+*.md
+!README.md
+
+# Ignore wwebjs_cache folder
+.wwebjs_cache/
+.wwebjs_auth/
+*.zip
+**/*.zip
