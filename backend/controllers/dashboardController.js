@@ -16,8 +16,6 @@ export const getDashboardSummary = async (req, res) => {
       });
     }
 
-    const businessId = config._id;
-
     // 2. Calculate Dates
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
