@@ -8,6 +8,7 @@ import {
 import {
   EditIcon, WarningTwoIcon, ChevronDownIcon,
 } from '@chakra-ui/icons';
+import { FaUsers } from 'react-icons/fa';
 import { useApp } from '../context/AppContext';
 import { authAPI } from '../services/api';
 import { uploadFileToFirebase } from '../utils/uploadHelper';
@@ -128,6 +129,7 @@ const Dashboard = ({ initialTab = 0 }) => {
       </MenuButton>
       <MenuList>
         <MenuItem icon={<EditIcon />} onClick={onProfileOpen}>Meu Perfil</MenuItem>
+        <MenuItem icon={<FaUsers />} onClick={() => setActiveTab(9)}>Gestão de Equipe</MenuItem>
         <MenuItem icon={<WarningTwoIcon />} onClick={handleLogoutSystem}>Sair</MenuItem>
       </MenuList>
     </Menu>
@@ -194,6 +196,7 @@ const Dashboard = ({ initialTab = 0 }) => {
             </MenuButton>
             <MenuList>
               <MenuItem icon={<EditIcon />} onClick={onProfileOpen}>Meu Perfil</MenuItem>
+              <MenuItem icon={<FaUsers />} onClick={() => setActiveTab(9)}>Gestão de Equipe</MenuItem>
               <MenuItem icon={<WarningTwoIcon />} onClick={handleLogoutSystem}>Sair</MenuItem>
             </MenuList>
           </Menu>

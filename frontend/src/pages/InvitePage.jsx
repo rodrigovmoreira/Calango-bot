@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Flex, Heading, Text, Button, VStack,
+  Box, Flex, Heading, Text, Button, VStack,
   useToast, useColorModeValue, FormControl, FormLabel, Input,
   Spinner, Center, Card, CardBody, Avatar, Divider, Alert, AlertIcon
 } from '@chakra-ui/react';
 import api from '../services/api';
+import { authAPI } from '../services/api';
 import { useApp } from '../context/AppContext';
 
 const InvitePage = () => {

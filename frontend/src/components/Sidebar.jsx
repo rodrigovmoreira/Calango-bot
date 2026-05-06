@@ -36,7 +36,6 @@ const LinkItems = [
   { name: 'Chat Ao vivo', icon: ChatIcon, index: 6, color: 'purple.500' },
   { name: 'Agendamentos', icon: TimeIcon, index: 7, color: 'blue.500' },
   { name: 'Funil de Vendas', icon: FaFilter, index: 8, color: 'teal.500' },
-  { name: 'Equipe', icon: SettingsIcon, index: 9, color: 'gray.500' },
 ];
 
 const NavItem = ({ icon, children, isActive, color, isCollapsed, ...rest }) => {
