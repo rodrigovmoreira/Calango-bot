@@ -1,0 +1,16 @@
+<<<<<<< SEARCH
+const req = {
+  user: { userId: 'user123' },
+  file: null,
+=======
+const req = {
+  user: { userId: 'user123', activeBusinessId: 'biz123' },
+  file: null,
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+    const mockBusinessId = 'biz123';
+    BusinessConfig.findOne.mockResolvedValue({ _id: mockBusinessId });
+=======
+    const mockBusinessId = 'biz123';
+    BusinessConfig.findById.mockResolvedValue({ _id: mockBusinessId });
+>>>>>>> REPLACE

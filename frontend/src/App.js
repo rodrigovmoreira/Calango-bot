@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard';
 import LandingPage from './pages/LandingPage';
 import GoogleCallback from './pages/GoogleCallback';
 import PublicChat from './pages/PublicChat';
+import InvitePage from './pages/InvitePage';
 
 const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem('token');
@@ -39,6 +40,11 @@ function App() {
               } />
               <Route path="/google-callback" element={<GoogleCallback />} />
               <Route path="/chat/:businessId" element={<PublicChat />} />
+              <Route path="/invite/:token" element={
+                <PublicOnlyRoute>
+                  <InvitePage />
+                </PublicOnlyRoute>
+              } />
               <Route
                 path="/dashboard"
                 element={

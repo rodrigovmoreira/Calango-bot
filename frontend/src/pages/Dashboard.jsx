@@ -25,6 +25,7 @@ const CampaignTab = lazy(() => import('../components/dashboard-tabs/CampaignTab'
 const LiveChatTab = lazy(() => import('../components/dashboard-tabs/LiveChatTab'));
 const ScheduleTab = lazy(() => import('../components/ScheduleTab'));
 const SalesFunnel = lazy(() => import('./SalesFunnel'));
+const TeamTab = lazy(() => import('../components/dashboard-tabs/TeamTab'));
 
 const Dashboard = ({ initialTab = 0 }) => {
   const { state, dispatch } = useApp();
@@ -209,6 +210,7 @@ const Dashboard = ({ initialTab = 0 }) => {
           {activeTab === 6 && <LiveChatTab />}
           {activeTab === 7 && <ScheduleTab />}
           {activeTab === 8 && <SalesFunnel />}
+          {activeTab === 9 && <TeamTab />}
         </Suspense>
 
       </Box>

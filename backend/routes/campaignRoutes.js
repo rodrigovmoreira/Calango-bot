@@ -9,7 +9,7 @@ import authenticateToken from '../middleware/auth.js';
 // List all campaigns for the logged-in user
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const campaigns = await Campaign.find({ userId: req.user.userId }).sort({ createdAt: -1 });
+    const campaigns = await Campaign.find({ businessId: req.user.activeBusinessId }).sort({ createdAt: -1 });
     res.json(campaigns);
   } catch (error) {
     console.error('Error fetching campaigns:', error);
@@ -21,7 +21,7 @@ router.get('/', authenticateToken, async (req, res) => {
 router.get('/:id/audience', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const campaign = await Campaign.findOne({ _id: id, userId: req.user.userId });
+    const campaign = await Campaign.findOne({ _id: id, businessId: req.user.activeBusinessId });
 
     if (!campaign) {
       return res.status(404).json({ message: 'Campaign not found' });
@@ -47,7 +47,7 @@ router.get('/:id/audience', authenticateToken, async (req, res) => {
     // We need businessId to query contacts.
     // Assuming user -> business relation.
     // We can get businessId from one of the contacts or from BusinessConfig
-    const config = await BusinessConfig.findOne({ userId: req.user.userId });
+    const config = await BusinessConfig.findById(req.user.activeBusinessId);
 
     if (!config) {
         return res.status(400).json({ message: 'Business config not found' });
@@ -102,7 +102,7 @@ router.post('/', authenticateToken, async (req, res) => {
     }
 
     const campaign = new Campaign({
-      userId: req.user.userId,
+      businessId: req.user.activeBusinessId,
       name,
       targetTags,
       type,
@@ -130,7 +130,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
     const updates = req.body;
 
     // Prevent updating userId
-    delete updates.userId;
+    delete updates.businessId;
 
     // Validate schedule if triggerType is time (or undefined, defaulting to time)
     // Note: In PUT, we need to check if triggerType is being updated or if it exists in DB.
@@ -148,7 +148,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
          return res.status(400).json({ message: 'Missing schedule time for time-based campaign' });
     }
 
-    const query = { _id: id, userId: req.user.userId };
+    const query = { _id: id, businessId: req.user.activeBusinessId };
     if (updates.__v !== undefined) {
       query.__v = updates.__v;
       delete updates.__v; // Remove from updates payload so we can $inc it manually
@@ -161,7 +161,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
     );
 
     if (!campaign) {
-      const existing = await Campaign.findOne({ _id: id, userId: req.user.userId });
+      const existing = await Campaign.findOne({ _id: id, businessId: req.user.activeBusinessId });
       if (existing) {
         return res.status(409).json({ message: 'Conflict: This campaign was modified by another process. Please reload.' });
       }
@@ -179,7 +179,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
 router.delete('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const campaign = await Campaign.findOneAndDelete({ _id: id, userId: req.user.userId });
+    const campaign = await Campaign.findOneAndDelete({ _id: id, businessId: req.user.activeBusinessId });
 
     if (!campaign) {
       return res.status(404).json({ message: 'Campaign not found' });

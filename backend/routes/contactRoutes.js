@@ -35,7 +35,7 @@ router.get('/', authenticateToken, contactController.getContacts);
 
 router.get('/tags', authenticateToken, async (req, res) => {
     try {
-        const config = await BusinessConfig.findOne({ userId: req.user.userId });
+        const config = await BusinessConfig.findById(req.user.activeBusinessId);
         const businessId = config ? config._id : null;
 
         if (!businessId) {

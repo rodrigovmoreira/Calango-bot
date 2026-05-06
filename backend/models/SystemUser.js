@@ -29,11 +29,28 @@ const systemUserSchema = new mongoose.Schema({
     trim: true,
     default: 'Meu Negócio'
   },
-  role: {
+  role: { // Legacy
     type: String,
     enum: ['admin', 'vendedor', 'atendente'],
     default: 'vendedor'
   },
+  activeBusinessId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'BusinessConfig'
+  },
+  businesses: [{
+    businessId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'BusinessConfig',
+      required: true
+    },
+    role: {
+      type: String,
+      enum: ['admin', 'operator'],
+      required: true,
+      default: 'operator'
+    }
+  }],
   isActive: {
     type: Boolean,
     default: true

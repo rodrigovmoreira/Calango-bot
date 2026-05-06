@@ -5,7 +5,8 @@ import passport from 'passport';
 import crypto from 'crypto';
 import SystemUser from '../models/SystemUser.js';
 import BusinessConfig from '../models/BusinessConfig.js';
-import authenticateToken from '../middleware/auth.js';
+import Invite from '../models/Invite.js';
+import { authenticateToken, requireAdmin } from '../middleware/auth.js';
 import { stopSession } from '../services/wwebjsService.js';
 import { sendVerificationEmail } from '../services/emailService.js';
 import { loginLimiter, registerLimiter } from '../middleware/rateLimiters.js';
@@ -13,11 +14,36 @@ import { loginLimiter, registerLimiter } from '../middleware/rateLimiters.js';
 // ROTA: /api/auth/login
 router.post('/login', loginLimiter, async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, inviteToken } = req.body;
     const user = await SystemUser.findOne({ email }).select('+password');
 
     if (!user || !(await user.correctPassword(password))) {
       return res.status(400).json({ message: 'Credenciais inválidas' });
+    }
+
+    // On-the-fly migration
+    if (!user.activeBusinessId || !user.businesses || user.businesses.length === 0) {
+      const config = await BusinessConfig.findOne({ userId: user._id });
+      if (config) {
+        user.businesses = [{ businessId: config._id, role: 'admin' }];
+        user.activeBusinessId = config._id;
+        await user.save();
+      }
+    }
+
+    // Process Invite token on login if present
+    if (inviteToken) {
+      const invite = await Invite.findOne({ token: inviteToken, status: 'pending' });
+      if (invite && invite.expiresAt > new Date()) {
+        const alreadyInBusiness = user.businesses.some(b => b.businessId.toString() === invite.businessId.toString());
+        if (!alreadyInBusiness) {
+          user.businesses.push({ businessId: invite.businessId, role: invite.role });
+          user.activeBusinessId = invite.businessId; // Switch to the invited business
+          await user.save();
+          invite.status = 'used';
+          await invite.save();
+        }
+      }
     }
 
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
@@ -29,7 +55,7 @@ router.post('/login', loginLimiter, async (req, res) => {
       sameSite: 'lax'
     });
 
-    res.json({ token, user: { id: user._id, name: user.name, email: user.email, avatarUrl: user.avatarUrl } });
+    res.json({ token, user: { id: user._id, name: user.name, email: user.email, avatarUrl: user.avatarUrl, activeBusinessId: user.activeBusinessId, businesses: user.businesses } });
   } catch (error) {
     console.error('Erro login:', error);
     res.status(500).json({ message: 'Erro interno' });
@@ -39,20 +65,44 @@ router.post('/login', loginLimiter, async (req, res) => {
 // ROTA: /api/auth/register
 router.post('/register', registerLimiter, async (req, res) => {
   try {
-    const { name, email, password, company } = req.body;
-    if (await SystemUser.findOne({ email })) return res.status(400).json({ message: 'Email existe' });
+    const { name, email, password, company, inviteToken } = req.body;
+
+    // Check if email exists
+    if (await SystemUser.findOne({ email })) {
+      if (inviteToken) {
+        return res.status(409).json({ message: 'Email já existe. Por favor, faça login para aceitar o convite.', code: 'EMAIL_EXISTS_INVITE' });
+      }
+      return res.status(400).json({ message: 'Email existe' });
+    }
+
+    let invite = null;
+    if (inviteToken) {
+      invite = await Invite.findOne({ token: inviteToken, status: 'pending' });
+      if (!invite || invite.expiresAt < new Date()) {
+        return res.status(400).json({ message: 'Convite inválido ou expirado.' });
+      }
+    }
 
     // Generate verification token
     const verificationToken = crypto.randomBytes(32).toString('hex');
 
     // User is created with isVerified: false by default (from model)
-    const user = await SystemUser.create({
+    const user = new SystemUser({
       name,
       email,
       password,
-      company: company || 'Meu Negócio',
+      company: company || (invite ? 'Negócio Convidado' : 'Meu Negócio'),
       verificationToken
     });
+
+    if (invite) {
+      user.businesses = [{ businessId: invite.businessId, role: invite.role }];
+      user.activeBusinessId = invite.businessId;
+      invite.status = 'used';
+      await invite.save();
+    }
+
+    await user.save();
 
     // Send Verification Email
     try {
@@ -62,19 +112,24 @@ router.post('/register', registerLimiter, async (req, res) => {
       console.error('Warning: Failed to initiate email sending.', error.message);
     }
 
-    // Cria a configuração inicial padrão
-    await BusinessConfig.create({
-      userId: user._id,
-      businessName: company || 'Novo Negócio',
-      prompts: {
-        chatSystem: "Você é um assistente virtual útil.",
-        visionSystem: "Descreva o que vê."
-      }
-    });
+    if (!invite) {
+      // Cria a configuração inicial padrão apenas se não for um convite
+      const newConfig = await BusinessConfig.create({
+        userId: user._id,
+        businessName: company || 'Novo Negócio',
+        prompts: {
+          chatSystem: "Você é um assistente virtual útil.",
+          visionSystem: "Descreva o que vê."
+        }
+      });
+      user.businesses = [{ businessId: newConfig._id, role: 'admin' }];
+      user.activeBusinessId = newConfig._id;
+      await user.save();
+    }
 
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
     res.cookie('auth_token', token, { httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000 });
-    res.status(201).json({ token, user: { id: user._id, name: user.name, email: user.email } });
+    res.status(201).json({ token, user: { id: user._id, name: user.name, email: user.email, activeBusinessId: user.activeBusinessId, businesses: user.businesses } });
   } catch (error) {
     console.error('Erro registro:', error);
     res.status(500).json({ message: 'Erro ao realizar cadastro.' });
@@ -178,6 +233,57 @@ router.put('/update', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Erro ao atualizar perfil:', error);
     res.status(500).json({ message: 'Erro ao atualizar perfil' });
+  }
+});
+
+
+// ROTA: /api/auth/invites
+router.post('/invites', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { role } = req.body;
+    if (!role || !['admin', 'operator'].includes(role)) {
+      return res.status(400).json({ message: 'Role inválida' });
+    }
+
+    const user = await SystemUser.findById(req.user.userId);
+    if (!user || !user.activeBusinessId) {
+      return res.status(403).json({ message: 'Negócio ativo não encontrado' });
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+
+    const invite = new Invite({
+      token,
+      businessId: user.activeBusinessId,
+      role,
+      expiresAt
+    });
+
+    await invite.save();
+
+    res.status(201).json({ token, invite });
+  } catch (error) {
+    console.error('Erro ao gerar convite:', error);
+    res.status(500).json({ message: 'Erro ao gerar convite' });
+  }
+});
+
+// ROTA: /api/auth/invites/:token (Público para validação)
+router.get('/invites/:token', async (req, res) => {
+  try {
+    const invite = await Invite.findOne({ token: req.params.token, status: 'pending' })
+      .populate('businessId', 'businessName avatarUrl');
+
+    if (!invite || invite.expiresAt < new Date()) {
+      return res.status(400).json({ message: 'Convite inválido ou expirado.' });
+    }
+
+    res.json({ invite });
+  } catch (error) {
+    console.error('Erro ao buscar convite:', error);
+    res.status(500).json({ message: 'Erro ao buscar convite' });
   }
 });
 

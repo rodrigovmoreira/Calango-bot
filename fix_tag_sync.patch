@@ -1,0 +1,13 @@
+<<<<<<< SEARCH
+        if (req && req.businessId) {
+            businessId = req.businessId;
+        } else if (req && req.user) {
+            businessId = await getBusinessId(req.user.userId);
+        }
+=======
+        if (req && req.businessId) {
+            businessId = req.businessId;
+        } else if (req && req.user) {
+            businessId = req.user.activeBusinessId;
+        }
+>>>>>>> REPLACE

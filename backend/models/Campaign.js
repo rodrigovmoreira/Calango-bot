@@ -1,9 +1,9 @@
 import mongoose from 'mongoose';
 
 const campaignSchema = new mongoose.Schema({
-  userId: {
+  businessId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'SystemUser',
+    ref: 'BusinessConfig',
     required: true,
     index: true
   },
