@@ -7,6 +7,14 @@ const appointmentSchema = new mongoose.Schema({
     required: true,
     index: true // Melhora a busca por usuário
   },
+
+  // Omnichannel / Multi-Agentes
+  whatsappSessionId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Session',
+    required: true
+  }, // Carimbo de qual número/sessão é dona deste agendamento
+
   // Dados do Cliente (Para o bot saber quem é)
   clientName: { type: String, required: true },
   clientPhone: { type: String, required: true }, // Formato: 5511999999999

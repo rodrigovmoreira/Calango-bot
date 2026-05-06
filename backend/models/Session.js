@@ -2,10 +2,25 @@ const mongoose = require('mongoose');
 
 // Define o Schema da sessão
 const sessionSchema = new mongoose.Schema({
-  phone: { type: String, required: true, unique: true },
+  businessId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'BusinessConfig',
+    required: true,
+    index: true
+  },
+  name: { type: String }, // Ex: "Tatuador A", "Suporte"
+  phone: { type: String, required: true },
+  status: {
+    type: String,
+    enum: ['connected', 'disconnected', 'connecting', 'error', 'unauthenticated'],
+    default: 'disconnected'
+  },
   state: { type: String, default: null },
   updatedAt: { type: Date, default: Date.now }
-});
+}, { optimisticConcurrency: true });
+
+// Índice composto para evitar números duplicados na mesma empresa
+sessionSchema.index({ businessId: 1, phone: 1 }, { unique: true });
 
 // Cria o Model baseado no Schema
 const Session = mongoose.model('Session', sessionSchema);
