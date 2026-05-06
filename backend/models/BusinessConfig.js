@@ -70,6 +70,13 @@ const businessConfigSchema = new mongoose.Schema({
   // === ADICIONADO: CATÁLOGO DE PRODUTOS ===
   products: [
     {
+      // Omnichannel / Multi-Agentes
+      whatsappSessionId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Session',
+        required: false
+      }, // Se null = Produto Global. Se tiver ID = Exclusivo daquele número/sessão
+
       name: { type: String, required: true },
       price: { type: Number, required: true }, // Serve como "Preço Final" para simples ou "Preço Base" para avançados
       durationMinutes: { type: Number, default: 60 },

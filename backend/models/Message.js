@@ -7,6 +7,12 @@ const messageSchema = new mongoose.Schema({
   phone: { type: String }, // Optional now
   sessionId: { type: String }, // For Web
 
+  // Omnichannel / Multi-Agentes
+  whatsappSessionId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Session'
+  }, // Carimbo de qual número/sessão do WhatsApp a mensagem pertence
+
   channel: {
     type: String,
     enum: ['whatsapp', 'web'],
