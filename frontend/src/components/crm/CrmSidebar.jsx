@@ -30,12 +30,24 @@ const CrmSidebar = ({ contact, onUpdate, availableTags, onAddTag, onRemoveTag, t
       // Replace comma with dot to ensure parseFloat works correctly
       const normalizedValue = dealValue.toString().replace(',', '.');
       const numericValue = parseFloat(normalizedValue);
+      const newDealValue = isNaN(numericValue) ? 0 : numericValue;
 
-      await onUpdate({
-        dealValue: isNaN(numericValue) ? 0 : numericValue,
-        funnelStage,
-        notes
-      });
+      // Intelligent Payload: only send fields that changed, plus __v
+      const payload = { __v: contact.__v };
+
+      const originalDealValue = contact.dealValue !== undefined ? contact.dealValue : 0;
+      if (newDealValue !== originalDealValue) payload.dealValue = newDealValue;
+      if (funnelStage !== (contact.funnelStage || 'new')) payload.funnelStage = funnelStage;
+      if (notes !== (contact.notes || '')) payload.notes = notes;
+
+      // Se nada mudou, opcionalmente a gente pode não disparar o update, mas pra garantir o fluxo:
+      if (Object.keys(payload).length > 1) { // > 1 because __v is always there
+          await onUpdate(payload);
+      } else {
+          // just to clear loading state if they click save without changes
+          setIsSaving(false);
+          return;
+      }
     } catch (error) {
       // Error handling is managed by parent (LiveChatTab) via toast
       console.error("Failed to save CRM data", error);

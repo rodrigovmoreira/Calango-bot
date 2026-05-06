@@ -86,6 +86,6 @@ const campaignSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   }
-});
+}, { optimisticConcurrency: true });
 
 export default mongoose.model('Campaign', campaignSchema);

@@ -62,6 +62,7 @@ const CampaignTab = () => {
       const token = localStorage.getItem('token');
       const payload = {
           ...currentCampaign,
+          __v: currentCampaign.__v,
           // Ensure targetTags is array (it should already be array with new UI, but keeping safeguard)
           targetTags: Array.isArray(currentCampaign.targetTags)
             ? currentCampaign.targetTags
@@ -84,7 +85,11 @@ const CampaignTab = () => {
       onClose();
       loadCampaigns();
     } catch (error) {
-      toast({ title: 'Erro ao salvar', status: 'error' });
+      if (error.response?.status === 409) {
+          toast({ title: 'Conflito de Versão', description: 'Esta campanha foi modificada por outro processo. Recarregue a tela e tente novamente.', status: 'error', duration: null, isClosable: true });
+      } else {
+          toast({ title: 'Erro ao salvar', status: 'error' });
+      }
     }
   };
 

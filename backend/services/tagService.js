@@ -182,7 +182,14 @@ const createTag = async (businessId, tagData) => {
 
 const updateTag = async (businessId, tagId, updateData) => {
     try {
-        const { name, color } = updateData;
+        const { name, color, __v } = updateData;
+
+        const query = { _id: tagId, businessId };
+        if (__v !== undefined) {
+            query.__v = __v;
+        }
+
+        // First find it to check if it has a whatsappId, avoiding multiple findOneAndUpdate calls if we fail WA update
         const tag = await Tag.findOne({ _id: tagId, businessId });
         if (!tag) throw new Error('Tag not found');
 
@@ -195,11 +202,21 @@ const updateTag = async (businessId, tagId, updateData) => {
         }
 
         // 2. Update Mongo
-        tag.name = name;
-        tag.color = color;
-        await tag.save();
+        const updatedTag = await Tag.findOneAndUpdate(
+            query,
+            { $set: { name, color }, $inc: { __v: 1 } },
+            { new: true }
+        );
 
-        return tag;
+        if (!updatedTag) {
+            const existing = await Tag.findOne({ _id: tagId, businessId });
+            if (existing) {
+                throw new Error('Conflict');
+            }
+            throw new Error('Tag not found');
+        }
+
+        return updatedTag;
     } catch (error) {
          console.error('Error in updateTag service:', error);
          throw error;

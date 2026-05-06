@@ -71,12 +71,23 @@ router.put('/:id', authenticateToken, async (req, res) => {
         }
     });
 
+    const query = { _id: req.params.id, userId: req.user.userId };
+    if (req.body.__v !== undefined) {
+        query.__v = req.body.__v;
+    }
+
     const updated = await Appointment.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user.userId },
-      updateData,
+      query,
+      { $set: updateData, $inc: { __v: 1 } },
       { new: true }
     );
-    if (!updated) return res.status(404).json({ message: 'Agendamento não encontrado' });
+    if (!updated) {
+      const existing = await Appointment.findOne({ _id: req.params.id, userId: req.user.userId });
+      if (existing) {
+          return res.status(409).json({ message: 'Conflito de versão. O agendamento foi modificado por outro usuário.' });
+      }
+      return res.status(404).json({ message: 'Agendamento não encontrado' });
+    }
     res.json(updated);
   } catch (error) {
     console.error(error);
@@ -88,20 +99,37 @@ router.put('/:id', authenticateToken, async (req, res) => {
 // Atualiza Status do Ciclo de Vida
 router.patch('/:id/status', authenticateToken, async (req, res) => {
   try {
-    const { status } = req.body;
-    const appointment = await Appointment.findOne({ _id: req.params.id, userId: req.user.userId });
+    const { status, __v } = req.body;
+    const query = { _id: req.params.id, userId: req.user.userId };
+    if (__v !== undefined) {
+        query.__v = __v;
+    }
 
-    if (!appointment) return res.status(404).json({ message: 'Agendamento não encontrado' });
+    const newHistoryEntry = {
+        status: status,
+        changedAt: new Date(),
+        changedBy: req.user.userId
+    };
 
-    appointment.status = status;
-    appointment.statusHistory.push({
-      status: status,
-      changedAt: new Date(),
-      changedBy: req.user.userId
-    });
+    const updated = await Appointment.findOneAndUpdate(
+        query,
+        {
+            $set: { status: status },
+            $push: { statusHistory: newHistoryEntry },
+            $inc: { __v: 1 }
+        },
+        { new: true }
+    );
 
-    await appointment.save();
-    res.json(appointment);
+    if (!updated) {
+        const existing = await Appointment.findOne({ _id: req.params.id, userId: req.user.userId });
+        if (existing) {
+            return res.status(409).json({ message: 'Conflito de versão. O agendamento foi modificado por outro usuário.' });
+        }
+        return res.status(404).json({ message: 'Agendamento não encontrado' });
+    }
+
+    res.json(updated);
   } catch (error) {
     console.error('Erro status update:', error);
     res.status(500).json({ message: 'Erro ao atualizar status' });

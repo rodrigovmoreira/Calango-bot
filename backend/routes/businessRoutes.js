@@ -56,19 +56,33 @@ router.put('/config', authenticateToken, async (req, res) => {
   try {
     console.log('📦 [PUT Config] Atualizando configurações para o usuário:', req.user.userId);
 
-    // Criamos o payload de atualização. 
-    // Removemos toda a lógica antiga de comparação e deleção de imagens do Firebase
+    const { __v, ...bodyUpdates } = req.body;
+
     const updatePayload = {
-      ...req.body,
+      ...bodyUpdates,
       updatedAt: new Date()
     };
 
+    const query = { userId: req.user.userId };
+    if (__v !== undefined) {
+      query.__v = __v;
+    }
+
     // O comando findOneAndUpdate com 'upsert: true' cria o registro caso ele não exista
+    // We remove upsert to prevent creating a versionless initial document improperly during a versioned update request,
+    // but if it's the very first save, it won't have __v anyway.
     const config = await BusinessConfig.findOneAndUpdate(
-      { userId: req.user.userId },
-      { $set: updatePayload },
-      { new: true, upsert: true }
+      query,
+      { $set: updatePayload, $inc: { __v: 1 } },
+      { new: true, upsert: __v === undefined }
     );
+
+    if (!config && __v !== undefined) {
+      const existing = await BusinessConfig.findOne({ userId: req.user.userId });
+      if (existing) {
+        return res.status(409).json({ message: 'Conflict: This config was modified by another process. Please reload.' });
+      }
+    }
 
     console.log('💾 [PUT Config] Configurações salvas com sucesso no MongoDB');
     res.json(config);

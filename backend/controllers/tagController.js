@@ -75,15 +75,18 @@ const createTag = async (req, res) => {
 const updateTag = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, color } = req.body;
+        const { name, color, __v } = req.body;
 
         const businessId = await getBusinessId(req.user.userId);
         if (!businessId) return res.status(404).json({ message: 'Business not found' });
 
-        const updatedTag = await tagService.updateTag(businessId, id, { name, color });
+        const updatedTag = await tagService.updateTag(businessId, id, { name, color, __v });
         res.json(updatedTag);
     } catch (error) {
         console.error('Error updating tag:', error);
+        if (error.message === 'Conflict') {
+            return res.status(409).json({ message: 'Conflito de versão. Esta tag foi modificada por outro processo.' });
+        }
         res.status(500).json({ message: 'Error updating tag', error: error.message });
     }
 };

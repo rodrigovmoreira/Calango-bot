@@ -59,7 +59,7 @@ const contactSchema = new mongoose.Schema({
   
   totalMessages: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now }
-});
+}, { optimisticConcurrency: true });
 
 // Índices Parciais para Unicidade
 contactSchema.index({ businessId: 1, phone: 1 }, {

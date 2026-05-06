@@ -60,13 +60,17 @@ const ConnectionTab = () => {
 
   const handleSaveConfig = async () => {
     try {
-      const payload = { ...state.businessConfig, ...configForm };
+      const payload = { ...state.businessConfig, ...configForm, __v: state.businessConfig.__v };
       const response = await businessAPI.updateConfig(payload);
       dispatch({ type: 'SET_BUSINESS_CONFIG', payload: response.data });
       setEditingHours(false);
       toast({ title: 'Configurações salvas!', status: 'success' });
     } catch (error) {
-      toast({ title: 'Erro ao salvar', status: 'error' });
+      if (error.response?.status === 409) {
+          toast({ title: 'Conflito de Versão', description: 'As configurações foram modificadas por outro processo. Recarregue a página.', status: 'error', duration: null, isClosable: true });
+      } else {
+          toast({ title: 'Erro ao salvar', status: 'error' });
+      }
     }
   };
 
@@ -76,7 +80,7 @@ const ConnectionTab = () => {
       // Optimistic update
       dispatch({ type: 'SET_BUSINESS_CONFIG', payload: { ...state.businessConfig, aiGlobalDisabled: newValue } });
 
-      const response = await businessAPI.updateConfig({ aiGlobalDisabled: newValue });
+      const response = await businessAPI.updateConfig({ aiGlobalDisabled: newValue, __v: state.businessConfig.__v });
       // Confirm with server response
       dispatch({ type: 'SET_BUSINESS_CONFIG', payload: response.data });
 
@@ -87,6 +91,9 @@ const ConnectionTab = () => {
         duration: 3000
       });
     } catch (error) {
+      if (error.response?.status === 409) {
+          toast({ title: 'Conflito de Versão', description: 'As configurações foram modificadas por outro processo. Recarregue a página.', status: 'error', duration: null, isClosable: true });
+      }
       console.error(error);
       toast({ title: 'Erro ao atualizar modo', status: 'error' });
     }

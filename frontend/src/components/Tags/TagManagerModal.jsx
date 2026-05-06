@@ -94,23 +94,32 @@ const TagManagerModal = ({ isOpen, onClose, onTagsUpdated }) => {
     setEditingTagId(tag._id);
     setEditName(tag.name);
     setEditColor(tag.color);
+    setEditingTagVersion(tag.__v);
   };
+
+  const [editingTagVersion, setEditingTagVersion] = useState(null);
 
   const cancelEditing = () => {
     setEditingTagId(null);
     setEditName('');
     setEditColor('');
+    setEditingTagVersion(null);
   };
 
   const saveEditing = async () => {
     try {
-      await tagAPI.update(editingTagId, { name: editName, color: editColor });
+      await tagAPI.update(editingTagId, { name: editName, color: editColor, __v: editingTagVersion });
       toast({ title: "Tag atualizada!", status: "success" });
       setEditingTagId(null);
+      setEditingTagVersion(null);
       loadTags();
       if (onTagsUpdated) onTagsUpdated();
     } catch (error) {
-      toast({ title: "Erro ao atualizar tag.", status: "error" });
+      if (error.response?.status === 409) {
+          toast({ title: "Conflito de Versão", description: "Esta tag foi modificada por outro processo. Recarregue e tente novamente.", status: "error", duration: null, isClosable: true });
+      } else {
+          toast({ title: "Erro ao atualizar tag.", status: "error" });
+      }
     }
   };
 

@@ -94,7 +94,7 @@ export const businessAPI = {
   getAppointments: (params) => api.get('/api/appointments', { params }), 
   createAppointment: (data) => api.post('/api/appointments', data),
   updateAppointment: (id, data) => api.put(`/api/appointments/${id}`, data), // <--- NOVO
-  updateAppointmentStatus: (id, status) => api.patch(`/api/appointments/${id}/status`, { status }), // <--- NOVO
+  updateAppointmentStatus: (id, status, __v) => api.patch(`/api/appointments/${id}/status`, { status, __v }), // <--- NOVO
   deleteAppointment: (id) => api.delete(`/api/appointments/${id}`),
 
   // 6. Admin Chat (NOVO - Fase 3)

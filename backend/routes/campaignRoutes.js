@@ -148,13 +148,23 @@ router.put('/:id', authenticateToken, async (req, res) => {
          return res.status(400).json({ message: 'Missing schedule time for time-based campaign' });
     }
 
+    const query = { _id: id, userId: req.user.userId };
+    if (updates.__v !== undefined) {
+      query.__v = updates.__v;
+      delete updates.__v; // Remove from updates payload so we can $inc it manually
+    }
+
     const campaign = await Campaign.findOneAndUpdate(
-      { _id: id, userId: req.user.userId },
-      { ...updates },
+      query,
+      { $set: updates, $inc: { __v: 1 } },
       { new: true }
     );
 
     if (!campaign) {
+      const existing = await Campaign.findOne({ _id: id, userId: req.user.userId });
+      if (existing) {
+        return res.status(409).json({ message: 'Conflict: This campaign was modified by another process. Please reload.' });
+      }
       return res.status(404).json({ message: 'Campaign not found' });
     }
 
