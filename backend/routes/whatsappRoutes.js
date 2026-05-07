@@ -10,7 +10,7 @@ import * as whatsappController from '../controllers/whatsappController.js';
 
 // ROTA: GET /api/whatsapp/status
 router.get('/status', authenticateToken, (req, res) => {
-  const status = getSessionStatus(req.user.userId);
+  const status = getSessionStatus(req.user.activeBusinessId);
   const isConnected = (status === 'ready' || status === 'authenticated');
   res.json({ isConnected, mode: status || 'disconnected' });
 });
@@ -18,9 +18,9 @@ router.get('/status', authenticateToken, (req, res) => {
 // ROTA: POST /api/whatsapp/start
 router.post('/start', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.userId;
-    console.log(`▶️ Iniciando sessão manual para: ${userId}`);
-    await startSession(userId);
+    const businessId = req.user.activeBusinessId;
+    console.log(`▶️ Iniciando sessão manual para: ${businessId}`);
+    await startSession(businessId);
     res.json({ message: 'Inicializando sessão...' });
   } catch (error) {
     console.error(error);
@@ -31,7 +31,7 @@ router.post('/start', authenticateToken, async (req, res) => {
 // ROTA: POST /api/whatsapp/logout
 router.post('/logout', authenticateToken, async (req, res) => {
   try {
-    await stopSession(req.user.userId);
+    await stopSession(req.user.activeBusinessId);
     res.json({ message: 'Desconectado com sucesso' });
   } catch (error) {
     res.status(500).json({ message: 'Erro ao desconectar' });

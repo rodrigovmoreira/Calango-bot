@@ -319,7 +319,7 @@ Você pode chamá-lo(a) pelo nome esporadicamente para gerar conexão.
             if (resolve) {
                 resolve({ text: awayMsg });
             } else {
-                await sendUnifiedMessage(from, awayMsg, provider, businessConfig.userId);
+                await sendUnifiedMessage(from, awayMsg, provider, businessConfig._id);
             }
             return;
         }
@@ -360,7 +360,7 @@ Cliente: ${userMessage}`;
                 if (channel === 'web' && resolve) {
                     resolve({ text: finalResponse });
                 } else {
-                    await sendUnifiedMessage(from, finalResponse, provider, businessConfig.userId);
+                    await sendUnifiedMessage(from, finalResponse, provider, businessConfig._id);
                 }
                 await saveMessage(from, 'bot', finalResponse, 'text', null, activeBusinessId, channel);
                 return;
@@ -537,14 +537,14 @@ Links: Insta=${instagram || 'N/A'}, Site=${website || 'N/A'}
                     if (command.action === 'check') {
                         const startZoned = fromZonedTime(command.start, timeZone);
                         let endZoned = command.end ? fromZonedTime(command.end, timeZone) : new Date(startZoned.getTime() + 60 * 60000);
-                        const check = await aiTools.checkAvailability(businessConfig.userId, startZoned, endZoned);
+                        const check = await aiTools.checkAvailability(businessConfig._id, startZoned, endZoned);
                         toolResult = check.available ? "O horário está LIVRE. Pode oferecer." : `O horário está INDISPONÍVEL. Motivo: ${check.reason}.`;
                     }
 
                     if (command.action === 'book') {
                         const startZoned = fromZonedTime(command.start, timeZone);
                         let endZoned = command.end ? fromZonedTime(command.end, timeZone) : new Date(startZoned.getTime() + 60 * 60000);
-                        const booking = await aiTools.createAppointmentByAI(businessConfig.userId, {
+                        const booking = await aiTools.createAppointmentByAI(businessConfig._id, {
                             clientName: command.clientName || name || "Cliente",
                             clientPhone: from,
                             title: command.title || "Agendamento via IA",
@@ -567,14 +567,14 @@ Links: Insta=${instagram || 'N/A'}, Site=${website || 'N/A'}
                                 if (p.imageUrls && p.imageUrls.length > 0) {
                                     if (channel === 'web') { /* Logica web */ }
                                     else {
-                                        await wwebjsService.sendImage(businessConfig.userId, from, p.imageUrls[0], caption);
+                                        await wwebjsService.sendImage(businessConfig._id, from, p.imageUrls[0], caption);
                                         for (let i = 1; i < p.imageUrls.length; i++) {
-                                            await wwebjsService.sendImage(businessConfig.userId, from, p.imageUrls[i], "");
+                                            await wwebjsService.sendImage(businessConfig._id, from, p.imageUrls[i], "");
                                         }
                                     }
                                     count++;
                                 } else {
-                                    if (channel !== 'web') await sendUnifiedMessage(from, caption, provider, businessConfig.userId);
+                                    if (channel !== 'web') await sendUnifiedMessage(from, caption, provider, businessConfig._id);
                                 }
                                 sentProductsData.push(p);
                             }
@@ -588,7 +588,7 @@ Links: Insta=${instagram || 'N/A'}, Site=${website || 'N/A'}
                     if (command.action === 'send_visual_guide') {
                         if (command.url) {
                             if (channel !== 'web') {
-                                await wwebjsService.sendImage(businessConfig.userId, from, command.url, command.message || "Aqui está o guia visual principal.");
+                                await wwebjsService.sendImage(businessConfig._id, from, command.url, command.message || "Aqui está o guia visual principal.");
                             }
                             toolResult = "SUCESSO: Primeira imagem do guia visual enviada. Aguarde o cliente escolher a opção ou pedir mais imagens se houver.";
                         } else {
@@ -601,10 +601,10 @@ Links: Insta=${instagram || 'N/A'}, Site=${website || 'N/A'}
                             if (channel !== 'web') {
                                 const urlsToSend = command.urls.slice(0, 5); // Limita a 5 imagens
                                 if (command.message) {
-                                    await sendUnifiedMessage(from, command.message, provider, businessConfig.userId);
+                                    await sendUnifiedMessage(from, command.message, provider, businessConfig._id);
                                 }
                                 for (let url of urlsToSend) {
-                                    await wwebjsService.sendImage(businessConfig.userId, from, url, "");
+                                    await wwebjsService.sendImage(businessConfig._id, from, url, "");
                                 }
                             }
                             toolResult = `SUCESSO: ${Math.min(command.urls.length, 5)} imagens adicionais do guia visual enviadas.`;
@@ -616,10 +616,10 @@ Links: Insta=${instagram || 'N/A'}, Site=${website || 'N/A'}
                     if (command.action === 'add_tag') {
                         if (command.tag) {
                             // Encontrar a Tag ou criar
-                            let tagDoc = await import('./models/Tag.js').then(m => m.default).then(Tag => Tag.findOne({ businessId: businessConfig.userId, name: command.tag }));
+                            let tagDoc = await import('./models/Tag.js').then(m => m.default).then(Tag => Tag.findOne({ businessId: businessConfig._id, name: command.tag }));
                             if (!tagDoc) {
                                 const Tag = (await import('./models/Tag.js')).default;
-                                tagDoc = await Tag.create({ businessId: businessConfig.userId, name: command.tag, color: '#A0AEC0' });
+                                tagDoc = await Tag.create({ businessId: businessConfig._id, name: command.tag, color: '#A0AEC0' });
                             }
                             // Adicionar ao contato
                             await Contact.updateOne(
@@ -677,7 +677,7 @@ Links: Insta=${instagram || 'N/A'}, Site=${website || 'N/A'}
                 const delay = Math.floor(Math.random() * (HUMAN_DELAY_MAX - HUMAN_DELAY_MIN + 1)) + HUMAN_DELAY_MIN;
                 await sleep(delay);
             }
-            await sendUnifiedMessage(from, finalResponseText, provider, businessConfig.userId);
+            await sendUnifiedMessage(from, finalResponseText, provider, businessConfig._id);
         }
 
         if (resolve) resolve({ text: finalResponseText });

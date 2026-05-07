@@ -9,7 +9,7 @@ const userId = '507f1f77bcf86cd799439011';
 
 // Mock middlewares
 const authenticateToken = (req, res, next) => {
-  req.user = { userId: userId };
+  req.user = { /* removed userId */ };
   next();
 };
 
@@ -51,7 +51,7 @@ describe('Business Config Persistence (Integration)', () => {
     await clearDatabase();
     // Create initial config
     await BusinessConfig.create({
-      userId: userId,
+      /* removed userId */,
       businessName: 'Test Biz',
       followUpSteps: [
         { delayMinutes: 30, message: 'Initial Step', useAI: false }
@@ -61,7 +61,7 @@ describe('Business Config Persistence (Integration)', () => {
 
   it('should overwrite followUpSteps when updating config via PUT /config', async () => {
     // 1. Verify initial state
-    let config = await BusinessConfig.findOne({ userId: userId });
+    let config = await BusinessConfig.findOne({ /* removed userId */ });
     expect(config.followUpSteps).toHaveLength(1);
     expect(config.followUpSteps[0].message).toBe('Initial Step');
 
@@ -87,7 +87,7 @@ describe('Business Config Persistence (Integration)', () => {
     expect(res.body.followUpSteps[0].message).toBe('Updated Step 1');
 
     // 5. Verify database state
-    const updatedConfig = await BusinessConfig.findOne({ userId: userId });
+    const updatedConfig = await BusinessConfig.findOne({ /* removed userId */ });
     expect(updatedConfig.followUpSteps).toHaveLength(2);
     expect(updatedConfig.followUpSteps[0].message).toBe('Updated Step 1');
     expect(updatedConfig.followUpSteps[1].message).toBe('Updated Step 2');

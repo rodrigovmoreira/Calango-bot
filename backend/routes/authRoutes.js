@@ -21,14 +21,18 @@ router.post('/login', loginLimiter, async (req, res) => {
       return res.status(400).json({ message: 'Credenciais inválidas' });
     }
 
-    // On-the-fly migration
+    // On-the-fly migration: Since userId is removed, we just create a new config if they are orphaned.
     if (!user.activeBusinessId || !user.businesses || user.businesses.length === 0) {
-      const config = await BusinessConfig.findOne({ userId: user._id });
-      if (config) {
-        user.businesses = [{ businessId: config._id, role: 'admin' }];
-        user.activeBusinessId = config._id;
-        await user.save();
-      }
+      const newConfig = await BusinessConfig.create({
+        businessName: user.company || 'Negócio Migrado',
+        prompts: {
+          chatSystem: "Você é um assistente virtual útil.",
+          visionSystem: "Descreva o que vê."
+        }
+      });
+      user.businesses = [{ businessId: newConfig._id, role: 'admin' }];
+      user.activeBusinessId = newConfig._id;
+      await user.save();
     }
 
     // Process Invite token on login if present
@@ -115,7 +119,6 @@ router.post('/register', registerLimiter, async (req, res) => {
     if (!invite) {
       // Cria a configuração inicial padrão apenas se não for um convite
       const newConfig = await BusinessConfig.create({
-        userId: user._id,
         businessName: company || 'Novo Negócio',
         prompts: {
           chatSystem: "Você é um assistente virtual útil.",
@@ -191,7 +194,7 @@ router.post('/logout', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
 
     // Encerra sessão do WhatsApp para economizar recursos
-    await stopSession(userId);
+    await stopSession(req.user.activeBusinessId);
 
     res.clearCookie('auth_token');
     res.json({ message: 'Logout realizado e bot desligado.' });
@@ -215,7 +218,9 @@ router.put('/update', authenticateToken, async (req, res) => {
     if (avatarUrl !== undefined) {
       user.avatarUrl = avatarUrl;
       // Sync with BusinessConfig
-      await BusinessConfig.findOneAndUpdate({ userId: user._id }, { avatarUrl });
+      if (user.activeBusinessId) {
+        await BusinessConfig.findByIdAndUpdate(user.activeBusinessId, { avatarUrl });
+      }
     }
 
     await user.save();

@@ -19,28 +19,28 @@ const initializeWWebJS = async (io) => {
   ioInstance = io;
 };
 
-const startSession = async (userIdRaw) => {
+const startSession = async (businessIdRaw) => {
   // 0. NORMALIZAÇÃO DE ID (CRÍTICO)
   // Garante que seja sempre string para evitar duplicidade entre ObjectId vs String
-  const userId = userIdRaw.toString();
+  const businessId = businessIdRaw.toString();
 
-  //cleanUpTempFolders(userId);
+  //cleanUpTempFolders(businessId);
 
   // 1. BLINDAGEM CONTRA DUPLICIDADE
-  if (sessions.has(userId)) {
-    console.log(`🛡️ Sessão ${userId} já está online. Ignorando start duplicado.`);
-    return sessions.get(userId);
+  if (sessions.has(businessId)) {
+    console.log(`🛡️ Sessão ${businessId} já está online. Ignorando start duplicado.`);
+    return sessions.get(businessId);
   }
 
   // 2. BLINDAGEM CONTRA RACE CONDITION
-  if (statuses.get(userId) === 'initializing') {
-    console.log(`🛡️ Sessão ${userId} já está inicializando. Chamada duplicada ignorada.`);
+  if (statuses.get(businessId) === 'initializing') {
+    console.log(`🛡️ Sessão ${businessId} já está inicializando. Chamada duplicada ignorada.`);
     return;
   }
 
   // 3. A TRAVA DE SEGURANÇA
-  updateStatus(userId, 'initializing');
-  console.log(`▶️ Iniciando sessão BLINDADA para: ${userId}`);
+  updateStatus(businessId, 'initializing');
+  console.log(`▶️ Iniciando sessão BLINDADA para: ${businessId}`);
 
   // --- RESTO DO CÓDIGO (SEGUE IGUAL) ---
 
@@ -53,28 +53,28 @@ const startSession = async (userIdRaw) => {
     }
   }
 
-  const config = await BusinessConfig.findOne({ userId });
+  const config = await BusinessConfig.findOne({ businessId });
   if (!config) {
-    console.error(`❌ Config não encontrada para UserID: ${userId}`);
-    updateStatus(userId, 'error');
+    console.error(`❌ Config não encontrada para UserID: ${businessId}`);
+    updateStatus(businessId, 'error');
     return;
   }
 
   // 4. The 'QR Timeout' Safety Valve
-  if (timeouts.has(userId)) {
-    clearTimeout(timeouts.get(userId));
-    timeouts.delete(userId);
+  if (timeouts.has(businessId)) {
+    clearTimeout(timeouts.get(businessId));
+    timeouts.delete(businessId);
   }
 
   // Set new timeout (120 seconds)
   const timeoutId = setTimeout(async () => {
-    const currentStatus = statuses.get(userId);
-    console.log(`⏱️ Timeout de conexão para User ${userId}. Status atual: ${currentStatus}`);
+    const currentStatus = statuses.get(businessId);
+    console.log(`⏱️ Timeout de conexão para User ${businessId}. Status atual: ${currentStatus}`);
 
     if (currentStatus === 'initializing' || currentStatus === 'qrcode') {
-      console.warn(`⚠️ Forçando destruição por timeout (User ${userId})`);
+      console.warn(`⚠️ Forçando destruição por timeout (User ${businessId})`);
 
-      const clientToDestroy = sessions.get(userId);
+      const clientToDestroy = sessions.get(businessId);
       if (clientToDestroy) {
         try {
           await clientToDestroy.destroy();
@@ -83,20 +83,20 @@ const startSession = async (userIdRaw) => {
         }
       }
 
-      cleanupSession(userId);
+      cleanupSession(businessId);
 
       if (ioInstance) {
-        ioInstance.to(userId).emit('connection_timeout', { message: 'Tempo limite excedido. Tente novamente.' });
-        ioInstance.to(userId).emit('wwebjs_status', 'disconnected');
+        ioInstance.to(businessId).emit('connection_timeout', { message: 'Tempo limite excedido. Tente novamente.' });
+        ioInstance.to(businessId).emit('wwebjs_status', 'disconnected');
       }
     }
   }, 120000); // 2 minutes
 
-  timeouts.set(userId, timeoutId);
+  timeouts.set(businessId, timeoutId);
 
   const client = new Client({
     authStrategy: new RemoteAuth({
-      clientId: userId,
+      clientId: businessId,
       store: new UnifiedMongoStore({ mongoose: mongoose }),
       backupSyncIntervalMs: 300000,
       dataPath: './.wwebjs_auth'
@@ -134,35 +134,35 @@ const startSession = async (userIdRaw) => {
     }
   });
 
-  sessions.set(userId, client);
+  sessions.set(businessId, client);
 
   client.on('qr', (qr) => {
-    qrCodes.set(userId, qr);
-    updateStatus(userId, 'qrcode');
-    if (ioInstance) ioInstance.to(userId).emit('wwebjs_qr', qr);
+    qrCodes.set(businessId, qr);
+    updateStatus(businessId, 'qrcode');
+    if (ioInstance) ioInstance.to(businessId).emit('wwebjs_qr', qr);
   });
 
   client.on('ready', () => {
-    if (timeouts.has(userId)) {
-      clearTimeout(timeouts.get(userId));
-      timeouts.delete(userId);
+    if (timeouts.has(businessId)) {
+      clearTimeout(timeouts.get(businessId));
+      timeouts.delete(businessId);
     }
-    updateStatus(userId, 'ready');
-    qrCodes.delete(userId);
+    updateStatus(businessId, 'ready');
+    qrCodes.delete(businessId);
   });
 
   client.on('authenticated', () => {
-    if (timeouts.has(userId)) {
-      clearTimeout(timeouts.get(userId));
-      timeouts.delete(userId);
+    if (timeouts.has(businessId)) {
+      clearTimeout(timeouts.get(businessId));
+      timeouts.delete(businessId);
     }
-    updateStatus(userId, 'authenticated');
-    qrCodes.delete(userId);
+    updateStatus(businessId, 'authenticated');
+    qrCodes.delete(businessId);
   });
 
   client.on('auth_failure', () => {
     console.error(`❌ Falha de autenticação para: ${config.businessName}`);
-    updateStatus(userId, 'disconnected');
+    updateStatus(businessId, 'disconnected');
   });
 
   client.on('message', async (msg) => {
@@ -197,25 +197,25 @@ const startSession = async (userIdRaw) => {
   });
 
   client.on('disconnected', async (reason) => {
-    await stopSession(userId);
+    await stopSession(businessId);
   });
 
   try {
     await client.initialize();
   } catch (e) {
-    console.error(`Erro fatal ao iniciar cliente ${userId}:`, e.message);
-    sessions.delete(userId);
-    updateStatus(userId, 'error');
+    console.error(`Erro fatal ao iniciar cliente ${businessId}:`, e.message);
+    sessions.delete(businessId);
+    updateStatus(businessId, 'error');
   }
 };
 
 // 2. FUNÇÃO DE PARADA BLINDADA (A Mágica acontece aqui)
-const stopSession = async (userId) => {
-  const client = sessions.get(userId.toString());
+const stopSession = async (businessId) => {
+  const client = sessions.get(businessId.toString());
 
   if (client) {
     // Atualiza status para evitar que o usuário tente reconectar enquanto fecha
-    updateStatus(userId, 'disconnecting');
+    updateStatus(businessId, 'disconnecting');
 
     try {
       // Tenta logout limpo (pode falhar no Windows por EBUSY)
@@ -233,30 +233,30 @@ const stopSession = async (userId) => {
   }
 
   // 3. LIMPEZA DE MEMÓRIA (Essencial para não vazar memória)
-  cleanupSession(userId);
+  cleanupSession(businessId);
 };
 
-const cleanupSession = (userId) => {
-  if (timeouts.has(userId)) {
-    clearTimeout(timeouts.get(userId));
-    timeouts.delete(userId);
+const cleanupSession = (businessId) => {
+  if (timeouts.has(businessId)) {
+    clearTimeout(timeouts.get(businessId));
+    timeouts.delete(businessId);
   }
-  sessions.delete(userId);
-  qrCodes.delete(userId);
-  statuses.delete(userId);
-  updateStatus(userId, 'disconnected');
+  sessions.delete(businessId);
+  qrCodes.delete(businessId);
+  statuses.delete(businessId);
+  updateStatus(businessId, 'disconnected');
 };
 
-const sendWWebJSMessage = async (userId, to, message) => {
-  const client = sessions.get(userId.toString());
+const sendWWebJSMessage = async (businessId, to, message) => {
+  const client = sessions.get(businessId.toString());
 
   if (!client) {
-    console.warn(`⚠️ Envio falhou: User ${userId} não tem sessão ativa.`);
+    console.warn(`⚠️ Envio falhou: Negócio ${businessId} não tem sessão ativa.`);
     return false;
   }
 
   if (!client.info) {
-    console.warn(`⚠️ Envio falhou: WhatsApp do User ${userId} ainda não está pronto.`);
+    console.warn(`⚠️ Envio falhou: WhatsApp do Negócio ${businessId} ainda não está pronto.`);
     return false;
   }
 
@@ -268,17 +268,17 @@ const sendWWebJSMessage = async (userId, to, message) => {
     await client.sendMessage(formattedNumber, message, { sendSeen: false });
     return true;
   } catch (error) {
-    console.error(`💥 Erro envio WWebJS (User ${userId}):`, error.message);
+    console.error(`💥 Erro envio WWebJS (User ${businessId}):`, error.message);
     return false;
   }
 };
 
 // 4. FUNÇÃO DE ENVIO DE IMAGEM (Novo - Changelog 4)
-const sendImage = async (userId, to, imageUrl, caption) => {
-  const client = sessions.get(userId.toString());
+const sendImage = async (businessId, to, imageUrl, caption) => {
+  const client = sessions.get(businessId.toString());
 
   if (!client || !client.info) {
-    console.warn(`⚠️ Envio de imagem falhou: Sessão ${userId} indisponível.`);
+    console.warn(`⚠️ Envio de imagem falhou: Sessão ${businessId} indisponível.`);
     return false;
   }
 
@@ -296,15 +296,15 @@ const sendImage = async (userId, to, imageUrl, caption) => {
     return true;
 
   } catch (error) {
-    console.error(`💥 Erro ao enviar imagem (User ${userId}):`, error.message);
+    console.error(`💥 Erro ao enviar imagem (User ${businessId}):`, error.message);
     return false;
   }
 }; // <--- AQUI É O FIM DA FUNÇÃO DE IMAGEM
 
 
 // 5. FUNÇÃO DE ESTADO "DIGITANDO..." (UX / Humanização)
-const sendStateTyping = async (userId, to) => {
-  const client = sessions.get(userId.toString());
+const sendStateTyping = async (businessId, to) => {
+  const client = sessions.get(businessId.toString());
 
   if (!client || !client.info) {
     return false;
@@ -319,32 +319,32 @@ const sendStateTyping = async (userId, to) => {
     await chat.sendStateTyping();
     return true;
   } catch (error) {
-    console.error(`💥 Erro ao enviar status 'digitando' (User ${userId}):`, error.message);
+    console.error(`💥 Erro ao enviar status 'digitando' (User ${businessId}):`, error.message);
     return false;
   }
 };
 
 // --- LABEL MANAGEMENT (Stage 1 Refactor) ---
 
-const getLabels = async (userId) => {
-  const client = sessions.get(userId.toString());
+const getLabels = async (businessId) => {
+  const client = sessions.get(businessId.toString());
   if (!client || !client.info) {
-    console.warn(`⚠️ getLabels falhou: Sessão ${userId} não pronta.`);
+    console.warn(`⚠️ getLabels falhou: Sessão ${businessId} não pronta.`);
     return [];
   }
   try {
     // Returns Promise<Label[]>
     return await client.getLabels();
   } catch (error) {
-    console.error(`💥 Erro ao obter labels (User ${userId}):`, error.message);
+    console.error(`💥 Erro ao obter labels (User ${businessId}):`, error.message);
     return [];
   }
 };
 
-const updateLabel = async (userId, labelId, name, hexColor) => {
-  const client = sessions.get(userId.toString());
+const updateLabel = async (businessId, labelId, name, hexColor) => {
+  const client = sessions.get(businessId.toString());
   if (!client || !client.info) {
-    throw new Error(`Sessão ${userId} não pronta.`);
+    throw new Error(`Sessão ${businessId} não pronta.`);
   }
 
   const labels = await client.getLabels();
@@ -362,15 +362,15 @@ const updateLabel = async (userId, labelId, name, hexColor) => {
   if (typeof label.save === 'function') {
     await label.save();
   } else {
-    console.warn(`⚠️ Label.save() não disponível para User ${userId}. Tentando fallback de edição...`);
+    console.warn(`⚠️ Label.save() não disponível para User ${businessId}. Tentando fallback de edição...`);
     // Fallback logic if needed, but assuming standard support per request
   }
   return label;
 };
 
-const deleteLabel = async (userId, labelId) => {
-  const client = sessions.get(userId.toString());
-  if (!client || !client.info) throw new Error(`Sessão ${userId} não pronta.`);
+const deleteLabel = async (businessId, labelId) => {
+  const client = sessions.get(businessId.toString());
+  if (!client || !client.info) throw new Error(`Sessão ${businessId} não pronta.`);
 
   const labels = await client.getLabels();
   const label = labels.find(l => l.id === labelId);
@@ -382,9 +382,9 @@ const deleteLabel = async (userId, labelId) => {
   }
 };
 
-const setChatLabels = async (userId, chatId, labelIds) => {
-  const client = sessions.get(userId.toString());
-  if (!client || !client.info) throw new Error(`Sessão ${userId} não pronta.`);
+const setChatLabels = async (businessId, chatId, labelIds) => {
+  const client = sessions.get(businessId.toString());
+  if (!client || !client.info) throw new Error(`Sessão ${businessId} não pronta.`);
 
   const chat = await client.getChatById(chatId);
 
@@ -396,9 +396,9 @@ const setChatLabels = async (userId, chatId, labelIds) => {
   }
 };
 
-const getChatLabels = async (userId, chatId) => {
-  const client = sessions.get(userId.toString());
-  if (!client || !client.info) throw new Error(`Sessão ${userId} não pronta.`);
+const getChatLabels = async (businessId, chatId) => {
+  const client = sessions.get(businessId.toString());
+  if (!client || !client.info) throw new Error(`Sessão ${businessId} não pronta.`);
 
   const chat = await client.getChatById(chatId);
   if (chat && typeof chat.getLabels === 'function') {
@@ -410,28 +410,28 @@ const getChatLabels = async (userId, chatId) => {
 };
 
 const closeAllSessions = async () => {
-  for (const [userId, client] of sessions.entries()) {
+  for (const [businessId, client] of sessions.entries()) {
     try {
       // No shutdown do servidor, usamos destroy() em vez de logout()
       // para não perder a conexão (QR Code) na próxima reinicialização
       await client.destroy();
     } catch (e) {
-      console.error(`-> Erro ao fechar ${userId}:`, e.message);
+      console.error(`-> Erro ao fechar ${businessId}:`, e.message);
     }
   }
   sessions.clear();
 };
 
-const updateStatus = (userId, status) => {
-  statuses.set(userId, status);
+const updateStatus = (businessId, status) => {
+  statuses.set(businessId, status);
   if (ioInstance) {
-    ioInstance.to(userId).emit('wwebjs_status', status);
+    ioInstance.to(businessId).emit('wwebjs_status', status);
   }
 };
 
-const getSessionStatus = (userId) => statuses.get(userId) || 'disconnected';
-const getSessionQR = (userId) => qrCodes.get(userId);
-const getClientSession = (userId) => sessions.get(userId.toString());
+const getSessionStatus = (businessId) => statuses.get(businessId) || 'disconnected';
+const getSessionQR = (businessId) => qrCodes.get(businessId);
+const getClientSession = (businessId) => sessions.get(businessId.toString());
 
 export {
   initializeWWebJS,

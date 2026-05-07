@@ -188,15 +188,15 @@ io.on('connection', (socket) => {
   }
 
   // 2. Admin do Dashboard
-  socket.on('join_session', (userId) => {
-    if (!userId) return;
-    socket.join(userId);
+  socket.on('join_session', (businessId) => {
+    if (!businessId) return;
+    socket.join(businessId);
 
     // Envia estado atual imediato
-    const status = getSessionStatus(userId);
+    const status = getSessionStatus(businessId);
     socket.emit('wwebjs_status', status);
 
-    const qr = getSessionQR(userId);
+    const qr = getSessionQR(businessId);
     if (qr) socket.emit('wwebjs_qr', qr);
   });
 });
@@ -223,15 +223,15 @@ const restoreActiveSessions = async () => {
     const collection = db.collection('wwebsessions.files');
 
     for (const [index, config] of configs.entries()) {
-      const userId = config.userId;
+      const businessId = config._id;
 
       const sessionFile = await collection.findOne({
-        filename: { $regex: new RegExp(userId) }
+        filename: { $regex: new RegExp(businessId) }
       });
 
       if (sessionFile) {
         console.log(`▶️ [${index + 1}/${configs.length}] Iniciando ${config.businessName}...`);
-        startSession(userId);
+        startSession(businessId);
         await new Promise(resolve => setTimeout(resolve, 5000));
       }
     }
