@@ -3,11 +3,6 @@ import BusinessConfig from '../models/BusinessConfig.js';
 import Contact from '../models/Contact.js';
 import * as tagService from '../services/tagService.js';
 
-// Helper to get Business ID
-const getBusinessId = async (userId) => {
-    const config = await BusinessConfig.findById(req.user.activeBusinessId);
-    return config ? config._id : null;
-};
 
 // 1. Sync Logic (Refactored to be thin)
 const syncTags = async (req, res) => {

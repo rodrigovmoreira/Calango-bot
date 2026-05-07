@@ -6,11 +6,6 @@ import xlsx from 'xlsx';
 import csv from 'csv-parser';
 import { Readable } from 'stream';
 
-// Helper to get Business ID
-const getBusinessId = async (userId) => {
-    const config = await BusinessConfig.findById(req.user.activeBusinessId);
-    return config ? config._id : null;
-};
 
 // --- 1. CORE CRUD OPERATIONS (Refactored from Routes) ---
 

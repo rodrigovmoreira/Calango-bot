@@ -54,7 +54,7 @@ router.get('/config', authenticateToken, async (req, res) => {
 
 router.put('/config', authenticateToken, async (req, res) => {
   try {
-    console.log('📦 [PUT Config] Atualizando configurações para o usuário:', req.user.userId);
+    console.log('📦 [PUT Config] Atualizando configurações para a empresa:', req.user.activeBusinessId);
 
     const { __v, ...bodyUpdates } = req.body;
 
@@ -338,7 +338,7 @@ router.post('/conversations/:contactId/messages', authenticateToken, async (req,
     // 2. Enviar Mensagem
     let sent = false;
     if (contact.channel === 'whatsapp') {
-      sent = await sendWWebJSMessage(req.user.userId, contact.phone, message);
+      sent = await sendWWebJSMessage(req.user.activeBusinessId, contact.phone, message);
       if (!sent) {
         // Se falhar o envio (WhatsApp desconectado, etc), avisa o front mas salva?
         // Melhor retornar erro para o agente saber.

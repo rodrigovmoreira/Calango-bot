@@ -6,18 +6,18 @@ import { sendWhatsAppMessage } from './twilioService.js'; // Se tiver o Twilio
    @param {string} to - Número de destino (ex: 5511999999999)
    @param {string} message - Texto da mensagem
    @param {string} provider - 'wwebjs' ou 'twilio'
-   @param {string} userId - ID do dono do bot (obrigatório para WWebJS)
+   @param {string} businessId - ID da empresa (obrigatório para WWebJS)
  */
-async function sendUnifiedMessage(to, message, provider, userId) {
+async function sendUnifiedMessage(to, message, provider, businessId) {
   try {
     // console.log(`📤 Enviando via [${provider.toUpperCase()}] para ${to}`);
 
     if (provider === 'wwebjs') {
-      if (!userId) {
-        console.error('❌ Erro: Tentativa de envio WWebJS sem userId definido.');
+      if (!businessId) {
+        console.error('❌ Erro: Tentativa de envio WWebJS sem businessId definido.');
         return false;
       }
-      return await sendWWebJSMessage(userId, to, message);
+      return await sendWWebJSMessage(businessId, to, message);
     } 
     else if (provider === 'twilio') {
        return await sendWhatsAppMessage(to, message);

@@ -1,0 +1,84 @@
+<<<<<<< SEARCH
+        // Buscar todas as configurações com IA Follow-up ativa ou Notification Rules ativas
+        const configs = await BusinessConfig.find({
+            $or: [
+                { 'followUpSteps.0': { $exists: true } },
+                { 'notificationRules.0': { $exists: true, isActive: true } }
+            ]
+        }).lean();
+
+        if (configs.length === 0) return;
+
+        const configByUserId = new Map();
+        const userIds = [];
+
+        for (const config of configs) {
+            // Em uma arquitetura futura, poderíamos ter múltiplos bots/números.
+            // Para o MVP assumimos 1 config = 1 número de envio
+            if (config.userId) {
+                userIds.push(config.userId);
+                configByUserId.set(config.userId.toString(), config);
+            }
+        }
+=======
+        // Buscar todas as configurações com IA Follow-up ativa ou Notification Rules ativas
+        const configs = await BusinessConfig.find({
+            $or: [
+                { 'followUpSteps.0': { $exists: true } },
+                { 'notificationRules.0': { $exists: true, isActive: true } }
+            ]
+        }).lean();
+
+        if (configs.length === 0) return;
+
+        const configById = new Map();
+        const businessIds = [];
+
+        for (const config of configs) {
+            businessIds.push(config._id);
+            configById.set(config._id.toString(), config);
+        }
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+        // Buscar todos os agendamentos futuros para esses usuários
+        const appointments = await Appointment.find({
+            userId: { $in: userIds },
+            start: { $gte: now }, // Pega eventos do futuro ou agora
+            status: 'scheduled'
+        }).lean();
+
+        // Agrupar agendamentos por usuário
+        const appointmentsByUserId = new Map();
+        for (const appt of appointments) {
+            const uid = appt.userId.toString();
+            if (!appointmentsByUserId.has(uid)) appointmentsByUserId.set(uid, []);
+            appointmentsByUserId.get(uid).push(appt);
+        }
+
+        // Loop principal
+        for (const config of configs) {
+            if (!config.userId) continue;
+
+            const tz = config.timezone || 'America/Sao_Paulo';
+            const appointments = appointmentsByUserId.get(config.userId.toString()) || [];
+=======
+        // Buscar todos os agendamentos futuros para essas empresas
+        const appointments = await Appointment.find({
+            businessId: { $in: businessIds },
+            start: { $gte: now }, // Pega eventos do futuro ou agora
+            status: 'scheduled'
+        }).lean();
+
+        // Agrupar agendamentos por negócio
+        const appointmentsByBusinessId = new Map();
+        for (const appt of appointments) {
+            const bid = appt.businessId.toString();
+            if (!appointmentsByBusinessId.has(bid)) appointmentsByBusinessId.set(bid, []);
+            appointmentsByBusinessId.get(bid).push(appt);
+        }
+
+        // Loop principal
+        for (const config of configs) {
+            const tz = config.timezone || 'America/Sao_Paulo';
+            const appointments = appointmentsByBusinessId.get(config._id.toString()) || [];
+>>>>>>> REPLACE
