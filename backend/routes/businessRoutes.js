@@ -29,26 +29,19 @@ router.get('/tags', authenticateToken, async (req, res) => {
 // GET /api/business/config
 router.get('/config', authenticateToken, async (req, res) => {
   try {
-    // DO NOT return legacy tags (availableTags). Use Tag collection instead.
-    let config = await BusinessConfig.findById(req.user.activeBusinessId).select('-availableTags');
+    // Busca a configuração usando o ID da empresa que está no perfil do usuário
+    const config = await BusinessConfig.findById(req.user.activeBusinessId).select('-availableTags');
 
-    // If config does not exist, return 404 error
     if (!config) {
-      return res.status(404).json({ message: 'Configuração de negócio não encontrada.' });
+      // 🚨 CRÍTICO: Não crie BusinessConfig.create aqui!
+      // Se ele não achar, é porque a conta tá corrompida.
+      return res.status(404).json({ message: 'Configuração do negócio não encontrada. Peça ao administrador para revisar seu convite.' });
     }
-
-    // Lazy Migration: Ensure new fields exist
-    let dirty = false;
-    if (!config.aiResponseMode) { config.aiResponseMode = 'all'; dirty = true; }
-    if (!config.aiWhitelistTags) { config.aiWhitelistTags = []; dirty = true; }
-    if (!config.aiBlacklistTags) { config.aiBlacklistTags = []; dirty = true; }
-
-    if (dirty) await config.save();
 
     res.json(config);
   } catch (error) {
     console.error('Erro GET config:', error);
-    res.status(500).json({ message: 'Erro config' });
+    res.status(500).json({ message: 'Erro interno' });
   }
 });
 

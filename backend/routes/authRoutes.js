@@ -55,14 +55,14 @@ router.post('/login', loginLimiter, async (req, res) => {
 // ROTA: /api/auth/register
 router.post('/register', registerLimiter, async (req, res) => {
   try {
-    const { name, email, password, inviteToken } = req.body;
+    const { name, email, password, company, inviteToken } = req.body;
 
     // Check if email exists
     if (await SystemUser.findOne({ email })) {
       if (inviteToken) {
         return res.status(409).json({ message: 'Email já existe. Por favor, faça login para aceitar o convite.', code: 'EMAIL_EXISTS_INVITE' });
       }
-      return res.status(400).json({ message: 'Email existe' });
+      return res.status(400).json({ message: 'Email já cadastrado.' });
     }
 
     let invite = null;
@@ -73,27 +73,25 @@ router.post('/register', registerLimiter, async (req, res) => {
       }
     }
 
-    // Generate verification token
-    const verificationToken = crypto.randomBytes(32).toString('hex');
-
-    // User is created with isVerified: false by default (from model)
+    // Cria o usuário "limpo" (sem nome de empresa no perfil)
     const user = new SystemUser({
       name,
       email,
       password,
-      verificationToken
+      verificationToken: crypto.randomBytes(32).toString('hex')
     });
 
     if (invite) {
-      // Invited user: link to existing business
+      // CENÁRIO 1: USUÁRIO CONVIDADO (Não cria empresa, apenas herda o ID)
       user.businesses = [{ businessId: invite.businessId, role: invite.role }];
       user.activeBusinessId = invite.businessId;
+      
       invite.status = 'used';
       await invite.save();
     } else {
-      // New admin user: create a new business
+      // CENÁRIO 2: USUÁRIO ADMIN NOVO (Cria a empresa)
       const newConfig = await BusinessConfig.create({
-        businessName: name + '\'s Business',
+        businessName: company || 'Meu Negócio',
         prompts: {
           chatSystem: "Você é um assistente virtual útil.",
           visionSystem: "Descreva o que vê."
@@ -107,7 +105,7 @@ router.post('/register', registerLimiter, async (req, res) => {
 
     // Send Verification Email
     try {
-      sendVerificationEmail(email, verificationToken)
+      sendVerificationEmail(email, user.verificationToken)
         .catch(err => console.error('Warning: Failed to send email, but user created.', err.message));
     } catch (error) {
       console.error('Warning: Failed to initiate email sending.', error.message);
@@ -115,7 +113,18 @@ router.post('/register', registerLimiter, async (req, res) => {
 
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
     res.cookie('auth_token', token, { httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000 });
-    res.status(201).json({ token, user: { id: user._id, name: user.name, email: user.email, activeBusinessId: user.activeBusinessId, businesses: user.businesses } });
+    
+    // Retorna os dados corretos pro frontend
+    res.status(201).json({ 
+      token, 
+      user: { 
+        id: user._id, 
+        name: user.name, 
+        email: user.email, 
+        activeBusinessId: user.activeBusinessId, 
+        businesses: user.businesses 
+      } 
+    });
   } catch (error) {
     console.error('Erro registro:', error);
     res.status(500).json({ message: 'Erro ao realizar cadastro.' });

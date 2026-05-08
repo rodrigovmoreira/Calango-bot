@@ -200,7 +200,7 @@ const syncContacts = async (req, res) => {
         }
 
         const businessId = config._id;
-        const client = wwebjsService.getClientSession(req.user.userId);
+        const client = wwebjsService.getClientSession(businessId);
 
         if (!client || !client.info) {
             return res.status(503).json({ message: 'WhatsApp não está pronto. Aguarde a conexão.' });
