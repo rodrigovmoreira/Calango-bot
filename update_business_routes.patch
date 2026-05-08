@@ -1,5 +1,0 @@
-<<<<<<< SEARCH
-    console.log('📦 [PUT Config] Atualizando configurações para o usuário:', req.user.userId);
-=======
-    console.log('📦 [PUT Config] Atualizando configurações para a empresa:', req.user.activeBusinessId);
->>>>>>> REPLACE

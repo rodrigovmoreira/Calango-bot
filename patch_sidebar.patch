@@ -1,8 +1,0 @@
-<<<<<<< SEARCH
-  { name: 'Funil', icon: FaFilter, index: 8 }
-];
-=======
-  { name: 'Funil', icon: FaFilter, index: 8 },
-  { name: 'Equipe', icon: StarIcon, index: 9 }
-];
->>>>>>> REPLACE
