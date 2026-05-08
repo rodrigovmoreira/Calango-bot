@@ -51,10 +51,8 @@ async function processConfigBatch(configs) {
 
     // 1. Coleta IDs para buscar tudo em 2 queries (vs N queries)
     const businessIds = [];
-    const businessIds = [];
 
     // Mapas para acesso rápido O(1)
-    const configByBusinessId = new Map();
     const configByBusinessId = new Map();
 
     for (const config of configs) {
