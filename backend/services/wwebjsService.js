@@ -53,7 +53,7 @@ const startSession = async (businessIdRaw) => {
     }
   }
 
-  const config = await BusinessConfig.findOne({ businessId });
+  const config = await BusinessConfig.findById(businessId);
   if (!config) {
     console.error(`❌ Config não encontrada para UserID: ${businessId}`);
     updateStatus(businessId, 'error');
