@@ -32,18 +32,18 @@ router.get('/config', authenticateToken, async (req, res) => {
     // DO NOT return legacy tags (availableTags). Use Tag collection instead.
     let config = await BusinessConfig.findById(req.user.activeBusinessId).select('-availableTags');
 
-    // Se não existir, cria um padrão
+    // If config does not exist, return 404 error
     if (!config) {
-      config = await BusinessConfig.create({ businessId: req.user.activeBusinessId, businessName: 'Meu Negócio' });
-    } else {
-      // Lazy Migration: Ensure new fields exist
-      let dirty = false;
-      if (!config.aiResponseMode) { config.aiResponseMode = 'all'; dirty = true; }
-      if (!config.aiWhitelistTags) { config.aiWhitelistTags = []; dirty = true; }
-      if (!config.aiBlacklistTags) { config.aiBlacklistTags = []; dirty = true; }
-
-      if (dirty) await config.save();
+      return res.status(404).json({ message: 'Configuração de negócio não encontrada.' });
     }
+
+    // Lazy Migration: Ensure new fields exist
+    let dirty = false;
+    if (!config.aiResponseMode) { config.aiResponseMode = 'all'; dirty = true; }
+    if (!config.aiWhitelistTags) { config.aiWhitelistTags = []; dirty = true; }
+    if (!config.aiBlacklistTags) { config.aiBlacklistTags = []; dirty = true; }
+
+    if (dirty) await config.save();
 
     res.json(config);
   } catch (error) {

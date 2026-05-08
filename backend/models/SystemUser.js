@@ -24,11 +24,6 @@ const systemUserSchema = new mongoose.Schema({
     minlength: 6,
     select: false
   },
-  company: {
-    type: String,
-    trim: true,
-    default: 'Meu Negócio'
-  },
   role: { // Legacy
     type: String,
     enum: ['admin', 'vendedor', 'atendente'],
