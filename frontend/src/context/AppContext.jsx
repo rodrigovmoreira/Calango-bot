@@ -93,7 +93,7 @@ export const AppProvider = ({ children }) => {
     socket.on('connect', () => {
       // --- O PULO DO GATO ---
       // Emitimos o join_session imediatamente após conectar
-      socket.emit('join_session', state.user.id);
+      socket.emit('join_session', state.user.activeBusinessId);
     });
 
     socket.on('wwebjs_qr', (qr) => {
