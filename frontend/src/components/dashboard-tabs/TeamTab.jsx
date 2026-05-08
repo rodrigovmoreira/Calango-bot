@@ -8,7 +8,7 @@ import {
 } from '@chakra-ui/react';
 import { AddIcon, CopyIcon } from '@chakra-ui/icons';
 import { useApp } from '../../context/AppContext';
-import api from '../../services/api';
+import { authAPI } from '../../services/api';
 
 const TeamTab = () => {
   const { state } = useApp();
@@ -47,7 +47,7 @@ const TeamTab = () => {
     setIsGenerating(true);
     setInviteLink('');
     try {
-      const response = await api.post('/auth/invites', { role });
+      const response = await authAPI.createInvite({ role });
       const token = response.data.token;
       const link = `${window.location.origin}/invite/${token}`;
       setInviteLink(link);

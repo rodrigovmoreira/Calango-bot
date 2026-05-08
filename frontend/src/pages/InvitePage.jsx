@@ -5,7 +5,7 @@ import {
   useToast, useColorModeValue, FormControl, FormLabel, Input,
   Spinner, Center, Card, CardBody, Avatar, Divider, Alert, AlertIcon
 } from '@chakra-ui/react';
-import api from '../services/api';
+import { authAPI } from '../services/api';
 import { useApp } from '../context/AppContext';
 
 const InvitePage = () => {
@@ -31,7 +31,7 @@ const InvitePage = () => {
   useEffect(() => {
     const fetchInvite = async () => {
       try {
-        const response = await api.get(`/auth/invites/${token}`);
+        const response = await authAPI.getInvite(token);
         setInvite(response.data.invite);
       } catch (err) {
         setError(err.response?.data?.message || 'Convite inválido ou expirado.');
@@ -50,7 +50,7 @@ const InvitePage = () => {
     try {
       if (isLoginMode) {
         // Handle Login with invite token
-        const { data } = await api.post('/auth/login', { email, password, inviteToken: token });
+        const { data } = await authAPI.login({ email, password, inviteToken: token });
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
         dispatch({ type: 'SET_USER', payload: data.user });
@@ -59,7 +59,7 @@ const InvitePage = () => {
         navigate('/dashboard');
       } else {
         // Handle Register with invite token
-        const { data } = await api.post('/auth/register', { name, email, password, inviteToken: token });
+        const { data } = await authAPI.register({ name, email, password, inviteToken: token });
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
         dispatch({ type: 'SET_USER', payload: data.user });
