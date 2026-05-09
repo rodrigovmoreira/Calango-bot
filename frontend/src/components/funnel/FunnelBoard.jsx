@@ -63,16 +63,26 @@ const FunnelBoard = ({ columns, contacts, onUpdateStep }) => {
     // Call API if column changed
     if (sourceColId !== destColId) {
       try {
-        await businessAPI.updateContact(draggableId, { tags: newTags });
+        await businessAPI.updateContact(draggableId, { tags: newTags, __v: movedContact.__v });
       } catch (error) {
         console.error("Failed to update contact tags:", error);
-        toast({
-          title: 'Erro ao mover contato',
-          description: 'Não foi possível salvar a alteração.',
-          status: 'error',
-          duration: 5000,
-          isClosable: true,
-        });
+        if (error.response?.status === 409) {
+            toast({
+              title: 'Conflito de Versão',
+              description: 'O contato foi modificado por outro processo. Recarregue a página para continuar.',
+              status: 'error',
+              duration: null,
+              isClosable: true,
+            });
+        } else {
+            toast({
+              title: 'Erro ao mover contato',
+              description: 'Não foi possível salvar a alteração.',
+              status: 'error',
+              duration: 5000,
+              isClosable: true,
+            });
+        }
         // Revert UI change
         setBoardData(boardData);
       }

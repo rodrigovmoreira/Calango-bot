@@ -5,17 +5,16 @@ import BusinessConfig from '../models/BusinessConfig.js';
 
 const importLabels = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const businessId = req.user.activeBusinessId;
 
     // 1. Get BusinessId
-    const config = await BusinessConfig.findOne({ userId });
+    const config = await BusinessConfig.findById(businessId);
     if (!config) {
       return res.status(404).json({ message: 'Negócio não encontrado para este usuário.' });
     }
-    const businessId = config._id;
 
     // 2. Get Client Session
-    const client = getClientSession(userId);
+    const client = getClientSession(businessId);
     if (!client || !client.info) {
         return res.status(400).json({ message: 'WhatsApp não conectado. Conecte-se primeiro.' });
     }

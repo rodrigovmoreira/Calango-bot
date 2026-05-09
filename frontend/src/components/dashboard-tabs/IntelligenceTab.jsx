@@ -190,6 +190,7 @@ const IntelligenceTab = () => {
       }));
       const payload = {
         ...state.businessConfig,
+        __v: state.businessConfig.__v,
         prompts: {
           chatSystem: activePrompts.chatSystem,
           visionSystem: activePrompts.visionSystem
@@ -208,7 +209,11 @@ const IntelligenceTab = () => {
       setFollowUpSteps(orderedSteps);
       toast({ title: 'Cérebro da IA atualizado!', status: 'success' });
     } catch (error) {
-      toast({ title: 'Erro ao salvar prompts', status: 'error' });
+      if (error.response?.status === 409) {
+          toast({ title: 'Conflito de Versão', description: 'As configurações foram modificadas por outro processo. Recarregue a página.', status: 'error', duration: null, isClosable: true });
+      } else {
+          toast({ title: 'Erro ao salvar prompts', status: 'error' });
+      }
     }
   };
 
@@ -314,12 +319,18 @@ const IntelligenceTab = () => {
         ...step,
         stage: index + 1
       }));
-      const payload = { ...state.businessConfig, followUpSteps: orderedSteps };
+      const payload = { ...state.businessConfig, followUpSteps: orderedSteps, __v: state.businessConfig.__v };
       const res = await businessAPI.updateConfig(payload);
       dispatch({ type: 'SET_BUSINESS_CONFIG', payload: res.data });
       setFollowUpSteps(orderedSteps);
       toast({ title: 'Recuperação de Inatividade salva!', status: 'success' });
-    } catch (e) { toast({ title: 'Erro ao salvar configuração', status: 'error' }); }
+    } catch (error) {
+      if (error.response?.status === 409) {
+          toast({ title: 'Conflito de Versão', description: 'As configurações foram modificadas por outro processo. Recarregue a página.', status: 'error', duration: null, isClosable: true });
+      } else {
+          toast({ title: 'Erro ao salvar configuração', status: 'error' });
+      }
+    }
   };
 
   return (

@@ -53,10 +53,10 @@ const seedData = async () => {
         console.log(`👤 Found User: ${user.name} (${user.email})`);
 
         // 2. Find BusinessConfig
-        let businessConfig = await BusinessConfig.findOne({ userId: user._id });
+        let businessConfig = await BusinessConfig.findOne({ businessName: "Estúdio Tattoo" });
         if (!businessConfig) {
              console.log('⚠️ No BusinessConfig found. Creating a default one...');
-             businessConfig = new BusinessConfig({ userId: user._id });
+             businessConfig = new BusinessConfig({ businessName: "Estúdio Tattoo" });
         }
 
         // 3. Insert 'QuickAnswers' (menuOptions)
@@ -114,12 +114,12 @@ const seedData = async () => {
 
         // 4. Insert 'Campaigns'
         console.log('🧹 Clearing existing Campaigns for user...');
-        await Campaign.deleteMany({ userId: user._id });
+        await Campaign.deleteMany({ businessId: businessConfig._id });
 
         console.log('🌱 Seeding Campaigns...');
         const campaigns = [
             {
-                userId: user._id,
+                businessId: businessConfig._id,
                 name: "Lembrete 24h Antes",
                 type: "recurring",
                 triggerType: "event",
@@ -130,7 +130,7 @@ const seedData = async () => {
                 isActive: true
             },
             {
-                userId: user._id,
+                businessId: businessConfig._id,
                 name: "Resgate de Inativos (IA)",
                 type: "recurring",
                 triggerType: "time",
@@ -141,7 +141,7 @@ const seedData = async () => {
                 isActive: true
             },
             {
-                userId: user._id,
+                businessId: businessConfig._id,
                 name: "Promoção Relâmpago VIP",
                 type: "broadcast",
                 targetTags: ["VIP", "Comprador Recorrente"],

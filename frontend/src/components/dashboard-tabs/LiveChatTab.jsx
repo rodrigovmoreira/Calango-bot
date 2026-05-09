@@ -75,8 +75,14 @@ const LiveChatTab = () => {
   const updateContact = async (updates) => {
     if (!selectedContact) return;
     try {
+        // Prepare payload with optimistic concurrency version
+        const payload = { ...updates };
+        if (payload.__v === undefined) {
+            payload.__v = selectedContact.__v;
+        }
+
         const token = localStorage.getItem('token');
-        const response = await axios.put(`${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api/contacts/${selectedContact._id}`, updates, {
+        const response = await axios.put(`${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api/contacts/${selectedContact._id}`, payload, {
             headers: { Authorization: `Bearer ${token}` }
         });
 
@@ -111,14 +117,14 @@ const LiveChatTab = () => {
     if (!availableTags.includes(tag)) {
        try {
            const newAvailableTags = [...availableTags, tag];
-           await businessAPI.updateConfig({ availableTags: newAvailableTags });
+           await businessAPI.updateConfig({ availableTags: newAvailableTags, __v: state.businessConfig.__v });
            dispatch({
              type: 'SET_BUSINESS_CONFIG',
              payload: { ...state.businessConfig, availableTags: newAvailableTags }
            });
        } catch (error) {
            console.error("Erro ao criar nova tag global:", error);
-           toast({ title: "Erro ao salvar nova tag no sistema.", status: "error" });
+           toast({ title: "Erro ao salvar nova tag no sistema. Recarregue se houve conflito.", status: "error" });
            return;
        }
     }

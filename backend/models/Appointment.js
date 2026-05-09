@@ -1,12 +1,20 @@
 import mongoose from 'mongoose';
 
 const appointmentSchema = new mongoose.Schema({
-  userId: {
+  businessId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'SystemUser',
+    ref: 'BusinessConfig',
     required: true,
     index: true // Melhora a busca por usuário
   },
+
+  // Omnichannel / Multi-Agentes
+  whatsappSessionId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Session',
+    required: true
+  }, // Carimbo de qual número/sessão é dona deste agendamento
+
   // Dados do Cliente (Para o bot saber quem é)
   clientName: { type: String, required: true },
   clientPhone: { type: String, required: true }, // Formato: 5511999999999
@@ -50,9 +58,9 @@ const appointmentSchema = new mongoose.Schema({
   },
 
   createdAt: { type: Date, default: Date.now }
-});
+}, { optimisticConcurrency: true });
 
 // Optimization for Scheduler (frequent query by user, status, and date range)
-appointmentSchema.index({ userId: 1, status: 1, start: 1 });
+appointmentSchema.index({ businessId: 1, status: 1, start: 1 });
 
 export default mongoose.model('Appointment', appointmentSchema);

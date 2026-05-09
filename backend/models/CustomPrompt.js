@@ -1,9 +1,9 @@
 import mongoose from 'mongoose';
 
 const customPromptSchema = new mongoose.Schema({
-  userId: { 
+  businessId: {
     type: mongoose.Schema.Types.ObjectId, 
-    ref: 'SystemUser', 
+    ref: 'BusinessConfig',
     required: true 
   },
   name: { type: String, required: true }, // Ex: "Meu Tatuador Agressivo"
@@ -32,6 +32,6 @@ const customPromptSchema = new mongoose.Schema({
 });
 
 // Garante que o nome seja único por usuário (opcional, mas bom pra organização)
-customPromptSchema.index({ userId: 1, name: 1 }, { unique: true });
+customPromptSchema.index({ businessId: 1, name: 1 }, { unique: true });
 
 export default mongoose.model('CustomPrompt', customPromptSchema);

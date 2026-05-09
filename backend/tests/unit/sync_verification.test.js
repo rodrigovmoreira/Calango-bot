@@ -34,7 +34,7 @@ const BusinessConfig = BusinessConfigModule.default;
 
 // Mock Express
 const req = {
-  user: { userId: 'user123' },
+  user: { userId: 'user123', activeBusinessId: 'biz123' },
   file: null,
   body: {}
 };
@@ -50,7 +50,7 @@ describe('Contact Sync Verification', () => {
 
   test('syncContacts should filter groups and update contacts', async () => {
     const mockBusinessId = 'biz123';
-    BusinessConfig.findOne.mockResolvedValue({ _id: mockBusinessId });
+    BusinessConfig.findById = jest.fn().mockResolvedValue({ _id: mockBusinessId });
 
     const mockClient = {
       info: {},

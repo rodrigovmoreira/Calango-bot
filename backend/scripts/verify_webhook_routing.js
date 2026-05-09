@@ -32,7 +32,7 @@ async function verifyRouting() {
     let businessA = await BusinessConfig.findOne({ phoneNumber: phone1 });
     if (!businessA) {
         businessA = await BusinessConfig.create({
-            userId: user._id,
+            /* no userId */,
             businessName: 'Business A (Specific)',
             phoneNumber: phone1,
             whatsappProvider: 'twilio'
@@ -45,7 +45,7 @@ async function verifyRouting() {
     let businessB = await BusinessConfig.findOne({ phoneNumber: phone2 });
     if (!businessB) {
         businessB = await BusinessConfig.create({
-            userId: user._id,
+            /* no userId */,
             businessName: 'Business B (Other)',
             phoneNumber: phone2,
             whatsappProvider: 'twilio'

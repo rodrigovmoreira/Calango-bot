@@ -14,6 +14,12 @@ const contactSchema = new mongoose.Schema({
   email: { type: String }, // Optional (Added for CRM Import)
   sessionId: { type: String }, // For Web Users
 
+  // Omnichannel / Multi-Agentes
+  whatsappSessionId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Session'
+  }, // Carimbo de qual número/sessão do WhatsApp o contato entrou
+
   channel: {
     type: String,
     enum: ['whatsapp', 'web'],
@@ -59,7 +65,7 @@ const contactSchema = new mongoose.Schema({
   
   totalMessages: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now }
-});
+}, { optimisticConcurrency: true });
 
 // Índices Parciais para Unicidade
 contactSchema.index({ businessId: 1, phone: 1 }, {

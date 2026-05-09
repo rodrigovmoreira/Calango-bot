@@ -139,13 +139,23 @@ const ScheduleTab = () => {
 
   const updateStatus = async (status) => {
     try {
-      await businessAPI.updateAppointmentStatus(selectedEvent._id, status);
+      await businessAPI.updateAppointmentStatus(selectedEvent._id, status, selectedEvent.__v);
       toast({ title: `Status atualizado para: ${status}`, status: 'success' });
       fetchAppointments();
       onClose();
       onFollowUpClose();
     } catch (error) {
-      toast({ title: 'Erro ao atualizar status', status: 'error' });
+      if (error.response?.status === 409) {
+          toast({
+              title: "Conflito de Versão",
+              description: "Atenção: Este agendamento foi modificado por outro usuário. Recarregue a página (ou feche e abra o modal novamente) para ver as atualizações.",
+              status: "error",
+              duration: null,
+              isClosable: true
+          });
+      } else {
+          toast({ title: 'Erro ao atualizar status', status: 'error' });
+      }
     }
   };
 
@@ -179,10 +189,12 @@ const ScheduleTab = () => {
     try {
       if (selectedEvent) {
         // UPDATE (Preserva histórico e IDs)
-        await businessAPI.updateAppointment(selectedEvent._id, {
+        const payload = {
           ...newEvent,
-          status: selectedEvent.status // Garante que status não seja resetado acidentalmente
-        });
+          status: selectedEvent.status, // Garante que status não seja resetado acidentalmente
+          __v: selectedEvent.__v
+        };
+        await businessAPI.updateAppointment(selectedEvent._id, payload);
         toast({ title: 'Agendamento atualizado!', status: 'success' });
       } else {
         // CREATE
@@ -207,7 +219,17 @@ const ScheduleTab = () => {
       await fetchAppointments();
       onClose();
     } catch (error) {
-      toast({ title: 'Erro ao cancelar.', status: 'error' });
+      if (error.response?.status === 409) {
+          toast({
+              title: "Conflito de Versão",
+              description: "Atenção: Este agendamento foi modificado por outro usuário. Recarregue a página para ver as atualizações.",
+              status: "error",
+              duration: null,
+              isClosable: true
+          });
+      } else {
+          toast({ title: 'Erro ao salvar agendamento', status: 'error' });
+      }
     }
   };
 

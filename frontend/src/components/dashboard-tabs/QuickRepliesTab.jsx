@@ -34,11 +34,17 @@ const QuickRepliesTab = () => {
   // Handlers
   const handleSaveMenu = async () => {
     try {
-      const payload = { ...state.businessConfig, menuOptions };
+      const payload = { ...state.businessConfig, menuOptions, __v: state.businessConfig.__v };
       const res = await businessAPI.updateConfig(payload);
       dispatch({ type: 'SET_BUSINESS_CONFIG', payload: res.data });
       toast({ title: 'Menu salvo!', status: 'success' });
-    } catch (e) { toast({ title: 'Erro ao salvar menu', status: 'error' }); }
+    } catch (error) {
+      if (error.response?.status === 409) {
+          toast({ title: 'Conflito de Versão', description: 'As configurações foram modificadas por outro processo. Recarregue a página.', status: 'error', duration: null, isClosable: true });
+      } else {
+          toast({ title: 'Erro ao salvar menu', status: 'error' });
+      }
+    }
   };
 
   const handleEditMenuOption = (idx) => {

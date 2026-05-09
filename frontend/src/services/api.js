@@ -38,6 +38,9 @@ export const authAPI = {
   register: (data) => api.post('/api/auth/register', data),
   logout: () => api.post('/api/auth/logout'),
   updateUser: (data) => api.put('/api/auth/update', data),
+  // Team & Invites (Ponto 2.2 - Roadmap 1)
+  createInvite: (data) => api.post('/api/auth/invites', data), // { role }
+  getInvite: (token) => api.get(`/api/auth/invites/${token}`), // Validação pública de convite
 };
 
 // --- Rotas de Negócio (Dashboard) ---
@@ -45,6 +48,7 @@ export const businessAPI = {
   // 1. Configurações Gerais (Atualizado para /api/business)
   getConfig: () => api.get('/api/business/config'),
   updateConfig: (data) => api.put('/api/business/config', data),
+  getTeam: () => api.get('/api/business/team'),
   
   // 2. Controle do WhatsApp (Atualizado para /api/whatsapp)
   getWhatsAppStatus: () => api.get('/api/whatsapp/status'),
@@ -94,7 +98,7 @@ export const businessAPI = {
   getAppointments: (params) => api.get('/api/appointments', { params }), 
   createAppointment: (data) => api.post('/api/appointments', data),
   updateAppointment: (id, data) => api.put(`/api/appointments/${id}`, data), // <--- NOVO
-  updateAppointmentStatus: (id, status) => api.patch(`/api/appointments/${id}/status`, { status }), // <--- NOVO
+  updateAppointmentStatus: (id, status, __v) => api.patch(`/api/appointments/${id}/status`, { status, __v }), // <--- NOVO
   deleteAppointment: (id) => api.delete(`/api/appointments/${id}`),
 
   // 6. Admin Chat (NOVO - Fase 3)

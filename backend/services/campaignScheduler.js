@@ -50,7 +50,7 @@ async function processCampaigns() {
 }
 
 async function processTimeCampaign(campaign) {
-  const config = await BusinessConfig.findOne({ userId: campaign.userId });
+  const config = await BusinessConfig.findOne({ userId: campaign.businessId });
   if (!config) return;
 
   const timeZone = config.operatingHours?.timezone || 'America/Sao_Paulo';
@@ -158,7 +158,7 @@ async function processTimeCampaign(campaign) {
 }
 
 async function processEventCampaign(campaign) {
-  const config = await BusinessConfig.findOne({ userId: campaign.userId });
+  const config = await BusinessConfig.findOne({ userId: campaign.businessId });
   if (!config) return;
 
   const now = new Date();
@@ -167,7 +167,7 @@ async function processEventCampaign(campaign) {
   const endRange = new Date(startRange.getTime() + 60000);
 
   const appointments = await Appointment.find({
-    userId: campaign.userId,
+    userId: campaign.businessId,
     status: { $in: campaign.eventTargetStatus },
     start: { $gte: startRange, $lt: endRange }
   });
@@ -278,7 +278,7 @@ ${historyText || "No previous history."}
 
   setTimeout(async () => {
     try {
-      const sent = await sendUnifiedMessage(contact.phone, messageToSend, 'wwebjs', campaign.userId);
+      const sent = await sendUnifiedMessage(contact.phone, messageToSend, 'wwebjs', campaign.businessId);
       const status = sent ? 'sent' : 'failed';
 
       await CampaignLog.create({

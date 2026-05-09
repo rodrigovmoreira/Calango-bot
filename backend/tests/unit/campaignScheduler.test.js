@@ -76,7 +76,7 @@ describe('Campaign Scheduler Logic', () => {
 
     mockConfig = {
       _id: 'biz123',
-      userId: 'user123',
+      businessId: 'user123',
       operatingHours: { timezone: 'America/Sao_Paulo' }
     };
 
@@ -89,7 +89,7 @@ describe('Campaign Scheduler Logic', () => {
 
     mockCampaign = {
       _id: 'camp123',
-      userId: 'user123',
+      businessId: 'user123',
       name: 'Test Campaign',
       isActive: true,
       triggerType: 'time',

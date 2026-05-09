@@ -3,10 +3,10 @@ import BusinessConfig from '../models/BusinessConfig.js';
 
 export const getDashboardSummary = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const businessId = req.user.activeBusinessId;
 
     // 1. Get Business Config to find businessId
-    const config = await BusinessConfig.findOne({ userId });
+    const config = await BusinessConfig.findById(businessId);
     if (!config) {
       return res.json({
         pipelineValue: 0,
@@ -15,8 +15,6 @@ export const getDashboardSummary = async (req, res) => {
         totalSales: 0
       });
     }
-
-    const businessId = config._id;
 
     // 2. Calculate Dates
     const startOfDay = new Date();

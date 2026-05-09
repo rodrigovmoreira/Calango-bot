@@ -25,7 +25,7 @@ describe('AI Tools - checkAvailability', () => {
 
   beforeEach(() => {
     businessConfigMock = {
-      userId: new mongoose.Types.ObjectId(),
+      businessId: new mongoose.Types.ObjectId(),
       minSchedulingNoticeMinutes: 60,
       timezone: 'America/Sao_Paulo',
       operatingHours: {
@@ -49,7 +49,7 @@ describe('AI Tools - checkAvailability', () => {
     const startTime = new Date(now.getTime() + 30 * 60000);
     const endTime = new Date(now.getTime() + 90 * 60000);
 
-    const result = await checkAvailability(businessConfigMock.userId, startTime, endTime);
+    const result = await checkAvailability(businessConfigMock.businessId, startTime, endTime);
 
     expect(result.available).toBe(false);
     expect(result.reason).toContain(`Necessário agendar com no mínimo ${bufferMinutes} minutos de antecedência`);
@@ -64,7 +64,7 @@ describe('AI Tools - checkAvailability', () => {
     mockBusinessConfigFns.findOne.mockResolvedValue(businessConfigMock);
     mockAppointmentFns.findOne.mockResolvedValue(null);
 
-    const result = await checkAvailability(businessConfigMock.userId, startTime, endTime);
+    const result = await checkAvailability(businessConfigMock.businessId, startTime, endTime);
     expect(result.available).toBe(true);
   });
 });

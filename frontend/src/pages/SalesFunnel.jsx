@@ -57,7 +57,8 @@ const SalesFunnel = () => {
   const handleSaveConfig = async (newSteps) => {
     try {
       const { data } = await businessAPI.updateConfig({
-        funnelSteps: newSteps
+        funnelSteps: newSteps,
+        __v: state.businessConfig.__v
       });
 
       // Update Context
@@ -67,6 +68,9 @@ const SalesFunnel = () => {
 
     } catch (error) {
       console.error('Error saving funnel config:', error);
+      if (error.response?.status === 409) {
+          toast({ title: 'Conflito de Versão', description: 'As configurações foram modificadas por outro processo. Recarregue a página.', status: 'error', duration: null, isClosable: true });
+      }
       throw error;
     }
   };

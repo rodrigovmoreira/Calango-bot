@@ -6,17 +6,12 @@ import xlsx from 'xlsx';
 import csv from 'csv-parser';
 import { Readable } from 'stream';
 
-// Helper to get Business ID
-const getBusinessId = async (userId) => {
-    const config = await BusinessConfig.findOne({ userId });
-    return config ? config._id : null;
-};
 
 // --- 1. CORE CRUD OPERATIONS (Refactored from Routes) ---
 
 const getContacts = async (req, res) => {
     try {
-        const businessId = await getBusinessId(req.user.userId);
+        const businessId = req.user.activeBusinessId;
         if (!businessId) {
             return res.status(404).json({ message: 'Business configuration not found' });
         }
@@ -32,7 +27,7 @@ const getContacts = async (req, res) => {
 const getContact = async (req, res) => {
     try {
         const { id } = req.params;
-        const businessId = await getBusinessId(req.user.userId);
+        const businessId = req.user.activeBusinessId;
 
         if (!businessId) {
             return res.status(404).json({ message: 'Business configuration not found' });
@@ -53,27 +48,49 @@ const getContact = async (req, res) => {
 const updateContact = async (req, res) => {
     try {
         const { id } = req.params;
-        const { tags, name, isHandover, funnelStage, dealValue, notes } = req.body;
+        const { __v, tags, name, isHandover, funnelStage, dealValue, notes } = req.body;
 
-        const businessId = await getBusinessId(req.user.userId);
+        const businessId = req.user.activeBusinessId;
         if (!businessId) {
             return res.status(404).json({ message: 'Business configuration not found' });
         }
 
-        const contact = await Contact.findOne({ _id: id, businessId });
-        if (!contact) {
+        const updateData = {};
+        if (tags !== undefined) updateData.tags = tags;
+        if (name !== undefined) updateData.name = name;
+        if (isHandover !== undefined) updateData.isHandover = isHandover;
+        if (funnelStage !== undefined) updateData.funnelStage = funnelStage;
+        if (dealValue !== undefined) updateData.dealValue = Number(dealValue);
+        if (notes !== undefined) updateData.notes = notes;
+
+        // Optimistic concurrency check if __v is provided
+        const query = { _id: id, businessId };
+        if (__v !== undefined) {
+            query.__v = __v;
+            // Mongoose optimistic concurrency will automatically increment __v when using findOneAndUpdate if not using $inc, but it's simpler to let Mongoose handle it or manually enforce.
+            // When using findOneAndUpdate with optimisticConcurrency: true, Mongoose handles __v natively only for .save().
+            // Wait, Mongoose handles __v on save(). For findOneAndUpdate, we must do it manually or pass options.
+            // Mongoose optimisticConcurrency works on save(). For findOneAndUpdate, it does NOT increment __v automatically unless we tell it to.
+            // Let's do the manual check and let the version increment if needed, but since optimistic concurrency is primarily about preventing overwrites, checking __v is key.
+        }
+
+        // We use $set to only update modified fields
+        const updatedContact = await Contact.findOneAndUpdate(
+            query,
+            { $set: updateData, $inc: { __v: 1 } },
+            { new: true }
+        );
+
+        if (!updatedContact) {
+            // Check if it exists but version mismatch
+            const existingContact = await Contact.findOne({ _id: id, businessId });
+            if (existingContact) {
+                return res.status(409).json({ message: 'Conflict: This item has been modified by another user or process. Please reload to see the latest updates.' });
+            }
             return res.status(404).json({ message: 'Contact not found' });
         }
 
-        if (tags !== undefined) contact.tags = tags;
-        if (name !== undefined) contact.name = name;
-        if (isHandover !== undefined) contact.isHandover = isHandover;
-        if (funnelStage !== undefined) contact.funnelStage = funnelStage;
-        if (dealValue !== undefined) contact.dealValue = Number(dealValue);
-        if (notes !== undefined) contact.notes = notes;
-
-        await contact.save();
-        res.json(contact);
+        res.json(updatedContact);
     } catch (error) {
         console.error('Error updating contact:', error);
         res.status(500).json({ message: 'Error updating contact' });
@@ -84,7 +101,7 @@ const updateContact = async (req, res) => {
 
 const importContacts = async (req, res) => {
     try {
-        const businessId = await getBusinessId(req.user.userId);
+        const businessId = req.user.activeBusinessId;
         if (!businessId) {
             return res.status(404).json({ message: 'Business configuration not found' });
         }
@@ -175,15 +192,15 @@ const importContacts = async (req, res) => {
 
 const syncContacts = async (req, res) => {
     try {
-        const { userId } = req.user;
-        const config = await BusinessConfig.findOne({ userId });
+
+        const config = await BusinessConfig.findById(req.user.activeBusinessId);
 
         if (!config) {
             return res.status(404).json({ message: 'Configuração não encontrada.' });
         }
 
         const businessId = config._id;
-        const client = wwebjsService.getClientSession(userId);
+        const client = wwebjsService.getClientSession(businessId);
 
         if (!client || !client.info) {
             return res.status(503).json({ message: 'WhatsApp não está pronto. Aguarde a conexão.' });

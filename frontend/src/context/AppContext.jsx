@@ -68,17 +68,28 @@ export const AppProvider = ({ children }) => {
       if (token && userStr) {
         const userObj = JSON.parse(userStr);
         dispatch({ type: 'SET_USER', payload: userObj });
-        
-        try {
-          const config = await businessAPI.getConfig();
-          dispatch({ type: 'SET_BUSINESS_CONFIG', payload: config.data });
-        } catch (e) { 
-          console.error("Erro config inicial:", e); 
-        }
       }
     };
     loadInitialData();
   }, []);
+
+  // 1b. Fetch Business Config whenever the user's activeBusinessId changes
+  useEffect(() => {
+    const fetchConfig = async () => {
+      if (state.user && state.user.activeBusinessId) {
+        try {
+          console.log("[AppContext] Fetching config for activeBusinessId:", state.user.activeBusinessId);
+          const config = await businessAPI.getConfig();
+          dispatch({ type: 'SET_BUSINESS_CONFIG', payload: config.data });
+        } catch (e) {
+          console.error("[AppContext] Erro ao buscar config do negócio:", e);
+        }
+      } else {
+         dispatch({ type: 'SET_BUSINESS_CONFIG', payload: null });
+      }
+    };
+    fetchConfig();
+  }, [state.user?.activeBusinessId]);
 
   // 2. CONEXÃO SOCKET.IO (CRUCIAL PARA O QR CODE)
   useEffect(() => {
@@ -93,7 +104,7 @@ export const AppProvider = ({ children }) => {
     socket.on('connect', () => {
       // --- O PULO DO GATO ---
       // Emitimos o join_session imediatamente após conectar
-      socket.emit('join_session', state.user.id);
+      socket.emit('join_session', state.user.activeBusinessId);
     });
 
     socket.on('wwebjs_qr', (qr) => {

@@ -25,7 +25,7 @@ const tagSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   }
-});
+}, { optimisticConcurrency: true });
 
 // Ensure unique tag names per business
 tagSchema.index({ businessId: 1, name: 1 }, { unique: true });

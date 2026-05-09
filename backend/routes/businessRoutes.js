@@ -5,6 +5,7 @@ import IndustryPreset from '../models/IndustryPreset.js';
 import CustomPrompt from '../models/CustomPrompt.js';
 import Contact from '../models/Contact.js';
 import Tag from '../models/Tag.js';
+import SystemUser from '../models/SystemUser.js';
 import authenticateToken from '../middleware/auth.js';
 import * as messageService from '../services/message.js';
 import { sendWWebJSMessage } from '../services/wwebjsService.js';
@@ -15,7 +16,7 @@ import axios from 'axios';
 // GET /api/business/tags
 router.get('/tags', authenticateToken, async (req, res) => {
   try {
-    const config = await BusinessConfig.findOne({ userId: req.user.userId });
+    const config = await BusinessConfig.findById(req.user.activeBusinessId);
     if (!config) return res.status(404).json({ message: 'Negócio não encontrado' });
 
     const tags = await Tag.find({ businessId: config._id }).sort({ name: 1 });
@@ -26,49 +27,102 @@ router.get('/tags', authenticateToken, async (req, res) => {
   }
 });
 
+// GET /api/business/team
+router.get('/team', authenticateToken, async (req, res) => {
+  try {
+    const businessId = req.user.activeBusinessId;
+    if (!businessId) {
+      return res.status(403).json({ message: 'Nenhum negócio ativo selecionado.' });
+    }
+
+    // Busca o usuário logado para saber qual é o papel dele nesta empresa
+    const currentUser = await SystemUser.findById(req.user.userId);
+    if (!currentUser) return res.status(404).json({ message: 'Usuário não encontrado' });
+
+    const userBusiness = currentUser.businesses.find(b => b.businessId.toString() === businessId.toString());
+    const isRequesterAdmin = userBusiness && userBusiness.role === 'admin';
+
+    // Busca todos os usuários que têm esta empresa no array de businesses
+    const allMembers = await SystemUser.find({ 'businesses.businessId': businessId }).select('name email avatarUrl businesses isVerified');
+
+    // Mapeia e formata os dados
+    const formattedMembers = allMembers.map(member => {
+      const bData = member.businesses.find(b => b.businessId.toString() === businessId.toString());
+      return {
+        id: member._id,
+        name: member.name,
+        email: member.email,
+        avatarUrl: member.avatarUrl,
+        role: bData ? bData.role : 'operator',
+        isMe: member._id.toString() === req.user.userId.toString()
+      };
+    });
+
+    if (isRequesterAdmin) {
+      // Admin vê todos
+      res.json(formattedMembers);
+    } else {
+      // Operador vê apenas ele mesmo e os admins
+      const visibleMembers = formattedMembers.filter(m => m.isMe || m.role === 'admin');
+      res.json(visibleMembers);
+    }
+
+  } catch (error) {
+    console.error('Erro GET /team:', error);
+    res.status(500).json({ message: 'Erro ao buscar equipe' });
+  }
+});
+
 // GET /api/business/config
 router.get('/config', authenticateToken, async (req, res) => {
   try {
-    // DO NOT return legacy tags (availableTags). Use Tag collection instead.
-    let config = await BusinessConfig.findOne({ userId: req.user.userId }).select('-availableTags');
+    // Busca a configuração usando o ID da empresa que está no perfil do usuário
+    const config = await BusinessConfig.findById(req.user.activeBusinessId).select('-availableTags');
 
-    // Se não existir, cria um padrão
     if (!config) {
-      config = await BusinessConfig.create({ userId: req.user.userId, businessName: 'Meu Negócio' });
-    } else {
-      // Lazy Migration: Ensure new fields exist
-      let dirty = false;
-      if (!config.aiResponseMode) { config.aiResponseMode = 'all'; dirty = true; }
-      if (!config.aiWhitelistTags) { config.aiWhitelistTags = []; dirty = true; }
-      if (!config.aiBlacklistTags) { config.aiBlacklistTags = []; dirty = true; }
-
-      if (dirty) await config.save();
+      // 🚨 CRÍTICO: Não crie BusinessConfig.create aqui!
+      // Se ele não achar, é porque a conta tá corrompida.
+      return res.status(404).json({ message: 'Configuração do negócio não encontrada. Peça ao administrador para revisar seu convite.' });
     }
 
     res.json(config);
   } catch (error) {
     console.error('Erro GET config:', error);
-    res.status(500).json({ message: 'Erro config' });
+    res.status(500).json({ message: 'Erro interno' });
   }
 });
 
 router.put('/config', authenticateToken, async (req, res) => {
   try {
-    console.log('📦 [PUT Config] Atualizando configurações para o usuário:', req.user.userId);
+    console.log('📦 [PUT Config] Atualizando configurações para a empresa:', req.user.activeBusinessId);
 
-    // Criamos o payload de atualização. 
-    // Removemos toda a lógica antiga de comparação e deleção de imagens do Firebase
+    const { __v, ...bodyUpdates } = req.body;
+
     const updatePayload = {
-      ...req.body,
+      ...bodyUpdates,
       updatedAt: new Date()
     };
 
+    const query = { _id: req.user.activeBusinessId };
+    if (__v !== undefined) {
+      query.__v = __v;
+    }
+
     // O comando findOneAndUpdate com 'upsert: true' cria o registro caso ele não exista
+    // We remove upsert to prevent creating a versionless initial document improperly during a versioned update request,
+    // but if it's the very first save, it won't have __v anyway.
     const config = await BusinessConfig.findOneAndUpdate(
-      { userId: req.user.userId },
-      { $set: updatePayload },
-      { new: true, upsert: true }
+      query,
+      { $set: updatePayload, $inc: { __v: 1 } },
+      { new: true, upsert: __v === undefined }
     );
+
+    if (!config && __v !== undefined) {
+      const existing = await BusinessConfig.findById(req.user.activeBusinessId);
+      if (existing) {
+        return res.status(409).json({ message: 'Conflict: This config was modified by another process. Please reload.' });
+      }
+    }
 
     console.log('💾 [PUT Config] Configurações salvas com sucesso no MongoDB');
     res.json(config);
@@ -99,7 +153,7 @@ router.post('/apply-preset', authenticateToken, async (req, res) => {
     if (!preset) return res.status(404).json({ message: 'Modelo não encontrado' });
 
     const updatedConfig = await BusinessConfig.findOneAndUpdate(
-      { userId: req.user.userId },
+      { _id: req.user.activeBusinessId },
       {
         $set: {
           botName: preset.botName,
@@ -123,7 +177,7 @@ router.post('/apply-preset', authenticateToken, async (req, res) => {
 // GET /api/business/custom-prompts
 router.get('/custom-prompts', authenticateToken, async (req, res) => {
   try {
-    const prompts = await CustomPrompt.find({ userId: req.user.userId }).sort({ createdAt: -1 });
+    const prompts = await CustomPrompt.find({ _id: req.user.activeBusinessId }).sort({ createdAt: -1 });
     res.json(prompts);
   } catch (error) {
     res.status(500).json({ message: 'Erro ao buscar modelos' });
@@ -140,7 +194,7 @@ router.post('/custom-prompts', authenticateToken, async (req, res) => {
     } = req.body;
 
     const newPrompt = await CustomPrompt.create({
-      userId: req.user.userId,
+      businessId: req.user.activeBusinessId,
       name, prompts, followUpSteps,
       botName, toneOfVoice, customInstructions,
       aiResponseMode, aiWhitelistTags, aiBlacklistTags
@@ -155,7 +209,7 @@ router.post('/custom-prompts', authenticateToken, async (req, res) => {
 // DELETE /api/business/custom-prompts/:id
 router.delete('/custom-prompts/:id', authenticateToken, async (req, res) => {
   try {
-    await CustomPrompt.findOneAndDelete({ _id: req.params.id, userId: req.user.userId });
+    await CustomPrompt.findOneAndDelete({ _id: req.params.id, businessId: req.user.activeBusinessId });
     res.json({ message: 'Modelo removido' });
   } catch (error) {
     res.status(500).json({ message: 'Erro ao deletar' });
@@ -169,7 +223,7 @@ router.delete('/custom-prompts/:id', authenticateToken, async (req, res) => {
 // POST /api/business/config/notifications
 router.post('/config/notifications', authenticateToken, async (req, res) => {
   try {
-    const config = await BusinessConfig.findOne({ userId: req.user.userId });
+    const config = await BusinessConfig.findById(req.user.activeBusinessId);
     if (!config) return res.status(404).json({ message: 'Configuração não encontrada' });
 
     const newRule = {
@@ -191,7 +245,7 @@ router.post('/config/notifications', authenticateToken, async (req, res) => {
 // PUT /api/business/config/notifications/:ruleId
 router.put('/config/notifications/:ruleId', authenticateToken, async (req, res) => {
   try {
-    const config = await BusinessConfig.findOne({ userId: req.user.userId });
+    const config = await BusinessConfig.findById(req.user.activeBusinessId);
     if (!config) return res.status(404).json({ message: 'Configuração não encontrada' });
 
     if (!config.notificationRules) config.notificationRules = [];
@@ -218,7 +272,7 @@ router.put('/config/notifications/:ruleId', authenticateToken, async (req, res) 
 // DELETE /api/business/config/notifications/:ruleId
 router.delete('/config/notifications/:ruleId', authenticateToken, async (req, res) => {
   try {
-    const config = await BusinessConfig.findOne({ userId: req.user.userId });
+    const config = await BusinessConfig.findById(req.user.activeBusinessId);
     if (!config) return res.status(404).json({ message: 'Configuração não encontrada' });
 
     if (config.notificationRules) {
@@ -280,7 +334,7 @@ router.post('/request-upload-url', authenticateToken, async (req, res) => {
 router.get('/conversations', authenticateToken, async (req, res) => {
   try {
     // Busca a config do usuário para pegar o ID do Negócio
-    const config = await BusinessConfig.findOne({ userId: req.user.userId });
+    const config = await BusinessConfig.findById(req.user.activeBusinessId);
     if (!config) return res.json([]); // Se não tem negócio, não tem conversas
 
     // Passa o ID do Negócio, pois os Contatos estão vinculados a ele
@@ -295,7 +349,7 @@ router.get('/conversations', authenticateToken, async (req, res) => {
 // GET /conversations/:contactId/messages
 router.get('/conversations/:contactId/messages', authenticateToken, async (req, res) => {
   try {
-    const config = await BusinessConfig.findOne({ userId: req.user.userId });
+    const config = await BusinessConfig.findById(req.user.activeBusinessId);
     if (!config) return res.status(404).json({ message: 'Negócio não encontrado' });
 
     const messages = await messageService.getMessagesForContact(req.params.contactId, config._id);
@@ -314,7 +368,7 @@ router.post('/conversations/:contactId/messages', authenticateToken, async (req,
 
     if (!message) return res.status(400).json({ message: 'Mensagem vazia.' });
 
-    const config = await BusinessConfig.findOne({ userId: req.user.userId });
+    const config = await BusinessConfig.findById(req.user.activeBusinessId);
     if (!config) return res.status(404).json({ message: 'Negócio não encontrado' });
 
     // 1. Validar e buscar contato
@@ -324,7 +378,7 @@ router.post('/conversations/:contactId/messages', authenticateToken, async (req,
     // 2. Enviar Mensagem
     let sent = false;
     if (contact.channel === 'whatsapp') {
-      sent = await sendWWebJSMessage(req.user.userId, contact.phone, message);
+      sent = await sendWWebJSMessage(req.user.activeBusinessId, contact.phone, message);
       if (!sent) {
         // Se falhar o envio (WhatsApp desconectado, etc), avisa o front mas salva?
         // Melhor retornar erro para o agente saber.
@@ -355,7 +409,7 @@ router.post('/conversations/:contactId/messages', authenticateToken, async (req,
 // DELETE /conversations/:contactId/messages
 router.delete('/conversations/:contactId/messages', authenticateToken, async (req, res) => {
   try {
-    const config = await BusinessConfig.findOne({ userId: req.user.userId });
+    const config = await BusinessConfig.findById(req.user.activeBusinessId);
     if (!config) return res.status(404).json({ message: 'Negócio não encontrado' });
 
     await messageService.deleteMessages(req.params.contactId, config._id);

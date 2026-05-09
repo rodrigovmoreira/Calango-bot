@@ -37,7 +37,7 @@ describe('Campaign & Scheduler Logic', () => {
     userId = user._id;
 
     const config = await BusinessConfig.create({
-      userId,
+      businessId: config._id,
       businessName: 'Auto Biz',
       phone: '551100000000',
       whatsappProvider: 'wwebjs',
@@ -77,7 +77,7 @@ describe('Campaign & Scheduler Logic', () => {
 
     // 3. Create Campaign
     await Campaign.create({
-      userId,
+      businessId: config._id,
       name: 'Monday Promo',
       type: 'recurring',
       triggerType: 'time',
@@ -122,7 +122,7 @@ describe('Campaign & Scheduler Logic', () => {
 
     // 2. Create Appointment
     const appt = await Appointment.create({
-      userId,
+      businessId: config._id,
       clientName: 'Event Client',
       clientPhone: '5511911112222',
       start: appointmentTime,
@@ -133,7 +133,7 @@ describe('Campaign & Scheduler Logic', () => {
 
     // 3. Create Campaign (Event triggered)
     await Campaign.create({
-      userId,
+      businessId: config._id,
       name: 'Reminder 24h',
       type: 'broadcast',
       triggerType: 'event',

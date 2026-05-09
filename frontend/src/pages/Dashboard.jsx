@@ -8,6 +8,7 @@ import {
 import {
   EditIcon, WarningTwoIcon, ChevronDownIcon,
 } from '@chakra-ui/icons';
+import { FaUsers } from 'react-icons/fa';
 import { useApp } from '../context/AppContext';
 import { authAPI } from '../services/api';
 import { uploadFileToFirebase } from '../utils/uploadHelper';
@@ -25,6 +26,7 @@ const CampaignTab = lazy(() => import('../components/dashboard-tabs/CampaignTab'
 const LiveChatTab = lazy(() => import('../components/dashboard-tabs/LiveChatTab'));
 const ScheduleTab = lazy(() => import('../components/ScheduleTab'));
 const SalesFunnel = lazy(() => import('./SalesFunnel'));
+const TeamTab = lazy(() => import('../components/dashboard-tabs/TeamTab'));
 
 const Dashboard = ({ initialTab = 0 }) => {
   const { state, dispatch } = useApp();
@@ -52,7 +54,7 @@ const Dashboard = ({ initialTab = 0 }) => {
       setProfileData({
         name: state.user.name || '',
         email: state.user.email || '',
-        company: state.businessConfig?.businessName || state.user.company || 'Minha Empresa',
+        company: state.businessConfig?.businessName || 'Minha Empresa',
         avatarUrl: state.user.avatarUrl || ''
       });
     }
@@ -127,6 +129,7 @@ const Dashboard = ({ initialTab = 0 }) => {
       </MenuButton>
       <MenuList>
         <MenuItem icon={<EditIcon />} onClick={onProfileOpen}>Meu Perfil</MenuItem>
+        <MenuItem icon={<FaUsers />} onClick={() => setActiveTab(9)}>Gestão de Equipe</MenuItem>
         <MenuItem icon={<WarningTwoIcon />} onClick={handleLogoutSystem}>Sair</MenuItem>
       </MenuList>
     </Menu>
@@ -193,6 +196,7 @@ const Dashboard = ({ initialTab = 0 }) => {
             </MenuButton>
             <MenuList>
               <MenuItem icon={<EditIcon />} onClick={onProfileOpen}>Meu Perfil</MenuItem>
+              <MenuItem icon={<FaUsers />} onClick={() => setActiveTab(9)}>Gestão de Equipe</MenuItem>
               <MenuItem icon={<WarningTwoIcon />} onClick={handleLogoutSystem}>Sair</MenuItem>
             </MenuList>
           </Menu>
@@ -209,6 +213,7 @@ const Dashboard = ({ initialTab = 0 }) => {
           {activeTab === 6 && <LiveChatTab />}
           {activeTab === 7 && <ScheduleTab />}
           {activeTab === 8 && <SalesFunnel />}
+          {activeTab === 9 && <TeamTab />}
         </Suspense>
 
       </Box>
