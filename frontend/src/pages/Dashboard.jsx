@@ -54,7 +54,7 @@ const Dashboard = ({ initialTab = 0 }) => {
       setProfileData({
         name: state.user.name || '',
         email: state.user.email || '',
-        company: state.businessConfig?.businessName || state.user.company || 'Minha Empresa',
+        company: state.businessConfig?.businessName || 'Minha Empresa',
         avatarUrl: state.user.avatarUrl || ''
       });
     }

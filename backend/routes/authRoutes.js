@@ -28,11 +28,11 @@ router.post('/login', loginLimiter, async (req, res) => {
         const alreadyInBusiness = user.businesses.some(b => b.businessId.toString() === invite.businessId.toString());
         if (!alreadyInBusiness) {
           user.businesses.push({ businessId: invite.businessId, role: invite.role });
-          user.activeBusinessId = invite.businessId; // Switch to the invited business
-          await user.save();
-          invite.status = 'used';
-          await invite.save();
         }
+        user.activeBusinessId = invite.businessId; // Switch to the invited business
+        await user.save();
+        invite.status = 'used';
+        await invite.save();
       }
     }
 

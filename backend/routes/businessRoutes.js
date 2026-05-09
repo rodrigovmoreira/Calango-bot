@@ -5,6 +5,7 @@ import IndustryPreset from '../models/IndustryPreset.js';
 import CustomPrompt from '../models/CustomPrompt.js';
 import Contact from '../models/Contact.js';
 import Tag from '../models/Tag.js';
+import SystemUser from '../models/SystemUser.js';
 import authenticateToken from '../middleware/auth.js';
 import * as messageService from '../services/message.js';
 import { sendWWebJSMessage } from '../services/wwebjsService.js';
@@ -23,6 +24,52 @@ router.get('/tags', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Erro GET /tags:', error);
     res.status(500).json({ message: 'Erro ao buscar tags' });
+  }
+});
+
+// GET /api/business/team
+router.get('/team', authenticateToken, async (req, res) => {
+  try {
+    const businessId = req.user.activeBusinessId;
+    if (!businessId) {
+      return res.status(403).json({ message: 'Nenhum negócio ativo selecionado.' });
+    }
+
+    // Busca o usuário logado para saber qual é o papel dele nesta empresa
+    const currentUser = await SystemUser.findById(req.user.userId);
+    if (!currentUser) return res.status(404).json({ message: 'Usuário não encontrado' });
+
+    const userBusiness = currentUser.businesses.find(b => b.businessId.toString() === businessId.toString());
+    const isRequesterAdmin = userBusiness && userBusiness.role === 'admin';
+
+    // Busca todos os usuários que têm esta empresa no array de businesses
+    const allMembers = await SystemUser.find({ 'businesses.businessId': businessId }).select('name email avatarUrl businesses isVerified');
+
+    // Mapeia e formata os dados
+    const formattedMembers = allMembers.map(member => {
+      const bData = member.businesses.find(b => b.businessId.toString() === businessId.toString());
+      return {
+        id: member._id,
+        name: member.name,
+        email: member.email,
+        avatarUrl: member.avatarUrl,
+        role: bData ? bData.role : 'operator',
+        isMe: member._id.toString() === req.user.userId.toString()
+      };
+    });
+
+    if (isRequesterAdmin) {
+      // Admin vê todos
+      res.json(formattedMembers);
+    } else {
+      // Operador vê apenas ele mesmo e os admins
+      const visibleMembers = formattedMembers.filter(m => m.isMe || m.role === 'admin');
+      res.json(visibleMembers);
+    }
+
+  } catch (error) {
+    console.error('Erro GET /team:', error);
+    res.status(500).json({ message: 'Erro ao buscar equipe' });
   }
 });
 
