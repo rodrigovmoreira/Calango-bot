@@ -50,17 +50,15 @@ async function processConfigBatch(configs) {
     if (!configs || configs.length === 0) return;
 
     // 1. Coleta IDs para buscar tudo em 2 queries (vs N queries)
-    const userIds = [];
     const businessIds = [];
 
     // Mapas para acesso rápido O(1)
-    const configByUserId = new Map();
     const configByBusinessId = new Map();
 
     for (const config of configs) {
-        if (config.userId) {
-            userIds.push(config.userId);
-            configByUserId.set(config.userId.toString(), config);
+        if (config._id) {
+            businessIds.push(config._id);
+            configByBusinessId.set(config._id.toString(), config);
         }
         businessIds.push(config._id);
         configByBusinessId.set(config._id.toString(), config);
@@ -72,17 +70,17 @@ async function processConfigBatch(configs) {
 
     // Query unificada
     const allAppointments = await Appointment.find({
-        userId: { $in: userIds },
+        businessId: { $in: businessIds },
         status: { $in: ['scheduled', 'confirmed', 'completed', 'followup_pending'] },
         start: { $gte: recentStart }
     });
 
     // Agrupa por userId
-    const appointmentsByUserId = new Map();
+    const appointmentsByBusinessId = new Map();
     for (const appt of allAppointments) {
-        const uid = appt.userId.toString();
-        if (!appointmentsByUserId.has(uid)) appointmentsByUserId.set(uid, []);
-        appointmentsByUserId.get(uid).push(appt);
+        const bid = appt.businessId.toString();
+        if (!appointmentsByBusinessId.has(bid)) appointmentsByBusinessId.set(bid, []);
+        appointmentsByBusinessId.get(bid).push(appt);
     }
 
     // 3. Busca Contatos em Lote (Otimização B)
@@ -103,11 +101,11 @@ async function processConfigBatch(configs) {
 
     // 4. Itera sobre os Configs e processa usando os dados em memória
     for (const config of configs) {
-        if (!config.userId) continue;
+        if (!config._id) continue;
 
         // --- A. NOTIFICAÇÕES (APPOINTMENTS) ---
         if (config.notificationRules && config.notificationRules.length > 0) {
-            const appointments = appointmentsByUserId.get(config.userId.toString()) || [];
+            const appointments = appointmentsByBusinessId.get(config._id.toString()) || [];
 
             for (const appt of appointments) {
                 for (const rule of config.notificationRules) {
@@ -132,7 +130,7 @@ async function processConfigBatch(configs) {
                             appt.clientPhone,
                             message,
                             config.whatsappProvider,
-                            config.userId
+                            config._id
                         );
 
                         if (!appt.notificationHistory) appt.notificationHistory = new Map();
@@ -214,7 +212,7 @@ Seja humano, evite parecer um robô. NÃO USE ASTERISCOS (**) NEM MARKDOWN.
                         contact.phone,
                         messageToSend, // Mensagem Gerada ou Fixa
                         config.whatsappProvider,
-                        config.userId
+                        config._id
                     );
 
                     await saveMessage(contact.phone, 'bot', messageToSend, 'text', null, config._id);
@@ -232,7 +230,7 @@ Seja humano, evite parecer um robô. NÃO USE ASTERISCOS (**) NEM MARKDOWN.
 async function processSchedulerTick() {
     try {
         const configs = await BusinessConfig.find({
-            userId: { $exists: true },
+            businessId: { $exists: true },
             $or: [
                 { notificationRules: { $exists: true, $not: { $size: 0 } } },
                 { followUpSteps: { $exists: true, $not: { $size: 0 } } }

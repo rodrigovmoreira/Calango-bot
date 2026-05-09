@@ -41,7 +41,7 @@ describe('CRM & Tags Flow', () => {
     // Retry loop to wait for BusinessConfig creation (async post-hook in controller)
     let attempts = 0;
     while (attempts < 10) {
-        const config = await BusinessConfig.findOne({ userId });
+        const config = await BusinessConfig.findOne();
         if (config) {
             businessId = config._id;
             break;

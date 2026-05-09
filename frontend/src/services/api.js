@@ -38,6 +38,9 @@ export const authAPI = {
   register: (data) => api.post('/api/auth/register', data),
   logout: () => api.post('/api/auth/logout'),
   updateUser: (data) => api.put('/api/auth/update', data),
+  // Team & Invites (Ponto 2.2 - Roadmap 1)
+  createInvite: (data) => api.post('/api/auth/invites', data), // { role }
+  getInvite: (token) => api.get(`/api/auth/invites/${token}`), // Validação pública de convite
 };
 
 // --- Rotas de Negócio (Dashboard) ---

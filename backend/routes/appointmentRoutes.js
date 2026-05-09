@@ -7,7 +7,7 @@ import authenticateToken from '../middleware/auth.js';
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const { start, end } = req.query;
-    const query = { userId: req.user.userId };
+    const query = { businessId: req.user.activeBusinessId };
 
     // Filtro por data (usado pelo calendário)
     if (start && end) {
@@ -29,7 +29,7 @@ router.post('/', authenticateToken, async (req, res) => {
 
     // Validação de Conflito de Horário
     const conflito = await Appointment.findOne({
-      userId: req.user.userId,
+      businessId: req.user.activeBusinessId,
       status: { $in: ['scheduled', 'confirmed'] },
       $or: [
         { start: { $lt: new Date(end), $gte: new Date(start) } },
@@ -42,7 +42,7 @@ router.post('/', authenticateToken, async (req, res) => {
     }
 
     const newAppointment = await Appointment.create({
-      userId: req.user.userId,
+      businessId: req.user.activeBusinessId,
       clientName,
       clientPhone,
       title,
@@ -71,7 +71,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
         }
     });
 
-    const query = { _id: req.params.id, userId: req.user.userId };
+    const query = { _id: req.params.id, businessId: req.user.activeBusinessId };
     if (req.body.__v !== undefined) {
         query.__v = req.body.__v;
     }
@@ -82,7 +82,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
       { new: true }
     );
     if (!updated) {
-      const existing = await Appointment.findOne({ _id: req.params.id, userId: req.user.userId });
+      const existing = await Appointment.findOne({ _id: req.params.id, businessId: req.user.activeBusinessId });
       if (existing) {
           return res.status(409).json({ message: 'Conflito de versão. O agendamento foi modificado por outro usuário.' });
       }
@@ -100,7 +100,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
 router.patch('/:id/status', authenticateToken, async (req, res) => {
   try {
     const { status, __v } = req.body;
-    const query = { _id: req.params.id, userId: req.user.userId };
+    const query = { _id: req.params.id, businessId: req.user.activeBusinessId };
     if (__v !== undefined) {
         query.__v = __v;
     }
@@ -122,7 +122,7 @@ router.patch('/:id/status', authenticateToken, async (req, res) => {
     );
 
     if (!updated) {
-        const existing = await Appointment.findOne({ _id: req.params.id, userId: req.user.userId });
+        const existing = await Appointment.findOne({ _id: req.params.id, businessId: req.user.activeBusinessId });
         if (existing) {
             return res.status(409).json({ message: 'Conflito de versão. O agendamento foi modificado por outro usuário.' });
         }
@@ -139,7 +139,7 @@ router.patch('/:id/status', authenticateToken, async (req, res) => {
 // ROTA: DELETE /api/appointments/:id
 router.delete('/:id', authenticateToken, async (req, res) => {
   try {
-    await Appointment.findOneAndDelete({ _id: req.params.id, userId: req.user.userId });
+    await Appointment.findOneAndDelete({ _id: req.params.id, businessId: req.user.activeBusinessId });
     res.json({ message: 'Agendamento removido' });
   } catch (error) {
     res.status(500).json({ message: 'Erro ao deletar' });

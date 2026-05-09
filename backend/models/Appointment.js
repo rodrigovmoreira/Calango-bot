@@ -1,9 +1,9 @@
 import mongoose from 'mongoose';
 
 const appointmentSchema = new mongoose.Schema({
-  userId: {
+  businessId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'SystemUser',
+    ref: 'BusinessConfig',
     required: true,
     index: true // Melhora a busca por usuário
   },
@@ -61,6 +61,6 @@ const appointmentSchema = new mongoose.Schema({
 }, { optimisticConcurrency: true });
 
 // Optimization for Scheduler (frequent query by user, status, and date range)
-appointmentSchema.index({ userId: 1, status: 1, start: 1 });
+appointmentSchema.index({ businessId: 1, status: 1, start: 1 });
 
 export default mongoose.model('Appointment', appointmentSchema);

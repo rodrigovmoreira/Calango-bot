@@ -39,7 +39,7 @@ describe('Contact Import Feature', () => {
     // Wait for BusinessConfig
     let attempts = 0;
     while (attempts < 20) {
-        const config = await BusinessConfig.findOne({ userId });
+        const config = await BusinessConfig.findOne();
         if (config) {
             businessId = config._id;
             break;

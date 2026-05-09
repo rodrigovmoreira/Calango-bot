@@ -3,11 +3,6 @@ import BusinessConfig from '../models/BusinessConfig.js';
 import Contact from '../models/Contact.js';
 import * as tagService from '../services/tagService.js';
 
-// Helper to get Business ID
-const getBusinessId = async (userId) => {
-    const config = await BusinessConfig.findOne({ userId });
-    return config ? config._id : null;
-};
 
 // 1. Sync Logic (Refactored to be thin)
 const syncTags = async (req, res) => {
@@ -16,7 +11,7 @@ const syncTags = async (req, res) => {
         if (req && req.businessId) {
             businessId = req.businessId;
         } else if (req && req.user) {
-            businessId = await getBusinessId(req.user.userId);
+            businessId = req.user.activeBusinessId;
         }
 
         if (!businessId) {
@@ -42,7 +37,7 @@ const runGlobalTagSync = tagService.runGlobalTagSync;
 // 2. Get Tags (Remains mostly same, read-only)
 const getTags = async (req, res) => {
     try {
-        const businessId = await getBusinessId(req.user.userId);
+        const businessId = req.user.activeBusinessId;
         if (!businessId) return res.status(404).json({ message: 'Business not found' });
 
         const tags = await Tag.find({ businessId }).sort({ name: 1 });
@@ -59,7 +54,7 @@ const createTag = async (req, res) => {
         const { name, color } = req.body;
         if (!name) return res.status(400).json({ message: 'Tag name is required' });
 
-        const businessId = await getBusinessId(req.user.userId);
+        const businessId = req.user.activeBusinessId;
         if (!businessId) return res.status(404).json({ message: 'Business not found' });
 
         const newTag = await tagService.createTag(businessId, { name, color });
@@ -77,7 +72,7 @@ const updateTag = async (req, res) => {
         const { id } = req.params;
         const { name, color, __v } = req.body;
 
-        const businessId = await getBusinessId(req.user.userId);
+        const businessId = req.user.activeBusinessId;
         if (!businessId) return res.status(404).json({ message: 'Business not found' });
 
         const updatedTag = await tagService.updateTag(businessId, id, { name, color, __v });
@@ -95,9 +90,9 @@ const updateTag = async (req, res) => {
 const deleteTag = async (req, res) => {
     try {
         const { id } = req.params;
-        const { userId } = req.user;
 
-        const config = await BusinessConfig.findOne({ userId });
+
+        const config = await BusinessConfig.findById(req.user.activeBusinessId);
         if (!config) return res.status(404).json({ message: 'Business not found' });
 
         // 1. Check if Tag Exists

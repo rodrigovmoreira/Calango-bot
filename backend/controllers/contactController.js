@@ -6,17 +6,12 @@ import xlsx from 'xlsx';
 import csv from 'csv-parser';
 import { Readable } from 'stream';
 
-// Helper to get Business ID
-const getBusinessId = async (userId) => {
-    const config = await BusinessConfig.findOne({ userId });
-    return config ? config._id : null;
-};
 
 // --- 1. CORE CRUD OPERATIONS (Refactored from Routes) ---
 
 const getContacts = async (req, res) => {
     try {
-        const businessId = await getBusinessId(req.user.userId);
+        const businessId = req.user.activeBusinessId;
         if (!businessId) {
             return res.status(404).json({ message: 'Business configuration not found' });
         }
@@ -32,7 +27,7 @@ const getContacts = async (req, res) => {
 const getContact = async (req, res) => {
     try {
         const { id } = req.params;
-        const businessId = await getBusinessId(req.user.userId);
+        const businessId = req.user.activeBusinessId;
 
         if (!businessId) {
             return res.status(404).json({ message: 'Business configuration not found' });
@@ -55,7 +50,7 @@ const updateContact = async (req, res) => {
         const { id } = req.params;
         const { __v, tags, name, isHandover, funnelStage, dealValue, notes } = req.body;
 
-        const businessId = await getBusinessId(req.user.userId);
+        const businessId = req.user.activeBusinessId;
         if (!businessId) {
             return res.status(404).json({ message: 'Business configuration not found' });
         }
@@ -106,7 +101,7 @@ const updateContact = async (req, res) => {
 
 const importContacts = async (req, res) => {
     try {
-        const businessId = await getBusinessId(req.user.userId);
+        const businessId = req.user.activeBusinessId;
         if (!businessId) {
             return res.status(404).json({ message: 'Business configuration not found' });
         }
@@ -197,15 +192,15 @@ const importContacts = async (req, res) => {
 
 const syncContacts = async (req, res) => {
     try {
-        const { userId } = req.user;
-        const config = await BusinessConfig.findOne({ userId });
+
+        const config = await BusinessConfig.findById(req.user.activeBusinessId);
 
         if (!config) {
             return res.status(404).json({ message: 'Configuração não encontrada.' });
         }
 
         const businessId = config._id;
-        const client = wwebjsService.getClientSession(userId);
+        const client = wwebjsService.getClientSession(businessId);
 
         if (!client || !client.info) {
             return res.status(503).json({ message: 'WhatsApp não está pronto. Aguarde a conexão.' });

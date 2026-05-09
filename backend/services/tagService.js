@@ -60,15 +60,15 @@ const syncWithWhatsapp = async (businessId) => {
 
         // 1. Get userId to call WWebJS
         const config = await BusinessConfig.findById(businessId);
-        if (!config || !config.userId) {
+        if (!config || !config._id) {
             throw new Error(`Business Config or UserID not found for ${businessId}`);
         }
-        const userId = config.userId;
+        const businessId = config._id;
 
         // 2. Fetch Labels from WhatsApp (Safe Fail)
         let waLabels = [];
         try {
-            waLabels = await wwebjsService.getLabels(userId);
+            waLabels = await wwebjsService.getLabels(businessId);
         } catch (e) {
             console.warn("WA Labels unavailable, skipping fetch.");
             return { warning: "WhatsApp offline", synced: 0 };
@@ -120,7 +120,7 @@ const createTag = async (businessId, tagData) => {
 
         // 1. Create on WhatsApp (Safe Fail)
         const config = await BusinessConfig.findById(businessId);
-        if (!config || !config.userId) throw new Error('Business Config not found');
+        if (!config || !config._id) throw new Error('Business Config not found');
 
         let waLabel = null;
         let whatsappId = null;
@@ -129,10 +129,10 @@ const createTag = async (businessId, tagData) => {
         try {
             // Check if service function exists
             if (typeof wwebjsService.createLabel === 'function') {
-                waLabel = await wwebjsService.createLabel(config.userId, name);
+                waLabel = await wwebjsService.createLabel(config._id, name);
             } else {
                  // Fallback if service wrapper is missing method (e.g. mock or old version)
-                const client = wwebjsService.getClientSession(config.userId);
+                const client = wwebjsService.getClientSession(config._id);
                 if (client && typeof client.createLabel === 'function') {
                      waLabel = await client.createLabel(name);
                 }
@@ -144,7 +144,7 @@ const createTag = async (businessId, tagData) => {
                 if (color && waLabel.hexColor !== color) {
                      try {
                         if (typeof wwebjsService.updateLabel === 'function') {
-                             const updated = await wwebjsService.updateLabel(config.userId, whatsappId, name, color);
+                             const updated = await wwebjsService.updateLabel(config._id, whatsappId, name, color);
                              if(updated) finalColor = updated.hexColor || color;
                         }
                      } catch (e) { console.warn('Failed to update color on WA:', e.message); }
@@ -196,8 +196,8 @@ const updateTag = async (businessId, tagId, updateData) => {
         // 1. Update WhatsApp
         if (tag.whatsappId) {
             const config = await BusinessConfig.findById(businessId);
-            if (config && config.userId) {
-                await wwebjsService.updateLabel(config.userId, tag.whatsappId, name, color);
+            if (config && config._id) {
+                await wwebjsService.updateLabel(config._id, tag.whatsappId, name, color);
             }
         }
 
@@ -231,9 +231,9 @@ const deleteTag = async (businessId, tagId) => {
         // 1. Delete from WhatsApp
         if (tag.whatsappId) {
              const config = await BusinessConfig.findById(businessId);
-             if (config && config.userId) {
+             if (config && config._id) {
                  try {
-                    await wwebjsService.deleteLabel(config.userId, tag.whatsappId);
+                    await wwebjsService.deleteLabel(config._id, tag.whatsappId);
                  } catch (e) {
                      console.warn(`Failed to delete label on WA: ${e.message}`);
                  }
