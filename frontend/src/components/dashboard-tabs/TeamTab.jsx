@@ -8,7 +8,7 @@ import {
 } from '@chakra-ui/react';
 import { AddIcon, CopyIcon } from '@chakra-ui/icons';
 import { useApp } from '../../context/AppContext';
-import { authAPI } from '../../services/api';
+import { authAPI, businessAPI } from '../../services/api';
 
 const TeamTab = () => {
   const { state } = useApp();
@@ -23,25 +23,24 @@ const TeamTab = () => {
   const [inviteLink, setInviteLink] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // In a real app, you might have an endpoint `GET /api/business/team`
-  // For MVP, if we don't have that endpoint yet, we can either mock it or just show the active user
-  // Let's create a quick mock or use the user state for now until the backend is fully updated for team listing.
-  // We'll show the current user for sure.
-
   useEffect(() => {
-    // If backend endpoint for team members exists, fetch here.
-    // As MVP, we might only have `state.user`
-    if (state.user) {
-      setMembers([{
-        id: state.user.id,
-        name: state.user.name,
-        email: state.user.email,
-        role: state.user.businesses?.find(b => b.businessId === state.user.activeBusinessId)?.role || 'admin',
-        isMe: true
-      }]);
+    const fetchTeam = async () => {
+      try {
+        setIsLoading(true);
+        const response = await businessAPI.getTeam();
+        setMembers(response.data);
+      } catch (error) {
+        console.error('Erro ao buscar equipe:', error);
+        toast({ title: 'Erro ao buscar equipe', status: 'error' });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (state.user?.activeBusinessId) {
+      fetchTeam();
     }
-    setIsLoading(false);
-  }, [state.user]);
+  }, [state.user?.activeBusinessId, toast]);
 
   const handleGenerateLink = async () => {
     setIsGenerating(true);

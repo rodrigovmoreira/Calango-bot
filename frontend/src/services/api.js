@@ -48,6 +48,7 @@ export const businessAPI = {
   // 1. Configurações Gerais (Atualizado para /api/business)
   getConfig: () => api.get('/api/business/config'),
   updateConfig: (data) => api.put('/api/business/config', data),
+  getTeam: () => api.get('/api/business/team'),
   
   // 2. Controle do WhatsApp (Atualizado para /api/whatsapp)
   getWhatsAppStatus: () => api.get('/api/whatsapp/status'),
