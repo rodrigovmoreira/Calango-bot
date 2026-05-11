@@ -174,7 +174,14 @@ router.get('/google/callback',
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
 
     // We pass user info too, url encoded
-    const userData = encodeURIComponent(JSON.stringify({ id: user._id, name: user.name, email: user.email, avatarUrl: user.avatarUrl }));
+    const userData = encodeURIComponent(JSON.stringify({
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      avatarUrl: user.avatarUrl,
+      activeBusinessId: user.activeBusinessId,
+      businesses: user.businesses
+    }));
 
     res.redirect(`${frontendUrl}/google-callback?token=${token}&user=${userData}`);
   }

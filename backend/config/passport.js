@@ -38,13 +38,11 @@ passport.use(
           email: email,
           password: randomPassword,
           googleId: profile.id,
-          isVerified: true, // Auto-verify from Google
-          company: 'Meu Negócio', // Default
-          role: 'vendedor' 
+          isVerified: true // Auto-verify from Google
         });
 
         // Initialize BusinessConfig
-        await BusinessConfig.create({
+        const newConfig = await BusinessConfig.create({
           userId: user._id,
           businessName: 'Meu Negócio',
           prompts: {
@@ -52,6 +50,10 @@ passport.use(
             visionSystem: "Descreva o que vê."
           }
         });
+
+        user.businesses = [{ businessId: newConfig._id, role: 'admin' }];
+        user.activeBusinessId = newConfig._id;
+        await user.save();
 
         return done(null, user);
 
