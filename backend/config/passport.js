@@ -38,6 +38,7 @@ passport.use(
           email: email,
           password: randomPassword,
           googleId: profile.id,
+          avatarUrl: profile.photos && profile.photos.length > 0 ? profile.photos[0].value : '',
           isVerified: true // Auto-verify from Google
         });
 
