@@ -17,15 +17,15 @@ Objetivo: Permitir a entrada de novos usuários no mesmo negócio de forma segur
 
 [x] 2.1 Refatoração de Auth (MongoDB): Alterar o Schema de Usuário (backend/models/SystemUser.js) para aceitar o trânsito entre empresas. Adicionar activeBusinessId (negócio atual visualizado) e o array businesses: [{ businessId, role }].
 
-[ ] 2.2 Tabela de Convites (MongoDB): Criar a coleção Invites (backend/models/Invite.js com token, businessId, role, status, expiresAt).
+[x] 2.2 Tabela de Convites (MongoDB): Criar a coleção Invites (backend/models/Invite.js com token, businessId, role, status, expiresAt).
 
-[ ] 2.3 Middlewares de Segurança (Node.js): Ajustar o backend/middleware/auth.js para validar ações usando o activeBusinessId do usuário. Criar também um middleware requireAdmin para proteger rotas sensíveis.
+[x] 2.3 Middlewares de Segurança (Node.js): Ajustar o backend/middleware/auth.js para validar ações usando o activeBusinessId do usuário. Criar também um middleware requireAdmin para proteger rotas sensíveis.
 
-[ ] 2.4 Endpoints de Convite (Node.js): No authRoutes.js (ou businessRoutes.js), criar POST /api/invites para o Admin gerar links. Ajustar o POST /api/auth/register para ler um inviteToken e vincular o usuário à empresa existente em vez de criar uma nova.
+[x] 2.4 Endpoints de Convite (Node.js): No authRoutes.js (ou businessRoutes.js), criar POST /api/invites para o Admin gerar links. Ajustar o POST /api/auth/register para ler um inviteToken e vincular o usuário à empresa existente em vez de criar uma nova.
 
-[ ] 2.5 UI de Gestão de Equipe (React/Chakra UI): Criar a tela de Configurações de Equipe no painel, contendo a tabela de membros, papéis e o botão "Gerar Link de Convite".
+[x] 2.5 UI de Gestão de Equipe (React/Chakra UI): Criar a tela de Configurações de Equipe no painel, contendo a tabela de membros, papéis e o botão "Gerar Link de Convite".
 
-[ ] 2.6 Tela Pública de Onboarding (React/Vite): Criar a rota frontend /invite/:token com a mensagem de boas-vindas ("Você foi convidado") e o formulário de cadastro/login vinculado.
+[x] 2.6 Tela Pública de Onboarding (React/Vite): Criar a rota frontend /invite/:token com a mensagem de boas-vindas ("Você foi convidado") e o formulário de cadastro/login vinculado.
 
 🎯 Ponto 3: Atribuição de Responsável (O "Dono do Lead")
 Objetivo: Organizar quem atende quem e evitar colisões no funil de vendas.
