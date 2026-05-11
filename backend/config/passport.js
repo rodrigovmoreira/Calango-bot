@@ -38,13 +38,12 @@ passport.use(
           email: email,
           password: randomPassword,
           googleId: profile.id,
-          isVerified: true, // Auto-verify from Google
-          company: 'Meu Negócio', // Default
-          role: 'vendedor' 
+          avatarUrl: profile.photos && profile.photos.length > 0 ? profile.photos[0].value : '',
+          isVerified: true // Auto-verify from Google
         });
 
         // Initialize BusinessConfig
-        await BusinessConfig.create({
+        const newConfig = await BusinessConfig.create({
           userId: user._id,
           businessName: 'Meu Negócio',
           prompts: {
@@ -52,6 +51,10 @@ passport.use(
             visionSystem: "Descreva o que vê."
           }
         });
+
+        user.businesses = [{ businessId: newConfig._id, role: 'admin' }];
+        user.activeBusinessId = newConfig._id;
+        await user.save();
 
         return done(null, user);
 
