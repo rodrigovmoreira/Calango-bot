@@ -144,8 +144,12 @@ async function processBufferedMessages(uniqueKey) {
 
         // 0. BUSCA DO CONTATO E LÓGICA DE BOAS-VINDAS / NOME
         let contactQuery = { businessId: activeBusinessId };
-        if (channel === 'web') contactQuery.sessionId = from;
-        else contactQuery.phone = from;
+        if (channel === 'web') {
+            contactQuery.sessionId = from;
+        } else {
+            // Limpa o phone para buscar e salvar apenas dígitos no Contact (sanitização na entrada)
+            contactQuery.phone = from.split('@')[0].replace(/\D/g, '');
+        }
 
         let contact = await Contact.findOne(contactQuery);
 
@@ -281,7 +285,8 @@ Você pode chamá-lo(a) pelo nome esporadicamente para gerar conexão.
         const userMessage = finalMessages.join('\n');
 
         // Salva a mensagem combinada como 'user'
-        await saveMessage(from, 'user', userMessage, 'text', null, activeBusinessId, channel, name);
+        const cleanFromForDb = channel === 'web' ? from : from.split('@')[0].replace(/\D/g, '');
+        await saveMessage(cleanFromForDb, 'user', userMessage, 'text', null, activeBusinessId, channel, name, from);
 
         // --- EXECUTE BLOCKS (Responses/Logging) ---
         if (blockReason === 'handover') {
@@ -305,7 +310,8 @@ Você pode chamá-lo(a) pelo nome esporadicamente para gerar conexão.
         if (blockReason === 'hours') {
             const awayMsg = businessConfig.awayMessage;
             // FIX: Prevent 'Away Message' Loop
-            const lastMessages = await getLastMessages(from, 1, activeBusinessId, channel);
+            const cleanFromForDb = channel === 'web' ? from : from.split('@')[0].replace(/\D/g, '');
+            const lastMessages = await getLastMessages(cleanFromForDb, 1, activeBusinessId, channel);
             if (lastMessages && lastMessages.length > 0) {
                 const lastMsg = lastMessages[0];
                 if (lastMsg.role === 'bot' && lastMsg.content === awayMsg) {
@@ -315,7 +321,7 @@ Você pode chamá-lo(a) pelo nome esporadicamente para gerar conexão.
                 }
             }
 
-            await saveMessage(from, 'bot', awayMsg, 'text', null, activeBusinessId, channel);
+            await saveMessage(cleanFromForDb, 'bot', awayMsg, 'text', null, activeBusinessId, channel, null, from);
             if (resolve) {
                 resolve({ text: awayMsg });
             } else {
@@ -362,7 +368,7 @@ Cliente: ${userMessage}`;
                 } else {
                     await sendUnifiedMessage(from, finalResponse, provider, businessConfig._id);
                 }
-                await saveMessage(from, 'bot', finalResponse, 'text', null, activeBusinessId, channel);
+                await saveMessage(cleanFromForDb, 'bot', finalResponse, 'text', null, activeBusinessId, channel, null, from);
                 return;
             }
         }
@@ -682,7 +688,7 @@ Links: Insta=${instagram || 'N/A'}, Site=${website || 'N/A'}
 
         if (resolve) resolve({ text: finalResponseText });
 
-        await saveMessage(from, 'bot', finalResponseText, 'text', null, activeBusinessId, channel);
+        await saveMessage(cleanFromForDb, 'bot', finalResponseText, 'text', null, activeBusinessId, channel, null, from);
 
         // ⏱️ DAR CORDA NO RELÓGIO: Ativa/reseta o monitoramento de inatividade (Follow-up)
         if (contact && !contact.isHandover) {

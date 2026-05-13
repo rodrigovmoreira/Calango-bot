@@ -271,11 +271,12 @@ const syncContacts = async (req, res) => {
         for (const chatData of rawChats) {
             try {
                 // Monta o nome
-                const displayName = chatData.name || chatData.pushname || `Cliente ${chatData.phone.slice(-4)}`;
+                const phoneOnly = chatData.phone.split('@')[0].replace(/\D/g, '');
+                const displayName = chatData.name || chatData.pushname || `Cliente ${phoneOnly.slice(-4)}`;
                 const lastInteraction = new Date(chatData.timestamp * 1000);
 
                 await Contact.findOneAndUpdate(
-                    { businessId, phone: chatData.phone },
+                    { businessId, phone: phoneOnly },
                     {
                         $set: {
                             name: displayName,
