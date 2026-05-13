@@ -63,7 +63,7 @@ const syncWithWhatsapp = async (businessId) => {
         if (!config || !config._id) {
             throw new Error(`Business Config or UserID not found for ${businessId}`);
         }
-        const businessId = config._id;
+        //const businessId = config._id;
 
         // 2. Fetch Labels from WhatsApp (Safe Fail)
         let waLabels = [];
