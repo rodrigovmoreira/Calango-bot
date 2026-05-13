@@ -1,19 +1,6 @@
 import React, { useState } from 'react';
-import {
-  Modal,
-  ModalOverlay,
-  ModalContent,
-  ModalHeader,
-  ModalFooter,
-  ModalBody,
-  ModalCloseButton,
-  Button,
-  Select,
-  VStack,
-  Text,
-  useToast,
-  Spinner,
-} from '@chakra-ui/react';
+import { Modal,  ModalOverlay,  ModalContent,  ModalHeader,  ModalFooter,  ModalBody,  ModalCloseButton,
+  Button,  Select,  VStack,  Text,  useToast,  Spinner } from '@chakra-ui/react';
 import { businessAPI } from '../../services/api';
 
 /**
