@@ -256,7 +256,7 @@ const syncContacts = async (req, res) => {
                 .sort((a, b) => b.t - a.t)
                 .slice(0, 15) // Top 15 conversas LIMPAS
                 .map(chat => ({
-                    phone: chat.id.user,
+                    phone: chat.id._serialized || chat.id.user, // Garante que pega com sufixo ou @lid se houver
                     name: chat.formattedTitle || chat.name || chat.contact.name || chat.contact.pushname,
                     pushname: chat.contact.pushname,
                     timestamp: chat.t,
@@ -270,7 +270,28 @@ const syncContacts = async (req, res) => {
 
         for (const chatData of rawChats) {
             try {
-                const rawId = chatData.phone;
+                let rawId = chatData.phone;
+
+                // Desmascarar @lid via método nativo wwebjs
+                if (rawId && rawId.includes('@lid')) {
+                    if (client) {
+                        try {
+                            const lidMap = await client.getContactLidAndPhone([rawId]);
+                            if (lidMap && lidMap[0] && lidMap[0].pn) {
+                                rawId = lidMap[0].pn; // Substitui o @lid pelo @c.us (ou número puro)
+                            } else {
+                                console.warn(`⚠️ Não foi possível desmascarar @lid para ${rawId}, ignorando.`);
+                                continue;
+                            }
+                        } catch (lidErr) {
+                            console.warn(`⚠️ Erro ao tentar desmascarar @lid para ${rawId}: ${lidErr.message}`);
+                            continue;
+                        }
+                    } else {
+                        continue; // Sem client WWebJS disponível, pular.
+                    }
+                }
+
                 const cleanPhone = rawId.split('@')[0].replace(/\D/g, '');
 
                 // Monta o nome

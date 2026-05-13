@@ -144,11 +144,14 @@ async function processBufferedMessages(uniqueKey) {
 
         // 0. BUSCA DO CONTATO E LÓGICA DE BOAS-VINDAS / NOME
         let contactQuery = { businessId: activeBusinessId };
+        let cleanFromForDb = from;
+
         if (channel === 'web') {
             contactQuery.sessionId = from;
         } else {
             // Limpa o phone para buscar e salvar apenas dígitos no Contact (sanitização na entrada)
-            contactQuery.phone = from.split('@')[0].replace(/\D/g, '');
+            cleanFromForDb = from.split('@')[0].replace(/\D/g, '');
+            contactQuery.phone = cleanFromForDb;
         }
 
         let contact = await Contact.findOne(contactQuery);
@@ -285,7 +288,6 @@ Você pode chamá-lo(a) pelo nome esporadicamente para gerar conexão.
         const userMessage = finalMessages.join('\n');
 
         // Salva a mensagem combinada como 'user'
-        const cleanFromForDb = channel === 'web' ? from : from.split('@')[0].replace(/\D/g, '');
         await saveMessage(cleanFromForDb, 'user', userMessage, 'text', null, activeBusinessId, channel, name, from);
 
         // --- EXECUTE BLOCKS (Responses/Logging) ---
@@ -310,7 +312,6 @@ Você pode chamá-lo(a) pelo nome esporadicamente para gerar conexão.
         if (blockReason === 'hours') {
             const awayMsg = businessConfig.awayMessage;
             // FIX: Prevent 'Away Message' Loop
-            const cleanFromForDb = channel === 'web' ? from : from.split('@')[0].replace(/\D/g, '');
             const lastMessages = await getLastMessages(cleanFromForDb, 1, activeBusinessId, channel);
             if (lastMessages && lastMessages.length > 0) {
                 const lastMsg = lastMessages[0];
@@ -424,7 +425,7 @@ Cliente: ${userMessage}`;
         const tagsContext = contactTags.length > 0 ? `--- TAGS DO CLIENTE (CRM) ---\n[${contactTags.join(', ')}]\n` : "";
 
         // D. History Formatting (Text Block Strategy)
-        const rawDbHistory = await getLastMessages(from, MAX_HISTORY, activeBusinessId, channel);
+        const rawDbHistory = await getLastMessages(cleanFromForDb, MAX_HISTORY, activeBusinessId, channel);
         const historyText = formatHistoryText(rawDbHistory, businessConfig.botName);
 
         const toolsInstruction = `
