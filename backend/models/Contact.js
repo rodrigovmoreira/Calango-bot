@@ -10,7 +10,8 @@ const contactSchema = new mongoose.Schema({
   },
 
   // Identificadores (Um dos dois deve existir)
-  phone: { type: String }, // Optional
+  phone: { type: String }, // Optional (Somente números limpos ex: 5511999999999)
+  whatsappId: { type: String }, // Identificador bruto original do WWebJS (ex: 5511999999999@c.us)
   email: { type: String }, // Optional (Added for CRM Import)
   sessionId: { type: String }, // For Web Users
 
