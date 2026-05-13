@@ -409,7 +409,7 @@ const LiveChatTab = () => {
                                 Gerenciar Etiquetas
                             </MenuItem>
                             <MenuItem icon={<Icon as={FaFileImport} />} onClick={onImportOpen}>
-                                Importar CSV/Excel
+                                Importar Contatos
                             </MenuItem>
                         </MenuList>
                     </Menu>

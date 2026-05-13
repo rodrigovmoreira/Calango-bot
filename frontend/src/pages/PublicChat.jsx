@@ -1,20 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import {
-  Box,
-  VStack,
-  HStack,
-  Text,
-  Input,
-  IconButton,
-  Container,
-  Spinner,
-  Flex,
-  Heading,
-  useToast,
-  Avatar,
-  useColorModeValue,
-} from '@chakra-ui/react';
+import {  Box,  VStack,  HStack,  Text,  Input,  IconButton,  Container,  Spinner,  Flex,
+  Heading,  useToast,  Avatar,  useColorModeValue } from '@chakra-ui/react';
 import { FaPaperPlane } from 'react-icons/fa';
 import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
