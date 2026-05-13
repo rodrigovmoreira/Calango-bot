@@ -270,15 +270,25 @@ const syncContacts = async (req, res) => {
 
         for (const chatData of rawChats) {
             try {
+                const rawId = chatData.phone;
+                const cleanPhone = rawId.split('@')[0].replace(/\D/g, '');
+
                 // Monta o nome
-                const phoneOnly = chatData.phone.split('@')[0].replace(/\D/g, '');
-                const displayName = chatData.name || chatData.pushname || `Cliente ${phoneOnly.slice(-4)}`;
+                const displayName = chatData.name || chatData.pushname || `Cliente ${cleanPhone.slice(-4)}`;
                 const lastInteraction = new Date(chatData.timestamp * 1000);
 
                 await Contact.findOneAndUpdate(
-                    { businessId, phone: phoneOnly },
+                    {
+                        businessId,
+                        $or: [
+                            { phone: cleanPhone },
+                            { whatsappId: rawId }
+                        ]
+                    },
                     {
                         $set: {
+                            phone: cleanPhone,
+                            whatsappId: rawId, // Salva o ID original ex: 5511999999999@c.us
                             name: displayName,
                             pushname: chatData.pushname,
                             isGroup: false,
