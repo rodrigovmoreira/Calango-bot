@@ -12,11 +12,29 @@ import { Readable } from 'stream';
 const getContacts = async (req, res) => {
     try {
         const businessId = req.user.activeBusinessId;
+        const userId = req.user.userId;
         if (!businessId) {
             return res.status(404).json({ message: 'Business configuration not found' });
         }
 
-        const contacts = await Contact.find({ businessId }).sort({ lastInteraction: -1 });
+        // === ROLE-BASED FILTERING (Ponto 3: Assignment) ===
+        // Check user role to determine which contacts to return
+        const user = await Contact.collection.conn.model('SystemUser').findById(userId).select('businesses activeBusinessId');
+        const userBusiness = user?.businesses?.find(b => b.businessId.toString() === businessId.toString());
+        const userRole = userBusiness?.role || 'operator'; // Default to operator if role not found
+
+        let filter = { businessId };
+        
+        if (userRole === 'operator') {
+            // Operators see only contacts assigned to them or unassigned (null)
+            filter.$or = [
+                { assignedTo: userId },
+                { assignedTo: null }
+            ];
+        }
+        // Admins see all contacts (no additional filter)
+
+        const contacts = await Contact.find(filter).sort({ lastInteraction: -1 }).populate('assignedTo', 'name email avatarUrl');
         res.json(contacts);
     } catch (error) {
         console.error('Error fetching contacts:', error);
@@ -33,7 +51,7 @@ const getContact = async (req, res) => {
             return res.status(404).json({ message: 'Business configuration not found' });
         }
 
-        const contact = await Contact.findOne({ _id: id, businessId });
+        const contact = await Contact.findOne({ _id: id, businessId }).populate('assignedTo', 'name email avatarUrl');
         if (!contact) {
             return res.status(404).json({ message: 'Contact not found' });
         }

@@ -60,6 +60,14 @@ const contactSchema = new mongoose.Schema({
   // Human Handoff (Kill Switch)
   isHandover: { type: Boolean, default: false },
 
+  // === ATRIBUIÇÃO A OPERADOR (Ponto 3) ===
+  assignedTo: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'SystemUser',
+    default: null
+  }, // Operador responsável por este contato
+  assignedAt: { type: Date, default: null }, // Quando foi atribuído
+
   // Histórico básico
   lastSender: { type: String, enum: ['user', 'bot', 'agent'] },
   
@@ -89,5 +97,8 @@ contactSchema.index({ businessId: 1, lastInteraction: -1 });
 
 // Optimization: Scheduler Polling (find active follow-ups)
 contactSchema.index({ businessId: 1, followUpActive: 1 });
+
+// Optimization: Operator filtering (find contacts assigned to user or unassigned)
+contactSchema.index({ businessId: 1, assignedTo: 1 });
 
 export default mongoose.model('Contact', contactSchema);

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Draggable } from '@hello-pangea/dnd';
-import { Box, Text, HStack, Avatar, Flex, useColorModeValue } from '@chakra-ui/react';
+import { Box, Text, HStack, Avatar, Flex, useColorModeValue, Tooltip } from '@chakra-ui/react';
 import moment from 'moment';
 
 const FunnelCard = ({ contact, index }) => {
@@ -42,11 +42,26 @@ const FunnelCard = ({ contact, index }) => {
                 {contact.name || contact.phone}
               </Text>
             </HStack>
-            {contact.lastInteraction && (
-              <Text fontSize="xs" color="gray.500">
-                {timeAgo(contact.lastInteraction)}
-              </Text>
-            )}
+            <HStack spacing={2}>
+              {/* === ASSIGNED OPERATOR AVATAR (Ponto 3) === */}
+              {contact.assignedTo && (
+                <Tooltip label={contact.assignedTo.name || 'Assigned'} placement="top">
+                  <Avatar 
+                    size="xs" 
+                    name={contact.assignedTo.name} 
+                    src={contact.assignedTo.avatarUrl}
+                    cursor="pointer"
+                    borderWidth="2px"
+                    borderColor="brand.500"
+                  />
+                </Tooltip>
+              )}
+              {contact.lastInteraction && (
+                <Text fontSize="xs" color="gray.500" minW="50px" textAlign="right">
+                  {timeAgo(contact.lastInteraction)}
+                </Text>
+              )}
+            </HStack>
           </HStack>
 
           <Flex justify="space-between" align="center">

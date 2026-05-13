@@ -1,7 +1,8 @@
 import express from 'express';
 const router = express.Router();
 import Appointment from '../models/Appointment.js';
-import authenticateToken from '../middleware/auth.js';
+import authenticateToken, { requireAdmin } from '../middleware/auth.js';
+import * as assignmentController from '../controllers/assignmentController.js';
 
 // ROTA: GET /api/appointments (Listar)
 router.get('/', authenticateToken, async (req, res) => {
@@ -145,5 +146,8 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     res.status(500).json({ message: 'Erro ao deletar' });
   }
 });
+
+// Assign appointment to an operator (Ponto 3)
+router.patch('/:id/assign', authenticateToken, requireAdmin, assignmentController.assignAppointment);
 
 export default router;

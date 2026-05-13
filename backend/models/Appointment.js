@@ -57,10 +57,21 @@ const appointmentSchema = new mongoose.Schema({
     default: {}
   },
 
+  // === ATRIBUIÇÃO A OPERADOR (Ponto 3) ===
+  assignedTo: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'SystemUser',
+    default: null
+  }, // Operador responsável por este agendamento
+  assignedAt: { type: Date, default: null }, // Quando foi atribuído
+
   createdAt: { type: Date, default: Date.now }
 }, { optimisticConcurrency: true });
 
 // Optimization for Scheduler (frequent query by user, status, and date range)
 appointmentSchema.index({ businessId: 1, status: 1, start: 1 });
+
+// Optimization: Operator filtering (find appointments assigned to user or unassigned)
+appointmentSchema.index({ businessId: 1, assignedTo: 1 });
 
 export default mongoose.model('Appointment', appointmentSchema);
