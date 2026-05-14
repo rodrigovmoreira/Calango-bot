@@ -111,6 +111,7 @@ export const businessAPI = {
   getContacts: () => api.get('/api/contacts'),
   getTags: () => api.get('/api/contacts/tags'),
   updateContact: (id, data) => api.put(`/api/contacts/${id}`, data),
+  assignContact: (id, userId, __v) => api.patch(`/api/contacts/${id}/assign`, { assignedTo: userId, __v }), // <--- NOVO: Atribuir contato (Ponto 3)
   importContacts: (formData) => api.post('/api/contacts/import', formData),
   syncContacts: () => api.post('/api/contacts/sync'), // <--- FIXED: Correct sync endpoint
 };

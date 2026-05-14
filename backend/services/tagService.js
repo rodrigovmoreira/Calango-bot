@@ -63,7 +63,6 @@ const syncWithWhatsapp = async (businessId) => {
         if (!config || !config._id) {
             throw new Error(`Business Config or UserID not found for ${businessId}`);
         }
-        const businessId = config._id;
 
         // 2. Fetch Labels from WhatsApp (Safe Fail)
         let waLabels = [];
@@ -78,29 +77,45 @@ const syncWithWhatsapp = async (businessId) => {
 
         // 3. MERGE STRATEGY (Update/Create only)
         for (const label of waLabels) {
-            // Check if label.hexColor exists, if not use label.color, if not default
-            const finalColor = label.hexColor || label.color || '#A0AEC0';
+            try {
+                // Check if label.hexColor exists, if not use label.color, if not default
+                const finalColor = label.hexColor || label.color || '#A0AEC0';
 
-            // Upsert: Update if exists, Create if new
-            await Tag.findOneAndUpdate(
-                { businessId, whatsappId: label.id }, // Try matching by ID first
-                {
-                    name: label.name,
-                    color: finalColor,
-                    whatsappId: label.id
-                },
-                { upsert: true, new: true, setDefaultsOnInsert: true }
-            );
+                // Upsert: Update if exists, Create if new
+                await Tag.findOneAndUpdate(
+                    { businessId, whatsappId: label.id }, // Try matching by ID first
+                    {
+                        name: label.name,
+                        color: finalColor,
+                        whatsappId: label.id
+                    },
+                    { upsert: true, new: true, setDefaultsOnInsert: true }
+                );
+            } catch (err) {
+                if (err.code === 11000) {
+                    console.warn(`⚠️ Duplicate Key Error (11000) for label ${label.name} (waId: ${label.id}) in business ${businessId}. Skipping...`);
+                    continue;
+                }
+                throw err; // Re-throw other errors
+            }
         }
 
         // 4. NAME MATCHING (Link Legacy Tags)
         // If we have a local tag named "Lead" and WA has "Lead", link them.
         for (const label of waLabels) {
-             const finalColor = label.hexColor || label.color || '#A0AEC0';
-             await Tag.findOneAndUpdate(
-                { businessId, name: label.name, whatsappId: null },
-                { whatsappId: label.id, color: finalColor }
-             );
+            try {
+                 const finalColor = label.hexColor || label.color || '#A0AEC0';
+                 await Tag.findOneAndUpdate(
+                    { businessId, name: label.name, whatsappId: null },
+                    { whatsappId: label.id, color: finalColor }
+                 );
+            } catch (err) {
+                if (err.code === 11000) {
+                    console.warn(`⚠️ Duplicate Key Error (11000) during Name Matching for label ${label.name} (waId: ${label.id}) in business ${businessId}. Skipping...`);
+                    continue;
+                }
+                throw err; // Re-throw other errors
+            }
         }
 
         // 🛡️ CRITICAL: We DO NOT run deleteMany().

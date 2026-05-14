@@ -1,7 +1,8 @@
 import express from 'express';
 const router = express.Router();
 import * as contactController from '../controllers/contactController.js';
-import authenticateToken from '../middleware/auth.js';
+import * as assignmentController from '../controllers/assignmentController.js';
+import authenticateToken, { requireAdmin } from '../middleware/auth.js';
 import BusinessConfig from '../models/BusinessConfig.js';
 import Tag from '../models/Tag.js';
 import multer from 'multer';
@@ -61,5 +62,8 @@ router.get('/:id', authenticateToken, contactController.getContact);
 
 // Update contact
 router.put('/:id', authenticateToken, contactController.updateContact);
+
+// Assign contact to an operator (Ponto 3)
+router.patch('/:id/assign', authenticateToken, requireAdmin, assignmentController.assignContact);
 
 export default router;

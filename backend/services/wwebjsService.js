@@ -103,13 +103,14 @@ const startSession = async (businessIdRaw) => {
     }),
     puppeteer: {
       headless: true,
+      //dumpio: true, // Ativa logs detalhados do Puppeteer (útil para debugging)
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-accelerated-2d-canvas',
         '--no-first-run',
-        '--no-zygote',
+        //'--no-zygote',
         '--disable-gpu',
         '--disable-extensions',
         '--disable-component-extensions-with-background-pages',
@@ -211,29 +212,82 @@ const startSession = async (businessIdRaw) => {
 
 // 2. FUNÇÃO DE PARADA BLINDADA (A Mágica acontece aqui)
 const stopSession = async (businessId) => {
-  const client = sessions.get(businessId.toString());
+  const bId = businessId.toString();
+  console.log(`🛑 [User ${bId}] Iniciando processo de desconexão segura...`);
+  const client = sessions.get(bId);
 
   if (client) {
-    // Atualiza status para evitar que o usuário tente reconectar enquanto fecha
-    updateStatus(businessId, 'disconnecting');
+    updateStatus(bId, 'disconnecting');
 
-    try {
-      // Tenta logout limpo (pode falhar no Windows por EBUSY)
-      await client.logout();
-    } catch (e) {
-      // Ignora erros de logout, pois vamos destruir o cliente de qualquer jeito
+    // 1. Logout Educado (Se autenticado)
+    if (client.info) {
+      try {
+        console.log(`   -> Tentando logout limpo na API do WhatsApp...`);
+        await withTimeout(client.logout(), 3000);
+      } catch (e) {
+        console.warn(`   ⚠️ [User ${bId}] Timeout/Erro no logout (ignorando).`);
+      }
     }
 
+    // 2. HARD KILL (Tiro de Misericórdia no Processo do Chrome)
     try {
-      // Força o fechamento do navegador (Libera RAM)
-      await client.destroy();
+      if (client.pupBrowser && client.pupBrowser.process()) {
+        const pid = client.pupBrowser.process().pid;
+        console.log(`   -> 💀 Aplicando SIGKILL no processo Chrome (PID: ${pid})...`);
+        client.pupBrowser.process().kill('SIGKILL');
+      }
     } catch (e) {
-      console.warn(`⚠️ Erro ao destruir cliente (não crítico): ${e.message}`);
+      console.warn(`   ⚠️ Erro ao forçar kill do Chrome: ${e.message}`);
     }
+
+    // 3. Destroy do WWebJS (Agora não vai travar pois o processo já está morto)
+    try {
+      console.log(`   -> Limpando instâncias do client...`);
+      await withTimeout(client.destroy(), 3000);
+    } catch (e) {
+      console.warn(`   ⚠️ [User ${bId}] Timeout/Erro no destroy (ignorando).`);
+    }
+  } else {
+    console.log(`   -> Nenhuma sessão ativa na memória para fechar.`);
   }
 
-  // 3. LIMPEZA DE MEMÓRIA (Essencial para não vazar memória)
-  cleanupSession(businessId);
+  // 4. Limpeza de Banco de Dados e Memória OBRIGATÓRIA (Força Bruta)
+  try {
+    console.log(`   -> 🧹 Limpando resquícios de autenticação no disco e MongoDB...`);
+
+    // PASSO 1: Limpeza da pasta local PRIMEIRO (Evita que o bot leia o lixo antes de apagar o banco)
+    const authFolder = `./.wwebjs_auth/RemoteAuth-${bId}`;
+    if (fs.existsSync(authFolder)) {
+      fs.rmSync(authFolder, { recursive: true, force: true });
+      console.log(`   -> 🗑️ Pasta local de cache deletada com sucesso.`);
+    }
+
+    // PASSO 2: Força bruta no GridFS do MongoDB (Buscando por filename)
+    if (mongoose.connection && mongoose.connection.db) {
+      const filesCollection = mongoose.connection.db.collection('wwebsessions.files');
+      const chunksCollection = mongoose.connection.db.collection('wwebsessions.chunks');
+
+      // Busca o arquivo de sessão pelo nome (e não pelo ObjectId)
+      const filesToDelete = await filesCollection.find({ filename: { $regex: bId } }).toArray();
+
+      if (filesToDelete.length > 0) {
+        for (const file of filesToDelete) {
+          // Apaga os pedaços binários do ZIP (para não estourar o limite do seu servidor)
+          await chunksCollection.deleteMany({ files_id: file._id });
+          // Apaga o cabeçalho do arquivo
+          await filesCollection.deleteOne({ _id: file._id });
+        }
+        console.log(`   -> ✅ Backup do RemoteAuth removido do GridFS (files e chunks).`);
+      } else {
+        console.log(`   -> ℹ️ Nenhum backup do RemoteAuth encontrado no banco para este usuário.`);
+      }
+    }
+  } catch (e) {
+    console.warn(`   ⚠️ Erro durante a limpeza profunda: ${e.message}`);
+  }
+
+  cleanupSession(bId);
+  console.log(`✅ [User ${bId}] Desconexão finalizada com sucesso!`);
 };
 
 const cleanupSession = (businessId) => {

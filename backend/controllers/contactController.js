@@ -12,11 +12,29 @@ import { Readable } from 'stream';
 const getContacts = async (req, res) => {
     try {
         const businessId = req.user.activeBusinessId;
+        const userId = req.user.userId;
         if (!businessId) {
             return res.status(404).json({ message: 'Business configuration not found' });
         }
 
-        const contacts = await Contact.find({ businessId }).sort({ lastInteraction: -1 });
+        // === ROLE-BASED FILTERING (Ponto 3: Assignment) ===
+        // Check user role to determine which contacts to return
+        const user = await Contact.collection.conn.model('SystemUser').findById(userId).select('businesses activeBusinessId');
+        const userBusiness = user?.businesses?.find(b => b.businessId.toString() === businessId.toString());
+        const userRole = userBusiness?.role || 'operator'; // Default to operator if role not found
+
+        let filter = { businessId };
+        
+        if (userRole === 'operator') {
+            // Operators see only contacts assigned to them or unassigned (null)
+            filter.$or = [
+                { assignedTo: userId },
+                { assignedTo: null }
+            ];
+        }
+        // Admins see all contacts (no additional filter)
+
+        const contacts = await Contact.find(filter).sort({ lastInteraction: -1 }).populate('assignedTo', 'name email avatarUrl');
         res.json(contacts);
     } catch (error) {
         console.error('Error fetching contacts:', error);
@@ -33,7 +51,7 @@ const getContact = async (req, res) => {
             return res.status(404).json({ message: 'Business configuration not found' });
         }
 
-        const contact = await Contact.findOne({ _id: id, businessId });
+        const contact = await Contact.findOne({ _id: id, businessId }).populate('assignedTo', 'name email avatarUrl');
         if (!contact) {
             return res.status(404).json({ message: 'Contact not found' });
         }
@@ -238,7 +256,7 @@ const syncContacts = async (req, res) => {
                 .sort((a, b) => b.t - a.t)
                 .slice(0, 15) // Top 15 conversas LIMPAS
                 .map(chat => ({
-                    phone: chat.id.user,
+                    phone: chat.id._serialized || chat.id.user, // Garante que pega com sufixo ou @lid se houver
                     name: chat.formattedTitle || chat.name || chat.contact.name || chat.contact.pushname,
                     pushname: chat.contact.pushname,
                     timestamp: chat.t,
@@ -252,14 +270,46 @@ const syncContacts = async (req, res) => {
 
         for (const chatData of rawChats) {
             try {
+                let rawId = chatData.phone;
+
+                // Desmascarar @lid via método nativo wwebjs
+                if (rawId && rawId.includes('@lid')) {
+                    if (client) {
+                        try {
+                            const lidMap = await client.getContactLidAndPhone([rawId]);
+                            if (lidMap && lidMap[0] && lidMap[0].pn) {
+                                rawId = lidMap[0].pn; // Substitui o @lid pelo @c.us (ou número puro)
+                            } else {
+                                console.warn(`⚠️ Não foi possível desmascarar @lid para ${rawId}, ignorando.`);
+                                continue;
+                            }
+                        } catch (lidErr) {
+                            console.warn(`⚠️ Erro ao tentar desmascarar @lid para ${rawId}: ${lidErr.message}`);
+                            continue;
+                        }
+                    } else {
+                        continue; // Sem client WWebJS disponível, pular.
+                    }
+                }
+
+                const cleanPhone = rawId.split('@')[0].replace(/\D/g, '');
+
                 // Monta o nome
-                const displayName = chatData.name || chatData.pushname || `Cliente ${chatData.phone.slice(-4)}`;
+                const displayName = chatData.name || chatData.pushname || `Cliente ${cleanPhone.slice(-4)}`;
                 const lastInteraction = new Date(chatData.timestamp * 1000);
 
                 await Contact.findOneAndUpdate(
-                    { businessId, phone: chatData.phone },
+                    {
+                        businessId,
+                        $or: [
+                            { phone: cleanPhone },
+                            { whatsappId: rawId }
+                        ]
+                    },
                     {
                         $set: {
+                            phone: cleanPhone,
+                            whatsappId: rawId, // Salva o ID original ex: 5511999999999@c.us
                             name: displayName,
                             pushname: chatData.pushname,
                             isGroup: false,

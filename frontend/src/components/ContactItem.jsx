@@ -17,6 +17,23 @@ const formatTime = (isoString) => {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
+const formatPhone = (phone) => {
+    if (!phone) return '';
+    const cleaned = ('' + phone).replace(/\D/g, '');
+    // Verifica se é um número do Brasil (começa com 55)
+    if (cleaned.startsWith('55') && cleaned.length >= 12 && cleaned.length <= 13) {
+        const ddd = cleaned.substring(2, 4);
+        const prefix = cleaned.substring(4, cleaned.length - 4);
+        const suffix = cleaned.substring(cleaned.length - 4);
+        return `+55 (${ddd}) ${prefix}-${suffix}`;
+    }
+    // Caso não se enquadre no padrão BR, exibe como está ou aplica uma formatação simples
+    if (cleaned.length > 0) {
+        return `+${cleaned}`;
+    }
+    return phone;
+};
+
 const ContactItem = ({ contact, isSelected, onClick, tagColors }) => {
   const cardBg = useColorModeValue('white', 'gray.800');
   const gray50Bg = useColorModeValue('gray.50', 'gray.700');
@@ -43,7 +60,7 @@ const ContactItem = ({ contact, isSelected, onClick, tagColors }) => {
          <Box flex="1">
             <HStack justify="space-between" mb={0}>
                 <Text fontWeight="bold" fontSize="sm" noOfLines={1} maxW="70%">
-                    {contact.name || contact.phone}
+                    {contact.name || formatPhone(contact.phone)}
                 </Text>
                 {contact.lastInteraction && (
                     <Text fontSize="xs" color="gray.500">{formatTime(contact.lastInteraction)}</Text>
@@ -55,7 +72,7 @@ const ContactItem = ({ contact, isSelected, onClick, tagColors }) => {
                    ? <Icon as={FaWhatsapp} color="green.500" boxSize={3} />
                    : <Icon as={FaGlobe} color="blue.500" boxSize={3} />
                  }
-                 <Text fontSize="xs" color="gray.500">{contact.phone}</Text>
+                 <Text fontSize="xs" color="gray.500">{formatPhone(contact.phone)}</Text>
             </HStack>
 
             {contact.tags && contact.tags.length > 0 && (

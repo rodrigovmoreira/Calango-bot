@@ -145,7 +145,7 @@ const ImportModal = ({ isOpen, onClose, onSuccess }) => {
                     link.click();
                     document.body.removeChild(link);
                 }}>
-                    Baixar Modelo CSV
+                    Baixar Modelo de importação em CSV
                 </Link>
              </Text>
 
