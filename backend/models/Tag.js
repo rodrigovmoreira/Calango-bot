@@ -14,8 +14,6 @@ const tagSchema = new mongoose.Schema({
   },
   whatsappId: {
     type: String, // ID from WhatsApp
-    unique: true,
-    sparse: true
   },
   color: {
     type: String, // Hex color
@@ -29,5 +27,8 @@ const tagSchema = new mongoose.Schema({
 
 // Ensure unique tag names per business
 tagSchema.index({ businessId: 1, name: 1 }, { unique: true });
+
+// Ensure unique WhatsApp IDs per business (allows multiple nulls for local tags)
+tagSchema.index({ businessId: 1, whatsappId: 1 }, { unique: true, sparse: true });
 
 export default mongoose.model('Tag', tagSchema);

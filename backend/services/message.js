@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import Contact from '../models/Contact.js';
 import Message from '../models/Message.js';
 
-async function saveMessage(identifier, role, content, messageType = 'text', visionResult = null, businessId, channel = 'whatsapp', pushName = null) {
+async function saveMessage(identifier, role, content, messageType = 'text', visionResult = null, businessId, channel = 'whatsapp', pushName = null, whatsappId = null) {
   try {
     if (!businessId) {
       console.error("❌ ERRO GRAVE: Tentativa de salvar mensagem sem businessId!");
@@ -50,6 +50,7 @@ async function saveMessage(identifier, role, content, messageType = 'text', visi
           delete newContactData.phone; // Garantir que não envia null
       } else {
           newContactData.phone = identifier;
+          if (whatsappId) newContactData.whatsappId = whatsappId;
           // Se tivermos o pushName logo de cara, já usamos
           if (pushName && pushName !== 'Cliente' && pushName !== 'Visitante') {
              newContactData.name = pushName;
