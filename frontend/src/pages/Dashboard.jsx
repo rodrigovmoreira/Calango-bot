@@ -51,14 +51,49 @@ const Dashboard = ({ initialTab = 0 }) => {
   // Sync Profile
   useEffect(() => {
     if (state.user) {
+      // Find the current business name from user's populated businesses array or fallback
+      let currentBusinessName = 'Minha Empresa';
+      if (state.user.businesses && state.user.activeBusinessId) {
+        const b = state.user.businesses.find(b => {
+          const bId = b.businessId._id ? b.businessId._id.toString() : b.businessId.toString();
+          return bId === state.user.activeBusinessId.toString();
+        });
+        if (b && b.businessId.businessName) {
+           currentBusinessName = b.businessId.businessName;
+        }
+      }
+
+      // Override with state.businessConfig if available as it is the real time source of truth
+      if (state.businessConfig?.businessName) {
+         currentBusinessName = state.businessConfig.businessName;
+      }
+
       setProfileData({
         name: state.user.name || '',
         email: state.user.email || '',
-        company: state.businessConfig?.businessName || 'Minha Empresa',
+        company: currentBusinessName,
         avatarUrl: state.user.avatarUrl || ''
       });
     }
   }, [state.user, state.businessConfig]);
+
+  const handleSwitchBusiness = async (targetBusinessId) => {
+    try {
+      const { data } = await authAPI.switchBusiness(targetBusinessId);
+
+      // Update local storage
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+
+      toast({ title: 'Trocando de empresa...', status: 'info', duration: 2000 });
+
+      // Force reload to root dashboard to avoid state leakage
+      window.location.href = '/dashboard';
+    } catch (error) {
+      console.error('Erro ao trocar de empresa:', error);
+      toast({ title: 'Erro ao trocar de empresa', status: 'error' });
+    }
+  };
 
   const handleLogoutSystem = async () => {
     const confirm = window.confirm("Ao sair, o Robô do WhatsApp será desligado para economizar recursos. Deseja continuar?");
@@ -111,6 +146,37 @@ const Dashboard = ({ initialTab = 0 }) => {
     }
   };
 
+  // Business Selector Component
+  const BusinessSelector = () => {
+    return (
+      <Menu>
+        <MenuButton as={Button} variant="ghost" rightIcon={<ChevronDownIcon />} size="md" px={2}>
+          <Heading size="sm" color={useColorModeValue("gray.700", "white")} maxW="200px" isTruncated>
+            {profileData.company}
+          </Heading>
+        </MenuButton>
+        <MenuList maxH="300px" overflowY="auto">
+          {state.user?.businesses?.map((b) => {
+            const bId = b.businessId._id ? b.businessId._id.toString() : b.businessId.toString();
+            const bName = b.businessId.businessName || 'Empresa Sem Nome';
+            const isActive = bId === state.user?.activeBusinessId;
+
+            return (
+              <MenuItem
+                key={bId}
+                onClick={() => !isActive && handleSwitchBusiness(bId)}
+                isDisabled={isActive}
+                fontWeight={isActive ? "bold" : "normal"}
+              >
+                {bName} {isActive ? "(Atual)" : ""}
+              </MenuItem>
+            );
+          })}
+        </MenuList>
+      </Menu>
+    );
+  };
+
   // Profile Menu Component
   const ProfileMenu = (
     <Menu>
@@ -156,7 +222,7 @@ const Dashboard = ({ initialTab = 0 }) => {
       {/* Navbar Mobile Customizada (Com Avatar e Menu) - Moved outside content Box for better stacking context */}
       <MobileNav
         onOpen={onSidebarOpen}
-        title={LinkItems[activeTab]?.name || 'Painel'}
+        title={<BusinessSelector />}
       >
         {ProfileMenu}
       </MobileNav>
@@ -181,10 +247,8 @@ const Dashboard = ({ initialTab = 0 }) => {
           borderRadius="lg"
           boxShadow="sm"
         >
-          {/* Lado Esquerdo: Nome da Empresa */}
-          <Heading size="md" color={useColorModeValue("gray.700", "white")}>
-            {profileData.company}
-          </Heading>
+          {/* Lado Esquerdo: Dropdown de Empresas */}
+          <BusinessSelector />
 
           {/* Lado Direito: Menu do Usuário */}
           <Menu>

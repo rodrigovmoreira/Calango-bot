@@ -11,12 +11,30 @@ export const authenticateToken = (req, res, next) => {
     if (err) return res.status(403).json({ message: 'Token inválido' });
 
     try {
+      // Se o token já tiver activeBusinessId e role (novo padrão)
+      if (decodedUser.activeBusinessId && decodedUser.role) {
+        req.user = {
+          userId: decodedUser.userId,
+          activeBusinessId: decodedUser.activeBusinessId,
+          role: decodedUser.role
+        };
+        return next();
+      }
+
+      // Fallback para tokens antigos (consulta banco)
       const user = await SystemUser.findById(decodedUser.userId).select('activeBusinessId businesses');
       if (!user) return res.status(401).json({ message: 'Usuário não encontrado' });
 
+      let role = 'operator';
+      if (user.activeBusinessId) {
+         const business = user.businesses.find(b => b.businessId.toString() === user.activeBusinessId.toString());
+         if (business) role = business.role;
+      }
+
       req.user = {
         userId: decodedUser.userId,
-        activeBusinessId: user.activeBusinessId
+        activeBusinessId: user.activeBusinessId,
+        role: role
       };
 
       next();
@@ -29,13 +47,11 @@ export const authenticateToken = (req, res, next) => {
 
 export const requireAdmin = async (req, res, next) => {
   try {
-    const user = await SystemUser.findById(req.user.userId).select('businesses activeBusinessId');
-    if (!user) return res.status(401).json({ message: 'Usuário não encontrado' });
+    if (!req.user || !req.user.activeBusinessId) {
+       return res.status(403).json({ message: 'Nenhum negócio ativo' });
+    }
 
-    if (!user.activeBusinessId) return res.status(403).json({ message: 'Nenhum negócio ativo' });
-
-    const business = user.businesses.find(b => b.businessId.toString() === user.activeBusinessId.toString());
-    if (!business || business.role !== 'admin') {
+    if (req.user.role !== 'admin') {
       return res.status(403).json({ message: 'Acesso negado: Requer permissão de administrador' });
     }
 

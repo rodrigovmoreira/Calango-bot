@@ -199,6 +199,12 @@ io.on('connection', (socket) => {
     const qr = getSessionQR(businessId);
     if (qr) socket.emit('wwebjs_qr', qr);
   });
+
+  // 3. Admin trocando de empresa
+  socket.on('leave_session', (businessId) => {
+    if (!businessId) return;
+    socket.leave(businessId);
+  });
 });
 
 // ==========================================

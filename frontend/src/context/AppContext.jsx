@@ -137,9 +137,13 @@ export const AppProvider = ({ children }) => {
     });
 
     return () => {
+      // Ponto 3.6: Emitir leave_session antes de desconectar para limpar a sala
+      if (state.user && state.user.activeBusinessId) {
+        socket.emit('leave_session', state.user.activeBusinessId);
+      }
       socket.disconnect();
     };
-  }, [state.user]); // Executa sempre que o usuário muda (Login/Logout)
+  }, [state.user?.id, state.user?.activeBusinessId]); // Executa sempre que o usuário ou empresa mudam
 
   return (
     <AppContext.Provider value={{ state, dispatch }}>

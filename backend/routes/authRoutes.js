@@ -15,7 +15,8 @@ import { loginLimiter, registerLimiter } from '../middleware/rateLimiters.js';
 router.post('/login', loginLimiter, async (req, res) => {
   try {
     const { email, password, inviteToken } = req.body;
-    const user = await SystemUser.findOne({ email }).select('+password');
+    // Ponto 3.2: Populate businesses.businessId
+    const user = await SystemUser.findOne({ email }).select('+password').populate('businesses.businessId', 'businessName');
 
     if (!user || !(await user.correctPassword(password))) {
       return res.status(400).json({ message: 'Credenciais inválidas' });
@@ -25,7 +26,13 @@ router.post('/login', loginLimiter, async (req, res) => {
     if (inviteToken) {
       const invite = await Invite.findOne({ token: inviteToken, status: 'pending' });
       if (invite && invite.expiresAt > new Date()) {
-        const alreadyInBusiness = user.businesses.some(b => b.businessId.toString() === invite.businessId.toString());
+        // Here we handle if the user is already in the business
+        const alreadyInBusiness = user.businesses.some(b => {
+          // Because of populate, b.businessId could be an object, let's safely get its string ID
+          const bId = b.businessId._id ? b.businessId._id.toString() : b.businessId.toString();
+          return bId === invite.businessId.toString();
+        });
+
         if (!alreadyInBusiness) {
           user.businesses.push({ businessId: invite.businessId, role: invite.role });
         }
@@ -33,10 +40,32 @@ router.post('/login', loginLimiter, async (req, res) => {
         await user.save();
         invite.status = 'used';
         await invite.save();
+
+        // Re-populate because we just pushed a raw ID to businesses
+        await user.populate('businesses.businessId', 'businessName');
       }
     }
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    // Determine role for the active business
+    let activeRole = 'operator';
+    if (user.activeBusinessId && user.businesses) {
+      const businessInfo = user.businesses.find(b => {
+        const bId = b.businessId._id ? b.businessId._id.toString() : b.businessId.toString();
+        return bId === user.activeBusinessId.toString();
+      });
+      if (businessInfo) activeRole = businessInfo.role;
+    }
+
+    // Ponto 3.1: Encode activeBusinessId and role in JWT
+    const token = jwt.sign(
+      {
+        userId: user._id,
+        activeBusinessId: user.activeBusinessId,
+        role: activeRole
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
 
     res.cookie('auth_token', token, {
       httpOnly: true,
@@ -111,7 +140,23 @@ router.post('/register', registerLimiter, async (req, res) => {
       console.error('Warning: Failed to initiate email sending.', error.message);
     }
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    // Determine role for the new/invited user
+    let activeRole = 'operator';
+    if (user.activeBusinessId && user.businesses) {
+      const businessInfo = user.businesses.find(b => b.businessId.toString() === user.activeBusinessId.toString());
+      if (businessInfo) activeRole = businessInfo.role;
+    }
+
+    // Ponto 3.1: Encode activeBusinessId and role in JWT
+    const token = jwt.sign(
+      {
+        userId: user._id,
+        activeBusinessId: user.activeBusinessId,
+        role: activeRole
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
     res.cookie('auth_token', token, { httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000 });
     
     // Retorna os dados corretos pro frontend
@@ -157,12 +202,95 @@ router.get('/google', passport.authenticate('google', { scope: ['profile', 'emai
 // ROTA: /api/auth/google/callback
 router.get('/google/callback',
   passport.authenticate('google', { failureRedirect: '/login', session: false }),
-  (req, res) => {
+  async (req, res) => {
     // Successful authentication
-    const user = req.user;
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    try {
+      // Ponto 3.2: Populate businesses.businessId
+      const user = await SystemUser.findById(req.user._id).populate('businesses.businessId', 'businessName');
 
-    // Set cookie
+      let activeRole = 'operator';
+      if (user.activeBusinessId && user.businesses) {
+        const businessInfo = user.businesses.find(b => {
+          const bId = b.businessId._id ? b.businessId._id.toString() : b.businessId.toString();
+          return bId === user.activeBusinessId.toString();
+        });
+        if (businessInfo) activeRole = businessInfo.role;
+      }
+
+      // Ponto 3.1: Encode activeBusinessId and role in JWT
+      const token = jwt.sign(
+        {
+          userId: user._id,
+          activeBusinessId: user.activeBusinessId,
+          role: activeRole
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+
+      // Set cookie
+      res.cookie('auth_token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        sameSite: 'lax'
+      });
+
+      // Redirect to frontend with token
+      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+
+      // We pass user info too, url encoded
+      const userData = encodeURIComponent(JSON.stringify({
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        avatarUrl: user.avatarUrl,
+        activeBusinessId: user.activeBusinessId,
+        businesses: user.businesses
+      }));
+
+      res.redirect(`${frontendUrl}/google-callback?token=${token}&user=${userData}`);
+    } catch (error) {
+      console.error('Erro google callback:', error);
+      res.redirect('/login');
+    }
+  }
+);
+
+// ROTA: /api/auth/switch-business
+router.post('/switch-business', authenticateToken, async (req, res) => {
+  try {
+    const { targetBusinessId } = req.body;
+    const userId = req.user.userId;
+
+    // Fetch user without populate first to check and update
+    const user = await SystemUser.findById(userId);
+    if (!user) return res.status(404).json({ message: 'Usuário não encontrado' });
+
+    // Ponto 3.1: Verify if targetBusinessId exists in user's businesses array
+    const targetBusiness = user.businesses.find(b => b.businessId.toString() === targetBusinessId);
+    if (!targetBusiness) {
+      return res.status(403).json({ message: 'Acesso negado a esta empresa' });
+    }
+
+    // Update active business
+    user.activeBusinessId = targetBusinessId;
+    await user.save();
+
+    // Populate businesses.businessId for the response
+    await user.populate('businesses.businessId', 'businessName');
+
+    // Sign new JWT with new context
+    const token = jwt.sign(
+      {
+        userId: user._id,
+        activeBusinessId: user.activeBusinessId,
+        role: targetBusiness.role
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
     res.cookie('auth_token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -170,22 +298,22 @@ router.get('/google/callback',
       sameSite: 'lax'
     });
 
-    // Redirect to frontend with token
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-
-    // We pass user info too, url encoded
-    const userData = encodeURIComponent(JSON.stringify({
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      avatarUrl: user.avatarUrl,
-      activeBusinessId: user.activeBusinessId,
-      businesses: user.businesses
-    }));
-
-    res.redirect(`${frontendUrl}/google-callback?token=${token}&user=${userData}`);
+    res.json({
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        avatarUrl: user.avatarUrl,
+        activeBusinessId: user.activeBusinessId,
+        businesses: user.businesses
+      }
+    });
+  } catch (error) {
+    console.error('Erro ao trocar de empresa:', error);
+    res.status(500).json({ message: 'Erro interno ao trocar de empresa' });
   }
-);
+});
 
 // ROTA: /api/auth/logout
 router.post('/logout', authenticateToken, async (req, res) => {
