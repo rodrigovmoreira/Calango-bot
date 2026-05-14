@@ -27,33 +27,48 @@ Objetivo: Permitir a entrada de novos usuários no mesmo negócio de forma segur
 
 [x] 2.6 Tela Pública de Onboarding (React/Vite): Criar a rota frontend /invite/:token com a mensagem de boas-vindas ("Você foi convidado") e o formulário de cadastro/login vinculado.
 
-🎯 Ponto 3: Atribuição de Responsável (O "Dono do Lead")
+🏢 Ponto 3: Gestão de empresas: Os usuários cadastrados que tiverem acesso a múltiplas empresas devem ter uma opção para trocar o ambiente de trabalho.
+Objetivo: Permitir a alternância fluida entre diferentes instâncias do SaaS para um mesmo usuário, assegurando que o escopo de dados e as permissões carregadas sejam estritamente isoladas para cada empresa.
+
+[ ] 3.1 Backend: Endpoint de Troca de Contexto (backend/routes/authRoutes.js): Criar a rota POST /api/auth/switch-business. A função deve verificar se o targetBusinessId existe dentro do array businesses do usuário logado, atualizar o activeBusinessId e assinar um novo token JWT com as permissões (role) específicas daquele ambiente.
+
+[ ] 3.2 Backend: Preenchimento dos Nomes das Empresas: Ajustar a rota de /login e o retorno de dados do usuário para incluir um .populate('businesses.businessId', 'businessName') no modelo SystemUser. Isso garante que o array contenha strings legíveis para montar a interface visual, ao invés de apenas ObjectIds.
+
+[ ] 3.3 Frontend: Mapeamento da Nova Rota (frontend/src/services/api.js): Expor o novo endpoint no objeto authAPI adicionando a chamada switchBusiness: (targetBusinessId) => api.post('/api/auth/switch-business', { targetBusinessId }).
+
+[ ] 3.4 Frontend: Componente Dropdown de Seleção (Header/Sidebar): Transformar a exibição atual do nome do negócio (ex: "Agri-Ink Tattoo") em um menu interativo (utilizando os componentes de Menu do Chakra UI). Ele deve mapear o state.user.businesses e desabilitar o clique na empresa já ativa.
+
+[ ] 3.5 Frontend: Prevenção de Vazamento Visual e Estado (frontend/src/context/AppContext.jsx): Implementar a lógica para que, assim que a API confirmar o novo token na troca de empresa, o sistema sobrescreva o localStorage e execute uma recarga forçada da rota principal (window.location.href = '/dashboard'). Isso limpa arrays de contatos, funil e mensagens cacheadas do contexto anterior.
+
+[ ] 3.6 Frontend/Backend: Sincronização de Sockets em Tempo Real (frontend/src/context/AppContext.jsx): Incluir state.user.activeBusinessId no array de dependências do hook useEffect do Socket.io. Emitir os eventos adequados para sair da sala (room) do negócio antigo e entrar na escuta da sala do novo negócio, evitando recebimento de mensagens cruzadas no chat público.
+
+🎯 Ponto 4: Atribuição de Responsável (O "Dono do Lead")
 Objetivo: Organizar quem atende quem e evitar colisões no funil de vendas.
 
-[ ] 3.1 Modelagem do Lead (MongoDB): Adicionar o campo assignedTo (Referência ao ID do SystemUser) em backend/models/Contact.js e backend/models/Appointment.js.
+[ ] 4.1 Modelagem do Lead (MongoDB): Adicionar o campo assignedTo (Referência ao ID do SystemUser) em backend/models/Contact.js e backend/models/Appointment.js.
 
-[ ] 3.2 Filtro por Papel (Node.js): Ajustar o método de listagem no contactController.js. Se a role for operator, retornar apenas contatos onde assignedTo == userId (ou contatos sem dono). Se for admin, retornar todos.
+[ ] 4.2 Filtro por Papel (Node.js): Ajustar o método de listagem no contactController.js. Se a role for operator, retornar apenas contatos onde assignedTo == userId (ou contatos sem dono). Se for admin, retornar todos.
 
-[ ] 3.3 Endpoints de Atribuição (Node.js): Criar a rota PATCH /api/contacts/:id/assign no contactRoutes.js para atribuir ou trocar o dono de um contato.
+[ ] 4.3 Endpoints de Atribuição (Node.js): Criar a rota PATCH /api/contacts/:id/assign no contactRoutes.js para atribuir ou trocar o dono de um contato.
 
-[ ] 3.4 Interface do Kanban (React/Chakra UI): No componente FunnelCard.jsx, exibir um Avatar pequeno com as iniciais do responsável. Dentro dos detalhes do contato, adicionar um Dropdown/Select para "Passar a bola" para outro vendedor.
+[ ] 4.4 Interface do Kanban (React/Chakra UI): No componente FunnelCard.jsx, exibir um Avatar pequeno com as iniciais do responsável. Dentro dos detalhes do contato, adicionar um Dropdown/Select para "Passar a bola" para outro vendedor.
 
-🕵️‍♂️ Ponto 4: Rastreabilidade Básica (Log Versão Lite)
+🕵️‍♂️ Ponto 5: Rastreabilidade Básica (Log Versão Lite)
 Objetivo: Saber quem fez o que no sistema em caso de erros ou auditorias rápidas.
 
-[ ] 4.1 Campos de Log (MongoDB): Adicionar createdBy e lastUpdatedBy (Refs de SystemUser) nos Schemas principais (Contact.js, Appointment.js, BusinessConfig.js).
+[ ] 5.1 Campos de Log (MongoDB): Adicionar createdBy e lastUpdatedBy (Refs de SystemUser) nos Schemas principais (Contact.js, Appointment.js, BusinessConfig.js).
 
-[ ] 4.2 Injeção Automática (Node.js): Nos controllers, interceptar as requisições de criação (POST) e atualização (PUT/PATCH) para injetar automaticamente o ID do usuário autenticado (req.user.id) nesses campos antes do save().
+[ ] 5.2 Injeção Automática (Node.js): Nos controllers, interceptar as requisições de criação (POST) e atualização (PUT/PATCH) para injetar automaticamente o ID do usuário autenticado (req.user.id) nesses campos antes do save().
 
-[ ] 4.3 Visibilidade Simplificada (React/Chakra UI): Adicionar um rodapé sutil nos modais de edição de itens no frontend: "Criado por [Nome] em [Data] - Última alteração por [Nome]".
+[ ] 5.3 Visibilidade Simplificada (React/Chakra UI): Adicionar um rodapé sutil nos modais de edição de itens no frontend: "Criado por [Nome] em [Data] - Última alteração por [Nome]".
 
-🚪 Ponto 5: O Offboarding (Revogação de Acesso e "Herança" de Leads)
+🚪 Ponto 6: O Offboarding (Revogação de Acesso e "Herança" de Leads)
 Objetivo: Remover usuários sem quebrar a rastreabilidade e redistribuir os clientes órfãos.
 
-[ ] 5.1 Endpoint de Inativação (Node.js): Criar rota no backend para o Admin inativar/remover o acesso de um usuário ao negócio (atualizando o array businesses no SystemUser.js).
+[ ] 6.1 Endpoint de Inativação (Node.js): Criar rota no backend para o Admin inativar/remover o acesso de um usuário ao negócio (atualizando o array businesses no SystemUser.js).
 
-[ ] 5.2 Derrubar Sessão (Node.js): Na lógica do backend/middleware/auth.js, se o usuário tentar acessar com um activeBusinessId do qual foi removido/bloqueado, invalidar a ação e retornar status 403 (forçando logout ou troca de empresa no frontend).
+[ ] 6.2 Derrubar Sessão (Node.js): Na lógica do backend/middleware/auth.js, se o usuário tentar acessar com um activeBusinessId do qual foi removido/bloqueado, invalidar a ação e retornar status 403 (forçando logout ou troca de empresa no frontend).
 
-[ ] 5.3 Transferência em Lote (Node.js): Criar rota POST /api/contacts/bulk-transfer no contactRoutes.js que busca todos os contatos associados ao "Usuário A" e altera o assignedTo para o "Usuário B".
+[ ] 6.3 Transferência em Lote (Node.js): Criar rota POST /api/contacts/bulk-transfer no contactRoutes.js que busca todos os contatos associados ao "Usuário A" e altera o assignedTo para o "Usuário B".
 
-[ ] 5.4 Fluxo de Demissão na UI (React/Chakra UI): Na tela de equipe, ao clicar em "Remover Usuário", abrir um Modal de aviso. Adicionar um select opcional: "Este usuário possui X leads em aberto. Deseja transferi-los para:", listando a equipe restante.
+[ ] 6.4 Fluxo de Demissão na UI (React/Chakra UI): Na tela de equipe, ao clicar em "Remover Usuário", abrir um Modal de aviso. Adicionar um select opcional: "Este usuário possui X leads em aberto. Deseja transferi-los para:", listando a equipe restante.
