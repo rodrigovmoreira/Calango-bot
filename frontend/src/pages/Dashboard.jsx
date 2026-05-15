@@ -3,14 +3,14 @@ import {
   Box, Flex, Heading, Text, Button, VStack, HStack,
   useToast, useColorModeValue, FormControl, FormLabel, Input,
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalFooter, ModalBody, ModalCloseButton,
-  useDisclosure, Menu, MenuButton, MenuList, MenuItem, Avatar, IconButton, Spinner, Center
+  useDisclosure, Menu, MenuButton, MenuList, MenuItem, MenuDivider, Avatar, IconButton, Spinner, Center
 } from '@chakra-ui/react';
 import {
-  EditIcon, WarningTwoIcon, ChevronDownIcon,
+  EditIcon, WarningTwoIcon, ChevronDownIcon, AddIcon
 } from '@chakra-ui/icons';
 import { FaUsers } from 'react-icons/fa';
 import { useApp } from '../context/AppContext';
-import { authAPI } from '../services/api';
+import { authAPI, businessAPI } from '../services/api';
 import { uploadFileToFirebase } from '../utils/uploadHelper';
 
 // Imported Components
@@ -39,10 +39,13 @@ const Dashboard = ({ initialTab = 0 }) => {
 
   // Global Modals
   const { isOpen: isProfileOpen, onOpen: onProfileOpen, onClose: onProfileClose } = useDisclosure();
+  const { isOpen: isCreateBusinessOpen, onOpen: onCreateBusinessOpen, onClose: onCreateBusinessClose } = useDisclosure();
   const { isOpen: isSidebarOpen, onOpen: onSidebarOpen, onClose: onSidebarClose } = useDisclosure();
 
   // Navigation State
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [newBusinessName, setNewBusinessName] = useState('');
+  const [isCreatingBusiness, setIsCreatingBusiness] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
 
   // Profile Data
@@ -92,6 +95,32 @@ const Dashboard = ({ initialTab = 0 }) => {
     } catch (error) {
       console.error('Erro ao trocar de empresa:', error);
       toast({ title: 'Erro ao trocar de empresa', status: 'error' });
+    }
+  };
+
+  const handleCreateBusiness = async () => {
+    if (!newBusinessName.trim()) {
+      toast({ title: 'O nome da empresa é obrigatório.', status: 'warning' });
+      return;
+    }
+    try {
+      setIsCreatingBusiness(true);
+      const { data } = await businessAPI.createBusiness({ businessName: newBusinessName });
+
+      // Update local storage with new context
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+
+      toast({ title: 'Empresa criada com sucesso!', status: 'success', duration: 2000 });
+      onCreateBusinessClose();
+
+      // Force reload to avoid state leakage and initialize new context
+      window.location.href = '/dashboard';
+    } catch (error) {
+      console.error('Erro ao criar empresa:', error);
+      toast({ title: 'Erro ao criar empresa', status: 'error' });
+    } finally {
+      setIsCreatingBusiness(false);
     }
   };
 
@@ -172,6 +201,10 @@ const Dashboard = ({ initialTab = 0 }) => {
               </MenuItem>
             );
           })}
+          <MenuDivider />
+          <MenuItem icon={<AddIcon />} onClick={onCreateBusinessOpen}>
+            + Criar nova empresa
+          </MenuItem>
         </MenuList>
       </Menu>
     );
@@ -331,6 +364,33 @@ const Dashboard = ({ initialTab = 0 }) => {
           <ModalFooter>
             <Button variant="ghost" mr={3} onClick={onProfileClose}>Cancelar</Button>
             <Button colorScheme="brand" onClick={handleSaveProfile}>Salvar</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Modal Criar Empresa */}
+      <Modal isOpen={isCreateBusinessOpen} onClose={onCreateBusinessClose} isCentered size="md">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Criar Nova Empresa</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <FormControl isRequired>
+              <FormLabel>Nome da Empresa</FormLabel>
+              <Input
+                placeholder="Ex: Minha Nova Loja"
+                value={newBusinessName}
+                onChange={(e) => setNewBusinessName(e.target.value)}
+              />
+            </FormControl>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onCreateBusinessClose} isDisabled={isCreatingBusiness}>
+              Cancelar
+            </Button>
+            <Button colorScheme="brand" onClick={handleCreateBusiness} isLoading={isCreatingBusiness}>
+              Salvar
+            </Button>
           </ModalFooter>
         </ModalContent>
       </Modal>

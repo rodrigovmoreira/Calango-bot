@@ -47,6 +47,7 @@ export const authAPI = {
 // --- Rotas de Negócio (Dashboard) ---
 export const businessAPI = {
   // 1. Configurações Gerais (Atualizado para /api/business)
+  createBusiness: (data) => api.post('/api/business/create', data),
   getConfig: () => api.get('/api/business/config'),
   updateConfig: (data) => api.put('/api/business/config', data),
   getTeam: () => api.get('/api/business/team'),
