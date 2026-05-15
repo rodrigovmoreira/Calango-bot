@@ -70,7 +70,10 @@ const TeamTab = () => {
     setRole('operator');
   };
 
-  const isAdmin = state.user?.businesses?.find(b => b.businessId === state.user.activeBusinessId)?.role === 'admin';
+  const isAdmin = state.user?.businesses?.find(b => {
+    const id = b.businessId?._id || b.businessId;
+    return id === state.user?.activeBusinessId;
+  })?.role === 'admin';
 
   if (isLoading) {
     return (
