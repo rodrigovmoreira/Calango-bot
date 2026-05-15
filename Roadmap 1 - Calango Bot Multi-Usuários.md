@@ -42,6 +42,28 @@ Objetivo: Permitir a alternância fluida entre diferentes instâncias do SaaS pa
 
 [ ] 3.6 Frontend/Backend: Sincronização de Sockets em Tempo Real (frontend/src/context/AppContext.jsx): Incluir state.user.activeBusinessId no array de dependências do hook useEffect do Socket.io. Emitir os eventos adequados para sair da sala (room) do negócio antigo e entrar na escuta da sala do novo negócio, evitando recebimento de mensagens cruzadas no chat público.
 
+[ ] 3.7 Backend: Rota de Criação de Novo Ambiente (backend/routes/businessRoutes.js)
+Criar um endpoint POST /api/business/create. A função deve:
+Receber o nome da nova empresa (businessName).
+Instanciar e salvar um novo documento BusinessConfig (com configurações, tags e colunas de funil padrão).
+Buscar o usuário logado (req.user.userId), dar um .push no array businesses com { businessId: novo_id, role: 'admin' }.
+Atualizar o activeBusinessId do usuário para essa nova empresa.
+Gerar e retornar um novo token JWT (exatamente como fizemos no switch-business), além dos dados atualizados do usuário com o .populate para que o frontend já conheça o nome da nova empresa.
+
+[ ] 3.8 Frontend: Método na API (frontend/src/services/api.js)
+Adicionar a chamada para o novo endpoint no objeto responsável (ex: businessAPI), passando os dados necessários.
+
+[ ] 3.9 Frontend: Opção no Menu e Modal (Header/BusinessSwitcher.jsx)
+Utilizando o Chakra UI, adicionar um separador visual e a nova opção de criação.
+Inserir um <MenuDivider /> no final do mapeamento das empresas atuais.
+Adicionar um <MenuItem icon={<AddIcon />}> + Criar nova empresa </MenuItem>.
+Ao clicar, abrir um Modal simples contendo um campo de texto (Input) para o "Nome do Novo Negócio" e um botão de confirmação.
+
+[ ] 3.10 Frontend: Fluxo de Transição Visual (Header/BusinessSwitcher.jsx)
+Tratar a resposta de sucesso da criação copiando o comportamento do switch. Ao receber o HTTP 200:
+Sobrescrever o localStorage com o novo token e usuário.
+Fechar o modal e disparar o recarregamento seguro (window.location.href = '/dashboard'). Isso limpa o cache da tela e já faz o usuário "acordar" dentro da nova empresa, pronto para usar a aba de equipe.
+
 🎯 Ponto 4: Atribuição de Responsável (O "Dono do Lead")
 Objetivo: Organizar quem atende quem e evitar colisões no funil de vendas.
 
