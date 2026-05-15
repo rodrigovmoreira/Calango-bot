@@ -3,18 +3,18 @@ import {
   Box, Flex, Heading, Text, Button, VStack, HStack,
   useToast, useColorModeValue, FormControl, FormLabel, Input,
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalFooter, ModalBody, ModalCloseButton,
-  useDisclosure, Menu, MenuButton, MenuList, MenuItem, Avatar, IconButton, Spinner, Center
+  useDisclosure, Menu, MenuButton, MenuList, MenuItem, MenuDivider, Avatar, IconButton, Spinner, Center
 } from '@chakra-ui/react';
 import {
-  EditIcon, WarningTwoIcon, ChevronDownIcon,
+  EditIcon, WarningTwoIcon, ChevronDownIcon, AddIcon
 } from '@chakra-ui/icons';
 import { FaUsers } from 'react-icons/fa';
 import { useApp } from '../context/AppContext';
-import { authAPI } from '../services/api';
+import { authAPI, businessAPI } from '../services/api';
 import { uploadFileToFirebase } from '../utils/uploadHelper';
 
 // Imported Components
-import { Sidebar, LinkItems, MobileNav } from '../components/Sidebar';
+import { Sidebar, MobileNav } from '../components/Sidebar';
 
 // Lazy Loaded Components for Performance Optimization
 const OverviewTab = lazy(() => import('../components/dashboard-tabs/OverviewTab'));
@@ -39,10 +39,13 @@ const Dashboard = ({ initialTab = 0 }) => {
 
   // Global Modals
   const { isOpen: isProfileOpen, onOpen: onProfileOpen, onClose: onProfileClose } = useDisclosure();
+  const { isOpen: isCreateBusinessOpen, onOpen: onCreateBusinessOpen, onClose: onCreateBusinessClose } = useDisclosure();
   const { isOpen: isSidebarOpen, onOpen: onSidebarOpen, onClose: onSidebarClose } = useDisclosure();
 
   // Navigation State
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [newBusinessName, setNewBusinessName] = useState('');
+  const [isCreatingBusiness, setIsCreatingBusiness] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
 
   // Profile Data
@@ -51,14 +54,75 @@ const Dashboard = ({ initialTab = 0 }) => {
   // Sync Profile
   useEffect(() => {
     if (state.user) {
+      // Find the current business name from user's populated businesses array or fallback
+      let currentBusinessName = 'Minha Empresa';
+      if (state.user.businesses && state.user.activeBusinessId) {
+        const b = state.user.businesses.find(b => {
+          const bId = b.businessId._id ? b.businessId._id.toString() : b.businessId.toString();
+          return bId === state.user.activeBusinessId.toString();
+        });
+        if (b && b.businessId.businessName) {
+           currentBusinessName = b.businessId.businessName;
+        }
+      }
+
+      // Override with state.businessConfig if available as it is the real time source of truth
+      if (state.businessConfig?.businessName) {
+         currentBusinessName = state.businessConfig.businessName;
+      }
+
       setProfileData({
         name: state.user.name || '',
         email: state.user.email || '',
-        company: state.businessConfig?.businessName || 'Minha Empresa',
+        company: currentBusinessName,
         avatarUrl: state.user.avatarUrl || ''
       });
     }
   }, [state.user, state.businessConfig]);
+
+  const handleSwitchBusiness = async (targetBusinessId) => {
+    try {
+      const { data } = await authAPI.switchBusiness(targetBusinessId);
+
+      // Update local storage
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+
+      toast({ title: 'Trocando de empresa...', status: 'info', duration: 2000 });
+
+      // Force reload to root dashboard to avoid state leakage
+      window.location.href = '/dashboard';
+    } catch (error) {
+      console.error('Erro ao trocar de empresa:', error);
+      toast({ title: 'Erro ao trocar de empresa', status: 'error' });
+    }
+  };
+
+  const handleCreateBusiness = async () => {
+    if (!newBusinessName.trim()) {
+      toast({ title: 'O nome da empresa é obrigatório.', status: 'warning' });
+      return;
+    }
+    try {
+      setIsCreatingBusiness(true);
+      const { data } = await businessAPI.createBusiness({ businessName: newBusinessName });
+
+      // Update local storage with new context
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+
+      toast({ title: 'Empresa criada com sucesso!', status: 'success', duration: 2000 });
+      onCreateBusinessClose();
+
+      // Force reload to avoid state leakage and initialize new context
+      window.location.href = '/dashboard';
+    } catch (error) {
+      console.error('Erro ao criar empresa:', error);
+      toast({ title: 'Erro ao criar empresa', status: 'error' });
+    } finally {
+      setIsCreatingBusiness(false);
+    }
+  };
 
   const handleLogoutSystem = async () => {
     const confirm = window.confirm("Ao sair, o Robô do WhatsApp será desligado para economizar recursos. Deseja continuar?");
@@ -111,6 +175,41 @@ const Dashboard = ({ initialTab = 0 }) => {
     }
   };
 
+  // Business Selector Component
+  const BusinessSelector = () => {
+    return (
+      <Menu>
+        <MenuButton as={Button} variant="ghost" rightIcon={<ChevronDownIcon />} size="md" px={2}>
+          <Heading size="sm" color={useColorModeValue("gray.700", "white")} maxW="200px" isTruncated>
+            {profileData.company}
+          </Heading>
+        </MenuButton>
+        <MenuList maxH="300px" overflowY="auto">
+          {state.user?.businesses?.map((b) => {
+            const bId = b.businessId._id ? b.businessId._id.toString() : b.businessId.toString();
+            const bName = b.businessId.businessName || 'Empresa Sem Nome';
+            const isActive = bId === state.user?.activeBusinessId;
+
+            return (
+              <MenuItem
+                key={bId}
+                onClick={() => !isActive && handleSwitchBusiness(bId)}
+                isDisabled={isActive}
+                fontWeight={isActive ? "bold" : "normal"}
+              >
+                {bName} {isActive ? "(Atual)" : ""}
+              </MenuItem>
+            );
+          })}
+          <MenuDivider />
+          <MenuItem icon={<AddIcon />} onClick={onCreateBusinessOpen}>
+            Criar nova empresa
+          </MenuItem>
+        </MenuList>
+      </Menu>
+    );
+  };
+
   // Profile Menu Component
   const ProfileMenu = (
     <Menu>
@@ -156,7 +255,7 @@ const Dashboard = ({ initialTab = 0 }) => {
       {/* Navbar Mobile Customizada (Com Avatar e Menu) - Moved outside content Box for better stacking context */}
       <MobileNav
         onOpen={onSidebarOpen}
-        title={LinkItems[activeTab]?.name || 'Painel'}
+        title={<BusinessSelector />}
       >
         {ProfileMenu}
       </MobileNav>
@@ -181,10 +280,8 @@ const Dashboard = ({ initialTab = 0 }) => {
           borderRadius="lg"
           boxShadow="sm"
         >
-          {/* Lado Esquerdo: Nome da Empresa */}
-          <Heading size="md" color={useColorModeValue("gray.700", "white")}>
-            {profileData.company}
-          </Heading>
+          {/* Lado Esquerdo: Dropdown de Empresas */}
+          <BusinessSelector />
 
           {/* Lado Direito: Menu do Usuário */}
           <Menu>
@@ -267,6 +364,33 @@ const Dashboard = ({ initialTab = 0 }) => {
           <ModalFooter>
             <Button variant="ghost" mr={3} onClick={onProfileClose}>Cancelar</Button>
             <Button colorScheme="brand" onClick={handleSaveProfile}>Salvar</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Modal Criar Empresa */}
+      <Modal isOpen={isCreateBusinessOpen} onClose={onCreateBusinessClose} isCentered size="md">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Criar Nova Empresa</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <FormControl isRequired>
+              <FormLabel>Nome da Empresa</FormLabel>
+              <Input
+                placeholder="Ex: Minha Nova Loja"
+                value={newBusinessName}
+                onChange={(e) => setNewBusinessName(e.target.value)}
+              />
+            </FormControl>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onCreateBusinessClose} isDisabled={isCreatingBusiness}>
+              Cancelar
+            </Button>
+            <Button colorScheme="brand" onClick={handleCreateBusiness} isLoading={isCreatingBusiness}>
+              Salvar
+            </Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
