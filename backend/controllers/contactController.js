@@ -170,11 +170,14 @@ const importContacts = async (req, res) => {
                 continue;
             }
 
+            const waId = `${phone}@c.us`;
+
             let contact = await Contact.findOne({ businessId, phone });
 
             if (contact) {
                 if (name) contact.name = name;
                 if (email) contact.email = email;
+                contact.whatsappId = waId;
                 if (tagsRaw) {
                     const newTags = String(tagsRaw).split(',').map(t => t.trim()).filter(t => t);
                     contact.tags = [...new Set([...contact.tags, ...newTags])];
@@ -186,6 +189,7 @@ const importContacts = async (req, res) => {
                 await Contact.create({
                     businessId,
                     phone,
+                    whatsappId: waId,
                     name: name || 'Desconhecido',
                     email,
                     tags,
