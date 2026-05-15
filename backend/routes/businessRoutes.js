@@ -1,4 +1,5 @@
 import express from 'express';
+import jwt from 'jsonwebtoken';
 const router = express.Router();
 import BusinessConfig from '../models/BusinessConfig.js';
 import IndustryPreset from '../models/IndustryPreset.js';
@@ -12,6 +13,79 @@ import { sendWWebJSMessage } from '../services/wwebjsService.js';
 import axios from 'axios';
 
 // === CONFIGURAÇÕES GERAIS ===
+
+// POST /api/business/create
+router.post('/create', authenticateToken, async (req, res) => {
+  try {
+    const { businessName } = req.body;
+    const userId = req.user.userId;
+
+    if (!businessName || businessName.trim() === '') {
+      return res.status(400).json({ message: 'Nome da empresa é obrigatório.' });
+    }
+
+    // 1. Instancie e salve um novo documento BusinessConfig utilizando o businessName fornecido
+    const newConfig = await BusinessConfig.create({
+      businessName: businessName.trim(),
+      prompts: {
+        chatSystem: "Você é um assistente virtual útil.",
+        visionSystem: "Descreva o que vê."
+      }
+    });
+
+    // 2. Busque o usuário que fez a requisição
+    const user = await SystemUser.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'Usuário não encontrado.' });
+    }
+
+    // 3. Faça um .push no array businesses do usuário
+    user.businesses.push({ businessId: newConfig._id, role: 'admin' });
+
+    // 4. Atualize o activeBusinessId do usuário para o ID desta nova empresa
+    user.activeBusinessId = newConfig._id;
+
+    await user.save();
+
+    // Populamos para retornar com o nome da empresa
+    await user.populate('businesses.businessId', 'businessName');
+
+    // 5. Gere um novo token JWT contendo o novo activeBusinessId e a role admin
+    const token = jwt.sign(
+      {
+        userId: user._id,
+        activeBusinessId: user.activeBusinessId,
+        role: 'admin'
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.cookie('auth_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      sameSite: 'lax'
+    });
+
+    // 6. Retorne o novo token e o documento do usuário atualizado
+    res.status(201).json({
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        avatarUrl: user.avatarUrl,
+        activeBusinessId: user.activeBusinessId,
+        businesses: user.businesses
+      }
+    });
+
+  } catch (error) {
+    console.error('Erro ao criar empresa:', error);
+    res.status(500).json({ message: 'Erro interno ao criar empresa.' });
+  }
+});
 
 // GET /api/business/tags
 router.get('/tags', authenticateToken, async (req, res) => {
