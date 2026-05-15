@@ -74,7 +74,13 @@ router.post('/login', loginLimiter, async (req, res) => {
       sameSite: 'lax'
     });
 
-    res.json({ token, user: { id: user._id, name: user.name, email: user.email, avatarUrl: user.avatarUrl, activeBusinessId: user.activeBusinessId, businesses: user.businesses } });
+    const formattedBusinesses = user.businesses.map(b => ({
+      businessId: b.businessId ? (b.businessId._id || b.businessId) : null,
+      businessName: b.businessId && b.businessId.businessName ? b.businessId.businessName : 'Empresa',
+      role: b.role || 'operator'
+    }));
+
+    res.json({ token, user: { id: user._id, name: user.name, email: user.email, avatarUrl: user.avatarUrl, activeBusinessId: user.activeBusinessId, businesses: formattedBusinesses } });
   } catch (error) {
     console.error('Erro login:', error);
     res.status(500).json({ message: 'Erro interno' });
@@ -112,7 +118,7 @@ router.post('/register', registerLimiter, async (req, res) => {
 
     if (invite) {
       // CENÁRIO 1: USUÁRIO CONVIDADO (Não cria empresa, apenas herda o ID)
-      user.businesses = [{ businessId: invite.businessId, role: invite.role }];
+      user.businesses.push({ businessId: invite.businessId, role: invite.role });
       user.activeBusinessId = invite.businessId;
       
       invite.status = 'used';
@@ -126,7 +132,7 @@ router.post('/register', registerLimiter, async (req, res) => {
           visionSystem: "Descreva o que vê."
         }
       });
-      user.businesses = [{ businessId: newConfig._id, role: 'admin' }];
+      user.businesses.push({ businessId: newConfig._id, role: 'admin' });
       user.activeBusinessId = newConfig._id;
     }
 
@@ -160,6 +166,12 @@ router.post('/register', registerLimiter, async (req, res) => {
     res.cookie('auth_token', token, { httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000 });
     
     // Retorna os dados corretos pro frontend
+    const formattedBusinesses = user.businesses.map(b => ({
+      businessId: b.businessId ? (b.businessId._id || b.businessId) : null,
+      businessName: b.businessId && b.businessId.businessName ? b.businessId.businessName : 'Empresa',
+      role: b.role || 'operator'
+    }));
+
     res.status(201).json({ 
       token, 
       user: { 
@@ -167,7 +179,7 @@ router.post('/register', registerLimiter, async (req, res) => {
         name: user.name, 
         email: user.email, 
         activeBusinessId: user.activeBusinessId, 
-        businesses: user.businesses 
+        businesses: formattedBusinesses
       } 
     });
   } catch (error) {
@@ -240,13 +252,19 @@ router.get('/google/callback',
       const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
 
       // We pass user info too, url encoded
+      const formattedBusinesses = user.businesses.map(b => ({
+        businessId: b.businessId ? (b.businessId._id || b.businessId) : null,
+        businessName: b.businessId && b.businessId.businessName ? b.businessId.businessName : 'Empresa',
+        role: b.role || 'operator'
+      }));
+
       const userData = encodeURIComponent(JSON.stringify({
         id: user._id,
         name: user.name,
         email: user.email,
         avatarUrl: user.avatarUrl,
         activeBusinessId: user.activeBusinessId,
-        businesses: user.businesses
+        businesses: formattedBusinesses
       }));
 
       res.redirect(`${frontendUrl}/google-callback?token=${token}&user=${userData}`);
@@ -298,6 +316,12 @@ router.post('/switch-business', authenticateToken, async (req, res) => {
       sameSite: 'lax'
     });
 
+    const formattedBusinesses = user.businesses.map(b => ({
+      businessId: b.businessId ? (b.businessId._id || b.businessId) : null,
+      businessName: b.businessId && b.businessId.businessName ? b.businessId.businessName : 'Empresa',
+      role: b.role || 'operator'
+    }));
+
     res.json({
       token,
       user: {
@@ -306,7 +330,7 @@ router.post('/switch-business', authenticateToken, async (req, res) => {
         email: user.email,
         avatarUrl: user.avatarUrl,
         activeBusinessId: user.activeBusinessId,
-        businesses: user.businesses
+        businesses: formattedBusinesses
       }
     });
   } catch (error) {

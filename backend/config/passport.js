@@ -52,7 +52,7 @@ passport.use(
           }
         });
 
-        user.businesses = [{ businessId: newConfig._id, role: 'admin' }];
+        user.businesses.push({ businessId: newConfig._id, role: 'admin' });
         user.activeBusinessId = newConfig._id;
         await user.save();
 
