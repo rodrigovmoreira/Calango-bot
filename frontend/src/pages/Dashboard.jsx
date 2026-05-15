@@ -14,7 +14,7 @@ import { authAPI, businessAPI } from '../services/api';
 import { uploadFileToFirebase } from '../utils/uploadHelper';
 
 // Imported Components
-import { Sidebar, LinkItems, MobileNav } from '../components/Sidebar';
+import { Sidebar, MobileNav } from '../components/Sidebar';
 
 // Lazy Loaded Components for Performance Optimization
 const OverviewTab = lazy(() => import('../components/dashboard-tabs/OverviewTab'));
@@ -203,7 +203,7 @@ const Dashboard = ({ initialTab = 0 }) => {
           })}
           <MenuDivider />
           <MenuItem icon={<AddIcon />} onClick={onCreateBusinessOpen}>
-            + Criar nova empresa
+            Criar nova empresa
           </MenuItem>
         </MenuList>
       </Menu>
