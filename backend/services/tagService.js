@@ -176,16 +176,23 @@ const createTag = async (businessId, tagData) => {
         let tag = await Tag.findOne({ businessId, name: { $regex: new RegExp(`^${escapedName}$`, 'i') } });
 
         if (tag) {
-            if (whatsappId) tag.whatsappId = whatsappId;
+            if (whatsappId) {
+                tag.whatsappId = whatsappId;
+            } else {
+                tag.whatsappId = undefined; // Prevent saving null
+            }
             tag.color = finalColor;
             await tag.save();
         } else {
-            tag = await Tag.create({
+            const newTagPayload = {
                 businessId,
                 name: waLabel ? waLabel.name : name, // Use WA name if available, else requested name
-                whatsappId,
                 color: finalColor
-            });
+            };
+            if (whatsappId) {
+                newTagPayload.whatsappId = whatsappId;
+            }
+            tag = await Tag.create(newTagPayload);
         }
 
         return tag;

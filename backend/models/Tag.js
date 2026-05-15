@@ -28,7 +28,10 @@ const tagSchema = new mongoose.Schema({
 // Ensure unique tag names per business
 tagSchema.index({ businessId: 1, name: 1 }, { unique: true });
 
-// Ensure unique WhatsApp IDs per business (allows multiple nulls for local tags)
-tagSchema.index({ businessId: 1, whatsappId: 1 }, { unique: true, sparse: true });
+// Ensure unique WhatsApp IDs per business (ignores non-string values like undefined/null)
+tagSchema.index(
+  { businessId: 1, whatsappId: 1 },
+  { unique: true, partialFilterExpression: { whatsappId: { $type: 'string' } } }
+);
 
 export default mongoose.model('Tag', tagSchema);
