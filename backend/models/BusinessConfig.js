@@ -24,7 +24,7 @@ const businessConfigSchema = new mongoose.Schema({
   avatarUrl: { type: String }, // <--- ADICIONADO: URL do avatar/logo do negócio
   businessType: { type: String }, // <--- ADICIONADO: Identifica o nicho (ex: Barber, Tattoo)
   whatsappProvider: { type: String, enum: ['twilio', 'wwebjs'], default: 'wwebjs' },
-  phoneNumber: { type: String, unique: true, sparse: true }, // <--- ADICIONADO: Número do WhatsApp para roteamento de Webhook
+  phoneNumber: { type: String }, // <--- ADICIONADO: Número do WhatsApp para roteamento de Webhook
 
   timezone: { type: String, default: 'America/Sao_Paulo' }, // <--- NOVO: Timezone do Negócio
   minSchedulingNoticeMinutes: { type: Number, default: 60 }, // <--- NOVO: Antecedência mínima para agendamento
@@ -143,5 +143,11 @@ const businessConfigSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 }, { optimisticConcurrency: true });
+
+// Ensure unique phone numbers globally, ignoring non-string values
+businessConfigSchema.index(
+  { phoneNumber: 1 },
+  { unique: true, partialFilterExpression: { phoneNumber: { $type: 'string' } } }
+);
 
 export default mongoose.model('BusinessConfig', businessConfigSchema);
