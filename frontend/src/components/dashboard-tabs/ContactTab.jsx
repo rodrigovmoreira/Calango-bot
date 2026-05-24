@@ -7,7 +7,7 @@ import {
 } from '@chakra-ui/react';
 import { AddIcon, SearchIcon } from '@chakra-ui/icons';
 import { FaFileImport } from 'react-icons/fa';
-import { contactAPI } from '../../services/api';
+import { businessAPI } from '../../services/api';
 import TagAutocomplete from '../Tags/TagAutocomplete';
 import ImportModal from '../crm/ImportModal';
 
@@ -29,7 +29,7 @@ const ContactTab = () => {
   const fetchContacts = async () => {
     try {
       setIsLoading(true);
-      const response = await contactAPI.getContacts();
+      const response = await businessAPI.getContacts();
       setContacts(response.data);
       setFilteredContacts(response.data);
     } catch (error) {
@@ -62,7 +62,7 @@ const ContactTab = () => {
     }
     try {
       setIsSubmitting(true);
-      await contactAPI.createContact(formData);
+      await businessAPI.createContact(formData);
       toast({ title: 'Contato criado com sucesso!', status: 'success' });
       onClose();
       setFormData({ name: '', phone: '', tags: [] });
