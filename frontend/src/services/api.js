@@ -109,9 +109,13 @@ export const businessAPI = {
   sendMessage: (contactId, message) => api.post(`/api/business/conversations/${contactId}/messages`, { message }), // <--- NOVO: Send as Agent
   clearHistory: (contactId) => api.delete(`/api/business/conversations/${contactId}/messages`), // <--- NOVO
 
+};
+
+export const contactAPI = {
   // 7. Contatos (Active CRM)
   getContacts: () => api.get('/api/contacts'),
   getTags: () => api.get('/api/contacts/tags'),
+  createContact: (data) => api.post('/api/contacts', data),
   updateContact: (id, data) => api.put(`/api/contacts/${id}`, data),
   assignContact: (id, userId, __v) => api.patch(`/api/contacts/${id}/assign`, { assignedTo: userId, __v }), // <--- NOVO: Atribuir contato (Ponto 3)
   importContacts: (formData) => api.post('/api/contacts/import', formData),

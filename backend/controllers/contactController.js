@@ -352,9 +352,51 @@ const syncContacts = async (req, res) => {
     }
 };
 
+const createContact = async (req, res) => {
+    try {
+        const businessId = req.user.activeBusinessId;
+        if (!businessId) {
+            return res.status(404).json({ message: 'Business configuration not found' });
+        }
+
+        const { name, phone, tags } = req.body;
+
+        if (!phone) {
+            return res.status(400).json({ message: 'O número de telefone é obrigatório.' });
+        }
+
+        const cleanPhone = String(phone).replace(/\D/g, '');
+        const waId = `${cleanPhone}@c.us`;
+
+        const existingContact = await Contact.findOne({ businessId, phone: cleanPhone });
+
+        if (existingContact) {
+            return res.status(409).json({ message: 'Este contato já existe na sua base.' });
+        }
+
+        const newContact = await Contact.create({
+            businessId,
+            phone: cleanPhone,
+            whatsappId: waId,
+            name: name || 'Desconhecido',
+            tags: tags || [],
+            channel: 'whatsapp',
+            followUpStage: 0,
+            dealValue: 0,
+            funnelStage: 'new'
+        });
+
+        res.status(201).json(newContact);
+    } catch (error) {
+        console.error('Error creating contact:', error);
+        res.status(500).json({ message: 'Erro ao criar contato' });
+    }
+};
+
 export {
     getContacts,
     getContact,
+    createContact,
     updateContact,
     importContacts,
     syncContacts

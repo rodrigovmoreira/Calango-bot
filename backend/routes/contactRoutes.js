@@ -60,6 +60,9 @@ router.post('/import', authenticateToken, upload.single('file'), contactControll
 // Get single contact
 router.get('/:id', authenticateToken, contactController.getContact);
 
+// Create single contact
+router.post('/', authenticateToken, contactController.createContact);
+
 // Update contact
 router.put('/:id', authenticateToken, contactController.updateContact);
 
