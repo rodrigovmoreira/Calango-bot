@@ -10,13 +10,15 @@ import { AddIcon, EditIcon, DeleteIcon, TimeIcon, CalendarIcon } from '@chakra-u
 // Using direct axios for this specific module as it is not fully integrated into standard services yet,
 // but auth headers are handled carefully.
 import axios from 'axios';
-import { SmallCloseIcon, ViewIcon } from '@chakra-ui/icons';
+import { SmallCloseIcon, ViewIcon, AttachmentIcon } from '@chakra-ui/icons';
 import CampaignAudienceModal from '../campaigns/CampaignAudienceModal';
 import TagAutocomplete from '../Tags/TagAutocomplete';
+import { uploadFileToFirebase } from '../../utils/uploadHelper';
 
 const CampaignTab = () => {
   const [campaigns, setCampaigns] = useState([]);
   const [currentCampaign, setCurrentCampaign] = useState(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   // Modal states
   const { isOpen, onOpen, onClose } = useDisclosure(); // Edit/Create Modal
@@ -139,7 +141,8 @@ const CampaignTab = () => {
           triggerType: campaign.triggerType || 'time',
           eventOffset: campaign.eventOffset !== undefined ? campaign.eventOffset : 60,
           eventTargetStatus: campaign.eventTargetStatus || ['scheduled', 'confirmed'],
-          ui_offsetUnit
+          ui_offsetUnit,
+          imageUrl: campaign.imageUrl || ''
       });
     } else {
       setCurrentCampaign({
@@ -148,6 +151,7 @@ const CampaignTab = () => {
         type: 'broadcast',
         targetTags: [], // Initialize as empty array
         message: '',
+        imageUrl: '',
         isActive: true,
         triggerType: 'time',
         eventOffset: 60,
@@ -158,6 +162,24 @@ const CampaignTab = () => {
       });
     }
     onOpen();
+  };
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      setIsUploadingImage(true);
+      const { imageUrl } = await uploadFileToFirebase(file, 'campaigns');
+      setCurrentCampaign(prev => ({ ...prev, imageUrl }));
+      toast({ title: 'Imagem enviada com sucesso', status: 'success' });
+    } catch (error) {
+      console.error('Erro ao enviar imagem da campanha:', error);
+      toast({ title: 'Erro ao enviar imagem', description: error.message, status: 'error' });
+    } finally {
+      setIsUploadingImage(false);
+      e.target.value = null; // reset input
+    }
   };
 
   const toggleTag = (tag) => {
@@ -414,6 +436,44 @@ const CampaignTab = () => {
                                 <Radio value="ai_prompt">Gerado por IA (Dinâmico)</Radio>
                             </Stack>
                         </RadioGroup>
+                    </FormControl>
+
+                    {/* Image Upload */}
+                    <FormControl>
+                        <FormLabel>Imagem da Campanha (Opcional)</FormLabel>
+                        <HStack>
+                            <Input
+                                type="file"
+                                accept="image/*"
+                                display="none"
+                                id="campaign-image-upload"
+                                onChange={handleImageUpload}
+                            />
+                            <Button
+                                as="label"
+                                htmlFor="campaign-image-upload"
+                                leftIcon={<AttachmentIcon />}
+                                isLoading={isUploadingImage}
+                                cursor="pointer"
+                            >
+                                Anexar Imagem
+                            </Button>
+                            {currentCampaign?.imageUrl && (
+                                <Box position="relative">
+                                    <Box as="img" src={currentCampaign.imageUrl} maxH="50px" borderRadius="md" />
+                                    <IconButton
+                                        icon={<SmallCloseIcon />}
+                                        size="xs"
+                                        colorScheme="red"
+                                        position="absolute"
+                                        top="-2"
+                                        right="-2"
+                                        onClick={() => setCurrentCampaign({ ...currentCampaign, imageUrl: '' })}
+                                        aria-label="Remover imagem"
+                                    />
+                                </Box>
+                            )}
+                        </HStack>
                     </FormControl>
 
                     <FormControl isRequired>

@@ -27,6 +27,7 @@ const LiveChatTab = lazy(() => import('../components/dashboard-tabs/LiveChatTab'
 const ScheduleTab = lazy(() => import('../components/ScheduleTab'));
 const SalesFunnel = lazy(() => import('./SalesFunnel'));
 const TeamTab = lazy(() => import('../components/dashboard-tabs/TeamTab'));
+const ContactsTab = lazy(() => import('../components/dashboard-tabs/ContactsTab'));
 
 const Dashboard = ({ initialTab = 0 }) => {
   const { state, dispatch } = useApp();
@@ -240,6 +241,11 @@ const Dashboard = ({ initialTab = 0 }) => {
     </Center>
   );
 
+  const currentRole = state.user?.businesses?.find(b => {
+    const id = b.businessId?._id || b.businessId;
+    return id === state.user?.activeBusinessId;
+  })?.role || 'operator';
+
   return (
     <Box minH="100vh" bg={mainBg}>
       {/* Unified Sidebar (Handles Desktop Fixed & Mobile Drawer) */}
@@ -250,6 +256,7 @@ const Dashboard = ({ initialTab = 0 }) => {
         setActiveTab={setActiveTab}
         isCollapsed={isCollapsed}
         toggleCollapse={() => setIsCollapsed(!isCollapsed)}
+        userRole={currentRole}
       />
 
       {/* Navbar Mobile Customizada (Com Avatar e Menu) - Moved outside content Box for better stacking context */}
@@ -311,6 +318,7 @@ const Dashboard = ({ initialTab = 0 }) => {
           {activeTab === 7 && <ScheduleTab />}
           {activeTab === 8 && <SalesFunnel />}
           {activeTab === 9 && <TeamTab />}
+          {activeTab === 10 && <ContactsTab />}
         </Suspense>
 
       </Box>

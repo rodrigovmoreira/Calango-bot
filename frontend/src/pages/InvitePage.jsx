@@ -109,7 +109,7 @@ const InvitePage = () => {
               <Avatar size="xl" name={invite.businessId?.businessName} src={invite.businessId?.avatarUrl} mb={2} />
               <Heading size="lg">Você foi convidado!</Heading>
               <Text color="gray.500">
-                Para fazer parte da equipe de <strong>{invite.businessId?.businessName}</strong> como {invite.role === 'admin' ? 'Administrador' : 'Operador'}.
+                Para fazer parte da equipe de <strong>{invite.businessId?.businessName}</strong> como {invite.role === 'admin' ? 'Administrador' : invite.role === 'campaign_manager' ? 'Gestor de Campanhas' : 'Operador'}.
               </Text>
             </VStack>
 

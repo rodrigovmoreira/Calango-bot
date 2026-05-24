@@ -13,7 +13,7 @@ const inviteSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['admin', 'operator'],
+    enum: ['admin', 'operator', 'campaign_manager'],
     required: true,
     default: 'operator'
   },

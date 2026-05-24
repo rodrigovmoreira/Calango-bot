@@ -7,6 +7,7 @@ import Appointment from '../models/Appointment.js';
 import BusinessConfig from '../models/BusinessConfig.js';
 import { callDeepSeek } from './aiService.js';
 import { sendUnifiedMessage } from './responseService.js';
+import { sendImage } from './wwebjsService.js';
 import { getLastMessages } from './message.js';
 
 // Runs every minute to check for triggers
@@ -134,6 +135,8 @@ async function processTimeCampaign(campaign) {
 
   // 3. Process Batch
   const BATCH_SIZE = 50;
+  let currentDelayOffset = 0;
+
   for (let i = 0; i < contacts.length; i += BATCH_SIZE) {
     const batch = contacts.slice(i, i + BATCH_SIZE);
     
@@ -141,7 +144,8 @@ async function processTimeCampaign(campaign) {
     // We do sequential dispatch per batch to not overload, but parallel inside batch could be an option.
     // Sticking to sequential for safety with AI rate limits.
     for (const contact of batch) {
-      await dispatchCampaign(campaign, contact, null, config);
+      await dispatchCampaign(campaign, contact, null, config, currentDelayOffset);
+      currentDelayOffset += 10000; // Increment offset by 10 seconds for each subsequent dispatch
     }
   }
 
@@ -176,6 +180,8 @@ async function processEventCampaign(campaign) {
 
   console.log(`📅 Found ${appointments.length} appointments for EVENT campaign: ${campaign.name}`);
 
+  let currentDelayOffset = 0;
+
   for (const appt of appointments) {
     // Find or create temp contact wrapper
     let contact = await Contact.findOne({ businessId: config._id, phone: appt.clientPhone });
@@ -197,11 +203,12 @@ async function processEventCampaign(campaign) {
       businessId: config._id
     };
 
-    await dispatchCampaign(campaign, targetContact, appt, config);
+    await dispatchCampaign(campaign, targetContact, appt, config, currentDelayOffset);
+    currentDelayOffset += 10000; // Increment offset by 10 seconds for each subsequent dispatch
   }
 }
 
-async function dispatchCampaign(campaign, contact, appointment, config) {
+async function dispatchCampaign(campaign, contact, appointment, config, baseDelayOffset = 0) {
   // --- AI GENERATION WITH HISTORY CONTEXT ---
   let messageToSend = campaign.message;
 
@@ -270,7 +277,7 @@ ${historyText || "No previous history."}
   // --- DISPATCH ---
   const minDelay = (campaign.delayRange?.min || 0) * 1000;
   const maxDelay = (campaign.delayRange?.max || 5) * 1000;
-  let delay = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay;
+  let delay = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay + baseDelayOffset;
   
   if (process.env.NODE_ENV === 'test') delay = 0;
 
@@ -278,7 +285,13 @@ ${historyText || "No previous history."}
 
   setTimeout(async () => {
     try {
-      const sent = await sendUnifiedMessage(contact.phone, messageToSend, 'wwebjs', campaign.businessId);
+      let sent = false;
+      if (campaign.imageUrl) {
+        sent = await sendImage(campaign.businessId, contact.phone, campaign.imageUrl, messageToSend);
+      } else {
+        sent = await sendUnifiedMessage(contact.phone, messageToSend, 'wwebjs', campaign.businessId);
+      }
+
       const status = sent ? 'sent' : 'failed';
 
       await CampaignLog.create({

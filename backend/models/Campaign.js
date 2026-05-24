@@ -24,6 +24,9 @@ const campaignSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  imageUrl: {
+    type: String
+  },
   contentMode: {
     type: String,
     enum: ['static', 'ai_prompt'],

@@ -70,10 +70,21 @@ const TeamTab = () => {
     setRole('operator');
   };
 
-  const isAdmin = state.user?.businesses?.find(b => {
+  const currentRole = state.user?.businesses?.find(b => {
     const id = b.businessId?._id || b.businessId;
     return id === state.user?.activeBusinessId;
-  })?.role === 'admin';
+  })?.role;
+
+  const isAdmin = currentRole === 'admin';
+  const isCampaignManager = currentRole === 'campaign_manager';
+  const canInvite = isAdmin || isCampaignManager;
+
+  // Set default role for campaign_manager to prevent inviting admins
+  useEffect(() => {
+    if (isCampaignManager && isOpen) {
+      setRole('campaign_manager');
+    }
+  }, [isCampaignManager, isOpen]);
 
   if (isLoading) {
     return (
@@ -88,7 +99,7 @@ const TeamTab = () => {
       <Card bg={cardBg} shadow="sm">
         <CardHeader display="flex" justifyContent="space-between" alignItems="center">
           <Heading size="md">Equipe</Heading>
-          {isAdmin && (
+          {canInvite && (
             <Button leftIcon={<AddIcon />} colorScheme="brand" onClick={onOpen}>
               Convidar Membro
             </Button>
@@ -112,8 +123,8 @@ const TeamTab = () => {
                   </Td>
                   <Td>{member.email}</Td>
                   <Td>
-                    <Badge colorScheme={member.role === 'admin' ? 'purple' : 'blue'}>
-                      {member.role === 'admin' ? 'Administrador' : 'Operador'}
+                    <Badge colorScheme={member.role === 'admin' ? 'purple' : member.role === 'campaign_manager' ? 'orange' : 'blue'}>
+                      {member.role === 'admin' ? 'Administrador' : member.role === 'campaign_manager' ? 'Gestor de Campanhas' : 'Operador'}
                     </Badge>
                   </Td>
                   <Td>Ativo</Td>
@@ -139,9 +150,17 @@ const TeamTab = () => {
               </Text>
               <FormControl>
                 <FormLabel>Papel (Nível de Acesso)</FormLabel>
-                <Select value={role} onChange={(e) => setRole(e.target.value)} isDisabled={isGenerating || inviteLink}>
-                  <option value="operator">Operador (Atendimento, Visualização)</option>
-                  <option value="admin">Administrador (Acesso Total)</option>
+                <Select value={role} onChange={(e) => setRole(e.target.value)} isDisabled={isGenerating || inviteLink || isCampaignManager}>
+                  {isAdmin && (
+                    <>
+                      <option value="operator">Operador (Atendimento, Visualização)</option>
+                      <option value="admin">Administrador (Acesso Total)</option>
+                      <option value="campaign_manager">Gestor de Campanhas</option>
+                    </>
+                  )}
+                  {isCampaignManager && (
+                    <option value="campaign_manager">Gestor de Campanhas</option>
+                  )}
                 </Select>
               </FormControl>
 

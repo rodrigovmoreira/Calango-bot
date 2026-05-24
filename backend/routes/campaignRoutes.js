@@ -87,7 +87,7 @@ router.get('/:id/audience', authenticateToken, async (req, res) => {
 router.post('/', authenticateToken, async (req, res) => {
   try {
     const {
-      name, targetTags, type, message, isActive, schedule, delayRange,
+      name, targetTags, type, message, imageUrl, isActive, schedule, delayRange,
       triggerType, eventOffset, eventTargetStatus
     } = req.body;
 
@@ -107,6 +107,7 @@ router.post('/', authenticateToken, async (req, res) => {
       targetTags,
       type,
       message,
+      imageUrl,
       isActive,
       schedule,
       delayRange,
@@ -127,10 +128,27 @@ router.post('/', authenticateToken, async (req, res) => {
 router.put('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
 
-    // Prevent updating userId
-    delete updates.businessId;
+    // Strict Whitelist to prevent mass assignment of sensitive internal fields
+    const {
+      name, targetTags, type, message, contentMode, isActive, triggerType,
+      eventOffset, eventTargetStatus, schedule, delayRange, imageUrl, __v
+    } = req.body;
+
+    const updates = {};
+    if (name !== undefined) updates.name = name;
+    if (targetTags !== undefined) updates.targetTags = targetTags;
+    if (type !== undefined) updates.type = type;
+    if (message !== undefined) updates.message = message;
+    if (contentMode !== undefined) updates.contentMode = contentMode;
+    if (isActive !== undefined) updates.isActive = isActive;
+    if (triggerType !== undefined) updates.triggerType = triggerType;
+    if (eventOffset !== undefined) updates.eventOffset = eventOffset;
+    if (eventTargetStatus !== undefined) updates.eventTargetStatus = eventTargetStatus;
+    if (schedule !== undefined) updates.schedule = schedule;
+    if (delayRange !== undefined) updates.delayRange = delayRange;
+    if (imageUrl !== undefined) updates.imageUrl = imageUrl;
+    if (__v !== undefined) updates.__v = __v;
 
     // Validate schedule if triggerType is time (or undefined, defaulting to time)
     // Note: In PUT, we need to check if triggerType is being updated or if it exists in DB.

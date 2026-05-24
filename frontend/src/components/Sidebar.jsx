@@ -24,18 +24,19 @@ import {
 } from '@chakra-ui/icons';
 import ColorModeToggle from './ColorModeToggle';
 
-import { FaBullhorn, FaFilter, FaHome } from 'react-icons/fa';
+import { FaBullhorn, FaFilter, FaHome, FaAddressBook } from 'react-icons/fa';
 
 const LinkItems = [
-  { name: 'Visão Geral', icon: FaHome, index: 0 },
-  { name: 'Conexão & Negócio', icon: SettingsIcon, index: 1 },
-  { name: 'Inteligência & Nicho', icon: StarIcon, index: 2 },
-  { name: 'Respostas Rápidas', icon: EditIcon, index: 3 },
-  { name: 'Catálogo', icon: AttachmentIcon, index: 4 },
-  { name: 'Campanhas', icon: FaBullhorn, index: 5, color: 'orange.500' }, // Reordered/Added
-  { name: 'Chat Ao vivo', icon: ChatIcon, index: 6, color: 'purple.500' },
-  { name: 'Agendamentos', icon: TimeIcon, index: 7, color: 'blue.500' },
-  { name: 'Funil de Vendas', icon: FaFilter, index: 8, color: 'teal.500' },
+  { name: 'Visão Geral', icon: FaHome, index: 0, roles: ['admin', 'operator'] },
+  { name: 'Conexão & Negócio', icon: SettingsIcon, index: 1, roles: ['admin', 'campaign_manager'] }, // Ajustado para campaign_manager ter acesso
+  { name: 'Inteligência & Nicho', icon: StarIcon, index: 2, roles: ['admin'] },
+  { name: 'Respostas Rápidas', icon: EditIcon, index: 3, roles: ['admin', 'operator'] },
+  { name: 'Catálogo', icon: AttachmentIcon, index: 4, roles: ['admin', 'operator'] },
+  { name: 'Campanhas', icon: FaBullhorn, index: 5, color: 'orange.500', roles: ['admin', 'campaign_manager'] },
+  { name: 'Chat Ao vivo', icon: ChatIcon, index: 6, color: 'purple.500', roles: ['admin', 'operator'] },
+  { name: 'Agendamentos', icon: TimeIcon, index: 7, color: 'blue.500', roles: ['admin', 'operator'] },
+  { name: 'Funil de Vendas', icon: FaFilter, index: 8, color: 'teal.500', roles: ['admin', 'operator'] },
+  { name: 'Contatos', icon: FaAddressBook, index: 10, color: 'green.500', roles: ['admin', 'operator', 'campaign_manager'] }, // Nova aba Contatos
 ];
 
 const NavItem = ({ icon, children, isActive, color, isCollapsed, ...rest }) => {
@@ -77,9 +78,15 @@ const NavItem = ({ icon, children, isActive, color, isCollapsed, ...rest }) => {
   );
 };
 
-export const SidebarContent = ({ onClose, activeTab, setActiveTab, isCollapsed = false, toggleCollapse, pos = 'fixed', ...rest }) => {
+export const SidebarContent = ({ onClose, activeTab, setActiveTab, isCollapsed = false, toggleCollapse, pos = 'fixed', userRole, ...rest }) => {
   const bg = useColorModeValue('white', 'gray.900');
   const borderRightColor = useColorModeValue('gray.200', 'gray.700');
+
+  // Filter links based on role
+  const visibleLinks = LinkItems.filter(link => {
+    if (!link.roles) return true; // If no roles defined, assume visible to all
+    return link.roles.includes(userRole);
+  });
 
   // Mobile Responsiveness: Sidebar renders as full width inside Drawer on mobile
   return (
@@ -106,7 +113,7 @@ export const SidebarContent = ({ onClose, activeTab, setActiveTab, isCollapsed =
         </Box>
       </Flex>
       <Box flex="1" overflowY="auto">
-        {LinkItems.map((link) => (
+        {visibleLinks.map((link) => (
           <NavItem
             key={link.name}
             icon={link.icon}
@@ -197,7 +204,7 @@ export const MobileNav = ({ onOpen, title, children, ...rest }) => {
 };
 
 // Unified Sidebar Component handling both Desktop and Mobile logic
-export const Sidebar = ({ isOpen, onClose, activeTab, setActiveTab, isCollapsed, toggleCollapse }) => {
+export const Sidebar = ({ isOpen, onClose, activeTab, setActiveTab, isCollapsed, toggleCollapse, userRole }) => {
   return (
     <>
       {/* Desktop Sidebar (Fixed) */}
@@ -207,6 +214,7 @@ export const Sidebar = ({ isOpen, onClose, activeTab, setActiveTab, isCollapsed,
         setActiveTab={setActiveTab}
         isCollapsed={isCollapsed}
         toggleCollapse={toggleCollapse}
+        userRole={userRole}
       />
 
       {/* Mobile Sidebar (Drawer) */}
@@ -227,6 +235,7 @@ export const Sidebar = ({ isOpen, onClose, activeTab, setActiveTab, isCollapsed,
             setActiveTab={setActiveTab}
             pos="relative"
             w="full"
+            userRole={userRole}
           />
         </DrawerContent>
       </Drawer>
