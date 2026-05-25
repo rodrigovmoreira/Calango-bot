@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+const fs = require('fs');
+let code = fs.readFileSync('frontend/src/components/dashboard-tabs/ContactTab.jsx', 'utf8');
+
+// Vou substituir o componente inteiro para aplicar a refatoração.
+// Não consigo fazer regex limpo devido à quantidade de mudanças (paginação, checkbox, ordenação, etc).
+
+const newCode = `import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box, Card, CardHeader, CardBody, Heading, VStack, HStack,
   useToast, useColorModeValue, Table, Thead, Tbody, Tr, Th, Td, Badge,
@@ -355,7 +361,7 @@ const ContactTab = () => {
                             <Input
                               size="sm"
                               value={editFormData.phone}
-                              onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value.replace(/\D/g, '') })}
+                              onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value.replace(/\\D/g, '') })}
                             />
                           ) : (
                             <Text>{contact.phone || '-'}</Text>
@@ -494,7 +500,7 @@ const ContactTab = () => {
                 <Input
                   placeholder="Ex: 5511999999999"
                   value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '') })}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\\D/g, '') })}
                 />
               </FormControl>
               <FormControl>
@@ -555,7 +561,7 @@ const ContactTab = () => {
               Excluir Contato(s)
             </AlertDialogHeader>
             <AlertDialogBody>
-              Tem certeza que deseja excluir {contactToDelete ? 'este contato' : `${selectedIds.length} contatos` }? Esta ação não pode ser desfeita.
+              Tem certeza que deseja excluir {contactToDelete ? 'este contato' : \`\${selectedIds.length} contatos\` }? Esta ação não pode ser desfeita.
             </AlertDialogBody>
             <AlertDialogFooter>
               <Button ref={cancelRef} onClick={onDeleteAlertClose}>
@@ -632,3 +638,6 @@ const ContactTab = () => {
 };
 
 export default ContactTab;
+`;
+fs.writeFileSync('frontend/src/components/dashboard-tabs/ContactTab.jsx', newCode);
+console.log('ContactTab.jsx successfully refactored!');

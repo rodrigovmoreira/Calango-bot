@@ -393,7 +393,84 @@ const createContact = async (req, res) => {
     }
 };
 
+
+const deleteContact = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const businessId = req.user.activeBusinessId;
+
+        if (!businessId) {
+            return res.status(404).json({ message: 'Business configuration not found' });
+        }
+
+        const deletedContact = await Contact.findOneAndDelete({ _id: id, businessId });
+
+        if (!deletedContact) {
+            return res.status(404).json({ message: 'Contact not found' });
+        }
+
+        res.json({ message: 'Contact deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting contact:', error);
+        res.status(500).json({ message: 'Error deleting contact' });
+    }
+};
+
+const bulkDeleteContacts = async (req, res) => {
+    try {
+        const { ids } = req.body;
+        const businessId = req.user.activeBusinessId;
+
+        if (!businessId) {
+            return res.status(404).json({ message: 'Business configuration not found' });
+        }
+
+        if (!Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ message: 'No contact IDs provided' });
+        }
+
+        const result = await Contact.deleteMany({ _id: { $in: ids }, businessId });
+
+        res.json({ message: `${result.deletedCount} contacts deleted successfully` });
+    } catch (error) {
+        console.error('Error bulk deleting contacts:', error);
+        res.status(500).json({ message: 'Error deleting contacts' });
+    }
+};
+
+const bulkAddTags = async (req, res) => {
+    try {
+        const { ids, tags } = req.body;
+        const businessId = req.user.activeBusinessId;
+
+        if (!businessId) {
+            return res.status(404).json({ message: 'Business configuration not found' });
+        }
+
+        if (!Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ message: 'No contact IDs provided' });
+        }
+
+        if (!Array.isArray(tags) || tags.length === 0) {
+            return res.status(400).json({ message: 'No tags provided' });
+        }
+
+        const result = await Contact.updateMany(
+            { _id: { $in: ids }, businessId },
+            { $addToSet: { tags: { $each: tags } } }
+        );
+
+        res.json({ message: `Tags added successfully to ${result.modifiedCount} contacts` });
+    } catch (error) {
+        console.error('Error bulk adding tags:', error);
+        res.status(500).json({ message: 'Error adding tags to contacts' });
+    }
+};
+
 export {
+    deleteContact,
+    bulkDeleteContacts,
+    bulkAddTags,
     getContacts,
     getContact,
     createContact,
