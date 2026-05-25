@@ -121,10 +121,13 @@ async function processTimeCampaign(campaign) {
     }
   }
 
-  // 2. Find Targets
+  // 2. Find Targets (Exclude "Não Perturbe" / "Nao Perturbe")
   const contacts = await Contact.find({
     businessId: config._id,
-    tags: { $in: campaign.targetTags },
+    tags: {
+      $in: campaign.targetTags,
+      $nin: [/n[ãa]o perturbe/i] // Regra de exclusão opt-out
+    },
     isHandover: false,
     phone: { $exists: true, $ne: null },
     _id: { $nin: excludedContactIds }
@@ -258,18 +261,23 @@ ${historyText || "No previous history."}
     }
   } else {
     // Static Replacements
+    const contactName = contact.name || '';
     if (appointment) {
         messageToSend = messageToSend
-            .replace('{{name}}', appointment.clientName || contact.name || '')
-            .replace('{{time}}', new Date(appointment.start).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}));
+            .replace(/\{\{name\}\}/gi, appointment.clientName || contactName)
+            .replace(/\{nome\}/gi, appointment.clientName || contactName)
+            .replace(/\{\{time\}\}/gi, new Date(appointment.start).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}));
     } else {
-        messageToSend = messageToSend.replace('{{name}}', contact.name || '');
+        messageToSend = messageToSend
+            .replace(/\{\{name\}\}/gi, contactName)
+            .replace(/\{nome\}/gi, contactName);
     }
   }
 
   // --- DISPATCH ---
-  const minDelay = (campaign.delayRange?.min || 0) * 1000;
-  const maxDelay = (campaign.delayRange?.max || 5) * 1000;
+  // Jitter (Delay randômico anti-ban): entre 3s e 8s a menos que campaign.delayRange mude isso especificamente
+  const minDelay = (campaign.delayRange?.min !== undefined ? campaign.delayRange.min : 3) * 1000;
+  const maxDelay = (campaign.delayRange?.max !== undefined ? campaign.delayRange.max : 8) * 1000;
   let delay = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay;
   
   if (process.env.NODE_ENV === 'test') delay = 0;

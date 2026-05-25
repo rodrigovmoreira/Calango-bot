@@ -23,7 +23,7 @@ import {
   HamburgerIcon,
 } from '@chakra-ui/icons';
 import ColorModeToggle from './ColorModeToggle';
-
+import { useApp } from '../context/AppContext';
 import { FaBullhorn, FaFilter, FaHome } from 'react-icons/fa';
 
 const LinkItems = [
@@ -36,6 +36,7 @@ const LinkItems = [
   { name: 'Chat Ao vivo', icon: ChatIcon, index: 6, color: 'purple.500' },
   { name: 'Agendamentos', icon: TimeIcon, index: 7, color: 'blue.500' },
   { name: 'Funil de Vendas', icon: FaFilter, index: 8, color: 'teal.500' },
+  { name: 'Contatos', icon: AttachmentIcon, index: 10, color: 'green.500' }
 ];
 
 const NavItem = ({ icon, children, isActive, color, isCollapsed, ...rest }) => {
@@ -77,9 +78,24 @@ const NavItem = ({ icon, children, isActive, color, isCollapsed, ...rest }) => {
   );
 };
 
+
+
 export const SidebarContent = ({ onClose, activeTab, setActiveTab, isCollapsed = false, toggleCollapse, pos = 'fixed', ...rest }) => {
   const bg = useColorModeValue('white', 'gray.900');
   const borderRightColor = useColorModeValue('gray.200', 'gray.700');
+  const { state } = useApp();
+
+  const userRole = state.user?.businesses?.find(b => {
+    const id = b.businessId?._id || b.businessId;
+    return id === state.user?.activeBusinessId;
+  })?.role || state.user?.role;
+
+  const filteredLinks = LinkItems.filter((link) => {
+    if (userRole === 'campaign_manager') {
+      return [1, 5, 10].includes(link.index); // Conexão & Negócio, Campanhas, Contatos
+    }
+    return true;
+  });
 
   // Mobile Responsiveness: Sidebar renders as full width inside Drawer on mobile
   return (
@@ -106,7 +122,7 @@ export const SidebarContent = ({ onClose, activeTab, setActiveTab, isCollapsed =
         </Box>
       </Flex>
       <Box flex="1" overflowY="auto">
-        {LinkItems.map((link) => (
+        {filteredLinks.map((link) => (
           <NavItem
             key={link.name}
             icon={link.icon}

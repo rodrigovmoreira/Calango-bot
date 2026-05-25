@@ -112,6 +112,7 @@ export const businessAPI = {
   // 7. Contatos (Active CRM)
   getContacts: () => api.get('/api/contacts'),
   getTags: () => api.get('/api/contacts/tags'),
+  createContact: (data) => api.post('/api/contacts', data),
   updateContact: (id, data) => api.put(`/api/contacts/${id}`, data),
   assignContact: (id, userId, __v) => api.patch(`/api/contacts/${id}/assign`, { assignedTo: userId, __v }), // <--- NOVO: Atribuir contato (Ponto 3)
   importContacts: (formData) => api.post('/api/contacts/import', formData),

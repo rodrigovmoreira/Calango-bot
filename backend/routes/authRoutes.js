@@ -404,7 +404,7 @@ router.put('/update', authenticateToken, async (req, res) => {
 router.post('/invites', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { role } = req.body;
-    if (!role || !['admin', 'operator'].includes(role)) {
+    if (!role || !['admin', 'operator', 'campaign_manager'].includes(role)) {
       return res.status(400).json({ message: 'Role inválida' });
     }
 
