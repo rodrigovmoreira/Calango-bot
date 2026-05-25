@@ -24,7 +24,7 @@
     "date-fns-tz": "^3.2.0",
     "dotenv": "^16.6.1",
     "ejs": "^3.1.10",
-    "express": "^5.2.1",
+    "express": "^5.1.0",
     "express-session": "^1.17.3",
     "firebase-admin": "^13.8.0",
     "form-data": "^4.0.5",

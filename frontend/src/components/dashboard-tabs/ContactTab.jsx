@@ -47,9 +47,9 @@ const ContactTab = () => {
   const [formData, setFormData] = useState({ name: '', phone: '', tags: [], notes: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const fetchContacts = async () => {
+  const fetchContacts = async (showLoading = true) => {
     try {
-      setIsLoading(true);
+      if (showLoading) setIsLoading(true);
       const response = await businessAPI.getContacts();
       setContacts(response.data);
     } catch (error) {
@@ -195,7 +195,7 @@ const ContactTab = () => {
       await businessAPI.updateContact(id, editFormData);
       toast({ title: 'Contato atualizado', status: 'success', duration: 2000 });
       setEditingId(null);
-      fetchContacts();
+      fetchContacts(false);
     } catch (error) {
       console.error('Erro ao atualizar', error);
       toast({ title: 'Erro ao atualizar', status: 'error' });
