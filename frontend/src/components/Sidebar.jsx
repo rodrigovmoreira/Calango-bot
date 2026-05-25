@@ -26,8 +26,6 @@ import ColorModeToggle from './ColorModeToggle';
 
 import { FaBullhorn, FaFilter, FaHome } from 'react-icons/fa';
 
-import { useApp } from '../context/AppContext';
-
 const LinkItems = [
   { name: 'Visão Geral', icon: FaHome, index: 0 },
   { name: 'Conexão & Negócio', icon: SettingsIcon, index: 1 },
@@ -79,6 +77,8 @@ const NavItem = ({ icon, children, isActive, color, isCollapsed, ...rest }) => {
     </Flex>
   );
 };
+
+import { useApp } from '../context/AppContext';
 
 export const SidebarContent = ({ onClose, activeTab, setActiveTab, isCollapsed = false, toggleCollapse, pos = 'fixed', ...rest }) => {
   const bg = useColorModeValue('white', 'gray.900');
