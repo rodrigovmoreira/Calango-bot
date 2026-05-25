@@ -17,6 +17,12 @@ const ConnectionTab = () => {
   const toast = useToast();
   const cardBg = useColorModeValue('white', 'gray.800');
 
+  const userRole = state.user?.businesses?.find(b => {
+    const id = b.businessId?._id || b.businessId;
+    return id === state.user?.activeBusinessId;
+  })?.role || state.user?.role;
+  const isAdmin = userRole === 'admin';
+
   // Local state for editing form
   const [editingHours, setEditingHours] = useState(false);
   const [configForm, setConfigForm] = useState({
@@ -75,6 +81,17 @@ const ConnectionTab = () => {
   };
 
   const handleToggleObserverMode = async (e) => {
+    if (!isAdmin) {
+      toast({
+        title: 'Acesso Negado',
+        description: 'Somente o Administrador pode alterar o status do modo observador.',
+        status: 'warning',
+        duration: 4000,
+        isClosable: true,
+      });
+      return;
+    }
+
     const newValue = e.target.checked;
     try {
       // Optimistic update

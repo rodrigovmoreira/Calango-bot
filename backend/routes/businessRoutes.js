@@ -172,6 +172,10 @@ router.put('/config', authenticateToken, async (req, res) => {
 
     const { __v, ...bodyUpdates } = req.body;
 
+    if (bodyUpdates.aiGlobalDisabled !== undefined && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Acesso Negado: Somente administradores podem alterar o status do modo observador.' });
+    }
+
     const updatePayload = {
       ...bodyUpdates,
       updatedAt: new Date()
