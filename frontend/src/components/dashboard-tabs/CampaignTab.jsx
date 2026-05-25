@@ -13,6 +13,8 @@ import axios from 'axios';
 import { SmallCloseIcon, ViewIcon } from '@chakra-ui/icons';
 import CampaignAudienceModal from '../campaigns/CampaignAudienceModal';
 import TagAutocomplete from '../Tags/TagAutocomplete';
+import { uploadMultipleFiles } from '../../utils/uploadHelper';
+import { CloseIcon } from '@chakra-ui/icons';
 
 const CampaignTab = () => {
   const [campaigns, setCampaigns] = useState([]);
@@ -22,6 +24,8 @@ const CampaignTab = () => {
   const { isOpen, onOpen, onClose } = useDisclosure(); // Edit/Create Modal
   const { isOpen: isAudienceOpen, onOpen: onAudienceOpen, onClose: onAudienceClose } = useDisclosure(); // Audience Modal
   const [audienceCampaign, setAudienceCampaign] = useState(null);
+
+  const [isUploadingFiles, setIsUploadingFiles] = useState(false);
 
   const toast = useToast();
 
@@ -136,6 +140,8 @@ const CampaignTab = () => {
             ? campaign.contentMode
             : 'static',
           targetTags: Array.isArray(campaign.targetTags) ? campaign.targetTags : [],
+          mediaUrls: campaign.mediaUrls || [],
+          mediaOrder: campaign.mediaOrder || 'image_with_caption',
           triggerType: campaign.triggerType || 'time',
           eventOffset: campaign.eventOffset !== undefined ? campaign.eventOffset : 60,
           eventTargetStatus: campaign.eventTargetStatus || ['scheduled', 'confirmed'],
@@ -158,6 +164,49 @@ const CampaignTab = () => {
       });
     }
     onOpen();
+  };
+
+  const handleFileUpload = async (e) => {
+      const files = e.target.files;
+      if (!files || files.length === 0) return;
+
+      setIsUploadingFiles(true);
+      try {
+          const newUrls = await uploadMultipleFiles(files, 'campaign');
+          setCurrentCampaign(prev => ({
+              ...prev,
+              mediaUrls: [...(prev.mediaUrls || []), ...newUrls]
+          }));
+          toast({
+              title: "Upload concluído",
+              status: "success",
+              duration: 2000
+          });
+      } catch (error) {
+          toast({
+              title: "Erro no upload",
+              description: error.message,
+              status: "error",
+              duration: 3000
+          });
+      } finally {
+          setIsUploadingFiles(false);
+          e.target.value = null; // reset
+      }
+  };
+
+  const removeMedia = (index) => {
+      setCurrentCampaign(prev => {
+          const updated = [...(prev.mediaUrls || [])];
+          updated.splice(index, 1);
+
+          let updates = { mediaUrls: updated };
+          if (updated.length === 0 && prev.mediaOrder === 'only_image') {
+              updates.mediaOrder = 'image_with_caption';
+          }
+
+          return { ...prev, ...updates };
+      });
   };
 
   const toggleTag = (tag) => {
@@ -416,7 +465,64 @@ const CampaignTab = () => {
                         </RadioGroup>
                     </FormControl>
 
-                    <FormControl isRequired>
+                    <FormControl>
+                        <FormLabel>Imagens (Opcional)</FormLabel>
+                        <Input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            onChange={handleFileUpload}
+                            mb={2}
+                            isDisabled={isUploadingFiles}
+                        />
+                        <HStack wrap="wrap" spacing={2} mb={2}>
+                            {(currentCampaign?.mediaUrls || []).map((url, idx) => (
+                                <Box key={idx} position="relative">
+                                    <Box
+                                        as="img"
+                                        src={url}
+                                        alt={`preview-${idx}`}
+                                        boxSize="60px"
+                                        objectFit="cover"
+                                        borderRadius="md"
+                                    />
+                                    <IconButton
+                                        icon={<CloseIcon />}
+                                        size="xs"
+                                        colorScheme="red"
+                                        position="absolute"
+                                        top={-1}
+                                        right={-1}
+                                        onClick={() => removeMedia(idx)}
+                                        borderRadius="full"
+                                    />
+                                </Box>
+                            ))}
+                        </HStack>
+
+                        {currentCampaign?.mediaUrls?.length > 0 && (
+                            <Box mt={3} p={3} bg="gray.50" borderRadius="md" borderWidth="1px">
+                                <FormLabel fontSize="sm">Ordem de Envio</FormLabel>
+                                <RadioGroup
+                                    value={currentCampaign?.mediaOrder || 'image_with_caption'}
+                                    onChange={(val) => {
+                                        let updates = { mediaOrder: val };
+                                        if (val === 'only_image') updates.message = '';
+                                        setCurrentCampaign(prev => ({ ...prev, ...updates }));
+                                    }}
+                                >
+                                    <Stack direction={{ base: 'column', md: 'row' }} spacing={4} fontSize="sm">
+                                        <Radio value="image_with_caption">Imagem + Legenda</Radio>
+                                        <Radio value="image_first">Imagem Primeiro</Radio>
+                                        <Radio value="text_first">Texto Primeiro</Radio>
+                                        <Radio value="only_image">Apenas Imagem</Radio>
+                                    </Stack>
+                                </RadioGroup>
+                            </Box>
+                        )}
+                    </FormControl>
+
+                    <FormControl isRequired={currentCampaign?.mediaOrder !== 'only_image'}>
                         <FormLabel>
                             {currentCampaign?.contentMode === 'ai_prompt' ? 'Instrução para a IA' : 'Mensagem'}
                         </FormLabel>
@@ -428,6 +534,7 @@ const CampaignTab = () => {
                                 ? "Ex: Analise a última conversa e convide o {nome} para retornar, oferecendo 10% de desconto. Use um tom amigável."
                                 : ""}
                             size={{ base: 'lg', md: 'md' }}
+                            isDisabled={currentCampaign?.mediaUrls?.length > 0 && currentCampaign?.mediaOrder === 'only_image'}
                         />
                         {currentCampaign?.contentMode === 'ai_prompt' && (
                              <Text fontSize="sm" color="orange.500" mt={1}>
