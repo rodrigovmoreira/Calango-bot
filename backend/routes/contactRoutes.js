@@ -57,6 +57,12 @@ router.post('/sync', authenticateToken, contactController.syncContacts);
 // Import Contacts from CSV/XLSX
 router.post('/import', authenticateToken, upload.single('file'), contactController.importContacts);
 
+// Bulk delete contacts
+router.post('/bulk-delete', authenticateToken, contactController.bulkDeleteContacts);
+
+// Bulk add tags
+router.post('/bulk-tags', authenticateToken, contactController.bulkAddTags);
+
 // Get single contact
 router.get('/:id', authenticateToken, contactController.getContact);
 
@@ -65,6 +71,9 @@ router.post('/', authenticateToken, contactController.createContact);
 
 // Update contact
 router.put('/:id', authenticateToken, contactController.updateContact);
+
+// Delete contact
+router.delete('/:id', authenticateToken, contactController.deleteContact);
 
 // Assign contact to an operator (Ponto 3)
 router.patch('/:id/assign', authenticateToken, requireAdmin, assignmentController.assignContact);
