@@ -23,7 +23,7 @@ import {
   HamburgerIcon,
 } from '@chakra-ui/icons';
 import ColorModeToggle from './ColorModeToggle';
-
+import { useApp } from '../context/AppContext';
 import { FaBullhorn, FaFilter, FaHome } from 'react-icons/fa';
 
 const LinkItems = [
@@ -78,7 +78,7 @@ const NavItem = ({ icon, children, isActive, color, isCollapsed, ...rest }) => {
   );
 };
 
-import { useApp } from '../context/AppContext';
+
 
 export const SidebarContent = ({ onClose, activeTab, setActiveTab, isCollapsed = false, toggleCollapse, pos = 'fixed', ...rest }) => {
   const bg = useColorModeValue('white', 'gray.900');
