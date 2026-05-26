@@ -1,7 +1,7 @@
 # 🤖 Calango Bot 
 
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-green?logo=node.js)](https://nodejs.org/)
-[![Twilio](https://img.shields.io/badge/Twilio-API-red?logo=twilio)](https://www.twilio.com/)
+[![Wweb.Js](https://img.shields.io/badge/wWebJs-1.34-green)](https://wwebjs.dev)
 [![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-green?logo=mongodb)](https://www.mongodb.com/)
 [![DeepSeek](https://img.shields.io/badge/AI-DeepSeek-blue)](https://deepseek.com/)
 
