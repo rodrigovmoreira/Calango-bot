@@ -89,6 +89,7 @@ export const AppProvider = ({ children }) => {
       }
     };
     fetchConfig();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.user?.activeBusinessId]);
 
   // 2. CONEXÃO SOCKET.IO (CRUCIAL PARA O QR CODE)
@@ -143,6 +144,7 @@ export const AppProvider = ({ children }) => {
       }
       socket.disconnect();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.user?.id, state.user?.activeBusinessId]); // Executa sempre que o usuário ou empresa mudam
 
   return (
