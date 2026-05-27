@@ -22,7 +22,16 @@ const campaignSchema = new mongoose.Schema({
   },
   message: {
     type: String,
-    required: true
+    required: false
+  },
+  mediaUrls: {
+    type: [String],
+    default: []
+  },
+  mediaOrder: {
+    type: String,
+    enum: ['image_with_caption', 'image_first', 'text_first', 'only_image'],
+    default: 'image_with_caption'
   },
   contentMode: {
     type: String,

@@ -352,9 +352,128 @@ const syncContacts = async (req, res) => {
     }
 };
 
+const createContact = async (req, res) => {
+    try {
+        const businessId = req.user.activeBusinessId;
+        if (!businessId) {
+            return res.status(404).json({ message: 'Business configuration not found' });
+        }
+
+        const { name, phone, tags } = req.body;
+
+        if (!phone) {
+            return res.status(400).json({ message: 'O número de telefone é obrigatório.' });
+        }
+
+        const cleanPhone = String(phone).replace(/\D/g, '');
+        const waId = `${cleanPhone}@c.us`;
+
+        const existingContact = await Contact.findOne({ businessId, phone: cleanPhone });
+
+        if (existingContact) {
+            return res.status(409).json({ message: 'Este contato já existe na sua base.' });
+        }
+
+        const newContact = await Contact.create({
+            businessId,
+            phone: cleanPhone,
+            whatsappId: waId,
+            name: name || 'Desconhecido',
+            tags: tags || [],
+            channel: 'whatsapp',
+            followUpStage: 0,
+            dealValue: 0,
+            funnelStage: 'new'
+        });
+
+        res.status(201).json(newContact);
+    } catch (error) {
+        console.error('Error creating contact:', error);
+        res.status(500).json({ message: 'Erro ao criar contato' });
+    }
+};
+
+
+const deleteContact = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const businessId = req.user.activeBusinessId;
+
+        if (!businessId) {
+            return res.status(404).json({ message: 'Business configuration not found' });
+        }
+
+        const deletedContact = await Contact.findOneAndDelete({ _id: id, businessId });
+
+        if (!deletedContact) {
+            return res.status(404).json({ message: 'Contact not found' });
+        }
+
+        res.json({ message: 'Contact deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting contact:', error);
+        res.status(500).json({ message: 'Error deleting contact' });
+    }
+};
+
+const bulkDeleteContacts = async (req, res) => {
+    try {
+        const { ids } = req.body;
+        const businessId = req.user.activeBusinessId;
+
+        if (!businessId) {
+            return res.status(404).json({ message: 'Business configuration not found' });
+        }
+
+        if (!Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ message: 'No contact IDs provided' });
+        }
+
+        const result = await Contact.deleteMany({ _id: { $in: ids }, businessId });
+
+        res.json({ message: `${result.deletedCount} contacts deleted successfully` });
+    } catch (error) {
+        console.error('Error bulk deleting contacts:', error);
+        res.status(500).json({ message: 'Error deleting contacts' });
+    }
+};
+
+const bulkAddTags = async (req, res) => {
+    try {
+        const { ids, tags } = req.body;
+        const businessId = req.user.activeBusinessId;
+
+        if (!businessId) {
+            return res.status(404).json({ message: 'Business configuration not found' });
+        }
+
+        if (!Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ message: 'No contact IDs provided' });
+        }
+
+        if (!Array.isArray(tags) || tags.length === 0) {
+            return res.status(400).json({ message: 'No tags provided' });
+        }
+
+        const result = await Contact.updateMany(
+            { _id: { $in: ids }, businessId },
+            { $addToSet: { tags: { $each: tags } } }
+        );
+
+        res.json({ message: `Tags added successfully to ${result.modifiedCount} contacts` });
+    } catch (error) {
+        console.error('Error bulk adding tags:', error);
+        res.status(500).json({ message: 'Error adding tags to contacts' });
+    }
+};
+
 export {
+    deleteContact,
+    bulkDeleteContacts,
+    bulkAddTags,
     getContacts,
     getContact,
+    createContact,
     updateContact,
     importContacts,
     syncContacts

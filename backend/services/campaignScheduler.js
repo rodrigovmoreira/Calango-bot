@@ -7,6 +7,7 @@ import Appointment from '../models/Appointment.js';
 import BusinessConfig from '../models/BusinessConfig.js';
 import { callDeepSeek } from './aiService.js';
 import { sendUnifiedMessage } from './responseService.js';
+import { sendImage } from './wwebjsService.js';
 import { getLastMessages } from './message.js';
 
 // Runs every minute to check for triggers
@@ -121,10 +122,13 @@ async function processTimeCampaign(campaign) {
     }
   }
 
-  // 2. Find Targets
+  // 2. Find Targets (Exclude "Não Perturbe" / "Nao Perturbe")
   const contacts = await Contact.find({
     businessId: config._id,
-    tags: { $in: campaign.targetTags },
+    tags: {
+      $in: campaign.targetTags,
+      $nin: [/n[ãa]o perturbe/i] // Regra de exclusão opt-out
+    },
     isHandover: false,
     phone: { $exists: true, $ne: null },
     _id: { $nin: excludedContactIds }
@@ -258,39 +262,114 @@ ${historyText || "No previous history."}
     }
   } else {
     // Static Replacements
+    const contactName = contact.name || '';
     if (appointment) {
         messageToSend = messageToSend
-            .replace('{{name}}', appointment.clientName || contact.name || '')
-            .replace('{{time}}', new Date(appointment.start).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}));
+            .replace(/\{\{name\}\}/gi, appointment.clientName || contactName)
+            .replace(/\{nome\}/gi, appointment.clientName || contactName)
+            .replace(/\{\{time\}\}/gi, new Date(appointment.start).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}));
     } else {
-        messageToSend = messageToSend.replace('{{name}}', contact.name || '');
+        messageToSend = messageToSend
+            .replace(/\{\{name\}\}/gi, contactName)
+            .replace(/\{nome\}/gi, contactName);
     }
   }
 
   // --- DISPATCH ---
-  const minDelay = (campaign.delayRange?.min || 0) * 1000;
-  const maxDelay = (campaign.delayRange?.max || 5) * 1000;
+  // Jitter (Delay randômico anti-ban): entre 3s e 8s a menos que campaign.delayRange mude isso especificamente
+  const minDelay = (campaign.delayRange?.min !== undefined ? campaign.delayRange.min : 3) * 1000;
+  const maxDelay = (campaign.delayRange?.max !== undefined ? campaign.delayRange.max : 8) * 1000;
   let delay = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay;
   
   if (process.env.NODE_ENV === 'test') delay = 0;
+
+  // Helper to wait
+  const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
   console.log(`⏳ Sending to ${contact.phone} in ${delay}ms`);
 
   setTimeout(async () => {
     try {
-      const sent = await sendUnifiedMessage(contact.phone, messageToSend, 'wwebjs', campaign.businessId);
+      let sent = false;
+      const mediaUrls = campaign.mediaUrls || [];
+      const mediaOrder = campaign.mediaOrder || 'image_with_caption';
+      let textAlreadySent = false;
+
+      const sendImages = async (urls, withCaptionOnFirst = false) => {
+          for (let i = 0; i < urls.length; i++) {
+              if (i > 0) await wait(Math.floor(Math.random() * 2000) + 2000); // 2-4s delay between multiple images
+              const caption = (withCaptionOnFirst && i === 0) ? messageToSend : undefined;
+              try {
+                  const imageSent = await sendImage(campaign.businessId, contact.phone, urls[i], caption);
+                  if (!imageSent) throw new Error("sendImage returned false");
+                  if (caption) textAlreadySent = true;
+              } catch (imageErr) {
+                  console.error(`⚠️ Erro ao enviar imagem ${urls[i]} para ${contact.phone}:`, imageErr);
+              }
+          }
+      };
+
+      if (mediaUrls.length > 0) {
+          if (mediaOrder === 'image_with_caption') {
+              await sendImages(mediaUrls, true);
+              if (!textAlreadySent && messageToSend) {
+                  // Fallback if image fails but we need to send text
+                  await wait(1000);
+                  sent = await sendUnifiedMessage(contact.phone, messageToSend, 'wwebjs', campaign.businessId);
+              } else {
+                  sent = true;
+              }
+          } else if (mediaOrder === 'image_first') {
+              await sendImages(mediaUrls, false);
+              if (messageToSend) {
+                  await wait(Math.floor(Math.random() * 2000) + 2000);
+                  sent = await sendUnifiedMessage(contact.phone, messageToSend, 'wwebjs', campaign.businessId);
+              } else {
+                  sent = true;
+              }
+          } else if (mediaOrder === 'text_first') {
+              if (messageToSend) {
+                  sent = await sendUnifiedMessage(contact.phone, messageToSend, 'wwebjs', campaign.businessId);
+                  textAlreadySent = true;
+                  await wait(Math.floor(Math.random() * 2000) + 2000);
+              }
+              await sendImages(mediaUrls, false);
+              sent = true;
+          } else if (mediaOrder === 'only_image') {
+              await sendImages(mediaUrls, false);
+              sent = true;
+          }
+      } else {
+          // No media, just send text
+          if (messageToSend) {
+              sent = await sendUnifiedMessage(contact.phone, messageToSend, 'wwebjs', campaign.businessId);
+          } else {
+              sent = true; // Nothing to send
+          }
+      }
+
       const status = sent ? 'sent' : 'failed';
 
       await CampaignLog.create({
         campaignId: campaign._id,
         contactId: contact._id || new mongoose.Types.ObjectId(),
         relatedId: appointment ? appointment._id.toString() : null,
-        messageContent: messageToSend,
+        messageContent: messageToSend || "[Midia]",
         status: status,
         sentAt: new Date()
       });
     } catch (err) {
       console.error(`💥 Campaign send error for ${contact.phone}:`, err);
+
+      // Ultimate Fallback: Try to send text if everything exploded
+      if (messageToSend && err.message !== "Ultimate fallback attempt") {
+          try {
+             await sendUnifiedMessage(contact.phone, messageToSend, 'wwebjs', campaign.businessId);
+          } catch (e) {
+             console.error("Ultimate text fallback failed:", e);
+          }
+      }
+
       await CampaignLog.create({
         campaignId: campaign._id,
         contactId: contact._id || new mongoose.Types.ObjectId(),

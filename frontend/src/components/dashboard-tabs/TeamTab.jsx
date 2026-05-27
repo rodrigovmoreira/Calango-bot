@@ -70,10 +70,12 @@ const TeamTab = () => {
     setRole('operator');
   };
 
-  const isAdmin = state.user?.businesses?.find(b => {
+  const userRole = state.user?.businesses?.find(b => {
     const id = b.businessId?._id || b.businessId;
     return id === state.user?.activeBusinessId;
-  })?.role === 'admin';
+  })?.role || state.user?.role;
+
+  const isAdmin = userRole === 'admin';
 
   if (isLoading) {
     return (
@@ -112,8 +114,12 @@ const TeamTab = () => {
                   </Td>
                   <Td>{member.email}</Td>
                   <Td>
-                    <Badge colorScheme={member.role === 'admin' ? 'purple' : 'blue'}>
-                      {member.role === 'admin' ? 'Administrador' : 'Operador'}
+                    <Badge colorScheme={
+                      member.role === 'admin' ? 'purple' :
+                      member.role === 'campaign_manager' ? 'orange' : 'blue'
+                    }>
+                      {member.role === 'admin' ? 'Administrador' :
+                       member.role === 'campaign_manager' ? 'Gestor de Campanhas' : 'Operador'}
                     </Badge>
                   </Td>
                   <Td>Ativo</Td>
@@ -142,6 +148,7 @@ const TeamTab = () => {
                 <Select value={role} onChange={(e) => setRole(e.target.value)} isDisabled={isGenerating || inviteLink}>
                   <option value="operator">Operador (Atendimento, Visualização)</option>
                   <option value="admin">Administrador (Acesso Total)</option>
+                  <option value="campaign_manager">Gestor de Campanhas (Envio de campanhas e contatos)</option>
                 </Select>
               </FormControl>
 
