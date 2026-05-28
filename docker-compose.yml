@@ -6,9 +6,9 @@ services:
     container_name: calango-bot-backend
     restart: unless-stopped
     ports:
-      - "3003:3003"
+      - "3003:3001"
     environment:
-      - PORT=3003
+      - PORT=3001
     env_file:
       - .env
     networks:

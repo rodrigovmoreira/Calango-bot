@@ -9,7 +9,7 @@ import axios from 'axios';
 const CampaignAudienceModal = ({ campaign, isOpen, onClose }) => {
   const [data, setData] = useState({ sent: [], pending: [], totalPending: 0, totalSent: 0 });
   const [loading, setLoading] = useState(true);
-  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
 
   const fetchAudience = useCallback(async () => {
     setLoading(true);

@@ -74,7 +74,7 @@ import './models/Appointment.js';
 
 const app = express();
 const server = http.createServer(app);
-const PORT = process.env.PORT || 3003;
+const BACKEND_PORT = process.env.BACKEND_PORT || 3001;
 
 // Configuração de CORS e Socket
 const envOrigins = process.env.CORS_ALLOWED_ORIGINS 
@@ -83,7 +83,6 @@ const envOrigins = process.env.CORS_ALLOWED_ORIGINS
 
 const allowedOrigins = [
   "http://localhost:3000",
-  "https://mindful-happiness-production.up.railway.app",
   ...envOrigins
 ];
 
@@ -92,6 +91,7 @@ const io = new Server(server, {
 });
 
 // Middlewares Globais
+
 app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
@@ -113,20 +113,20 @@ app.use((req, res, next) => {
 // 🔌 CONEXÃO DOS PLUGINS (ROTAS)
 // ==========================================
 
-// 1. Autenticação (Login, Register, Logout)
+// 1. Chat Público (Web)
+app.use('/api/chat', publicChatRoutes);
+
+// 2. Autenticação (Login, Register, Logout)
 app.use('/api/auth', authRoutes);
 
-// 2. Negócio (Config, Presets, Custom Prompts)
+// 3. Negócio (Config, Presets, Custom Prompts)
 app.use('/api/business', businessRoutes);
 
-// 3. WhatsApp (Status, Start, Stop)
+// 4. WhatsApp (Status, Start, Stop)
 app.use('/api/whatsapp', whatsappRoutes);
 
-// 4. Agendamentos (Calendário)
+// 5. Agendamentos (Calendário)
 app.use('/api/appointments', appointmentRoutes);
-
-// 5. Chat Público (Web)
-app.use('/api/chat', publicChatRoutes);
 
 // 6. Campanhas (Active CRM)
 app.use('/api/campaigns', campaignRoutes);
@@ -270,8 +270,8 @@ async function start() {
       restoreActiveSessions();
     }
 
-    server.listen(PORT, () => {
-      console.log(`\n🚀 SERVIDOR SAAS ONLINE NA PORTA ${PORT}`);
+    server.listen(BACKEND_PORT, () => {
+      console.log(`\n🚀 SERVIDOR SAAS ONLINE NA PORTA ${BACKEND_PORT}`);
     });
   } catch (error) {
     console.error('💥 Erro fatal:', error);

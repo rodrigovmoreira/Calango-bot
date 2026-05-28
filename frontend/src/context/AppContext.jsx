@@ -97,7 +97,7 @@ export const AppProvider = ({ children }) => {
     // Só conecta se tivermos um usuário logado
     if (!state.user || !state.user.id) return;
 
-    const socket = io(process.env.REACT_APP_API_URL || 'http://localhost:3001', {
+    const socket = io(process.env.REACT_APP_API_URL || 'http://localhost:3000', {
       withCredentials: true,
       transports: ['websocket', 'polling']
     });

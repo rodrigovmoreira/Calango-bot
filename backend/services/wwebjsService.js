@@ -357,9 +357,25 @@ const sendImage = async (businessId, to, imageUrl, caption) => {
 
 
 // 5. FUNÇÃO DE ESTADO "DIGITANDO..." (UX / Humanização)
-const sendStateTyping = async (businessId, to) => {
-  const client = sessions.get(businessId.toString());
+const sendPresenceAvailable = async (businessId) => {
+    const client = getClientSession(businessId);
+    
+    if (!client || !client.info) {
+        return; 
+    }
+    
+    try {
+        await client.sendPresenceAvailable();
+    } catch (error) {
+        // Ignora erros silenciosamente
+    }
+};
 
+const sendStateTyping = async (businessId, to) => {
+  // Pega a sessão usando a função auxiliar (apenas uma vez)
+  const client = getClientSession(businessId);
+
+  // 🛡️ TRAVA MÁGICA: Se não tem WhatsApp conectado, sai em silêncio
   if (!client || !client.info) {
     return false;
   }
@@ -369,11 +385,17 @@ const sendStateTyping = async (businessId, to) => {
     if (!formattedNumber.includes('@c.us')) formattedNumber = `${formattedNumber}@c.us`;
 
     const chat = await client.getChatById(formattedNumber);
-    // Dispara o status "digitando..." (o WWebJS mantém isso por alguns segundos ou até enviar mensagem)
-    await chat.sendStateTyping();
+    
+    // 🛡️ Garante que o chat foi encontrado antes de enviar o status
+    if (chat) {
+      // Dispara o status "digitando..." (o WWebJS mantém isso por alguns segundos ou até enviar mensagem)
+      await chat.sendStateTyping();
+    }
+    
     return true;
   } catch (error) {
-    console.error(`💥 Erro ao enviar status 'digitando' (User ${businessId}):`, error.message);
+    // Ignora erros visuais para não derrubar o servidor
+    // console.error(`💥 Erro ao enviar status 'digitando' (Business ${businessId}):`, error.message);
     return false;
   }
 };

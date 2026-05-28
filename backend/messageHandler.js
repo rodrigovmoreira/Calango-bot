@@ -718,7 +718,7 @@ async function handleIncomingMessage(normalizedMsg, activeBusinessId) {
     const { from, body, name, type, mediaData, provider, channel = 'whatsapp' } = normalizedMsg;
 
     // 🛡️ IRON GATE: Redundant Safety Block
-    if (from) {
+    if (from && channel !== 'web') {
         const isInvalidSource =
             from.includes('@g.us') ||
             from.includes('status@broadcast') ||

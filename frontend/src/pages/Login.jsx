@@ -24,7 +24,7 @@ const Login = () => {
   const headingColor = useColorModeValue('brand.600', 'brand.200');
   const rightPanelBg = useColorModeValue('gray.50', 'gray.900');
 
-  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
 
   const handleAuthSuccess = (response) => {
     const { token, user } = response.data;

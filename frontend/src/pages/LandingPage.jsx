@@ -330,7 +330,7 @@ const LandingPage = () => {
             }}
           >
             <iframe
-              src="/chat/695a69d85b6d832422adb869"
+              src="/chat/69fde1c37138cd62bf8db9df"
               width="350"
               height="600"
               style={{ border: 'none' }} // React usa objeto para style, não string

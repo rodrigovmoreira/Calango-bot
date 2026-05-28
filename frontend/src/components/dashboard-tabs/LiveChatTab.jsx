@@ -82,7 +82,7 @@ const LiveChatTab = () => {
         }
 
         const token = localStorage.getItem('token');
-        const response = await axios.put(`${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api/contacts/${selectedContact._id}`, payload, {
+        const response = await axios.put(`${process.env.REACT_APP_API_URL || 'http://localhost:3000'}/api/contacts/${selectedContact._id}`, payload, {
             headers: { Authorization: `Bearer ${token}` }
         });
 

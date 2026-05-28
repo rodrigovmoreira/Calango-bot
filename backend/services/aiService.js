@@ -20,15 +20,19 @@ async function buildSystemPrompt(businessId) {
 
         const botName = config.botName || "Assistente";
         const businessName = config.businessName || "Empresa";
+        const businessType = config.businessType || "Comércio/Serviço";
         
         // TOM DE VOZ
-        const toneInstruction = config.toneOfVoice || config.tone || "Natural, brasileiro e prestativo.";
+        const toneInstruction = config.toneOfVoice && config.toneOfVoice.trim() !== "" 
+            ? config.toneOfVoice 
+            : "Profissional, educado, natural e em português do Brasil.";
 
         // IDENTIDADE MESTRA + DIRETRIZES DE HUMANIZAÇÃO (Sem usar símbolos no prompt)
         let prompt = `
---- IDENTIDADE ---
+--- IDENTIDADE DO FUNCIONÁRIO DIGITAL ---
 Nome: ${botName}
 Empresa: ${businessName}
+Setor: ${businessType}
 Tom de Voz: ${toneInstruction}
 
 --- REGRAS ESTRITAS DE FORMATACAO (ANTI-ROBO) ---

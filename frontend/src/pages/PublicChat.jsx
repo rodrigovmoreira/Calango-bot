@@ -8,9 +8,7 @@ import axios from 'axios';
 import { io } from 'socket.io-client';
 
 // Create a standalone axios instance to avoid auth interceptors
-const API_URL = (process.env.REACT_APP_API_URL && !process.env.REACT_APP_API_URL.includes('localhost'))
-  ? process.env.REACT_APP_API_URL
-  : 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 const publicApi = axios.create({
   baseURL: API_URL,
