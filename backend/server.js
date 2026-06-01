@@ -66,6 +66,7 @@ import campaignRoutes from './routes/campaignRoutes.js';
 import contactRoutes from './routes/contactRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import tagRoutes from './routes/tagRoutes.js';
+import metaWebhookRoutes from './routes/metaWebhookRoutes.js';
 
 // Carregar Models (Garantia de registro)
 import './models/SystemUser.js';
@@ -140,7 +141,10 @@ app.use('/api/dashboard', dashboardRoutes);
 // 9. Tags (Unified System)
 app.use('/api/tags', tagRoutes);
 
-// 10. Webhook (Mantido aqui por ser externo)
+// 10. Webhook (Meta)
+app.use('/api/meta', metaWebhookRoutes);
+
+// 11. Webhook (Mantido aqui por ser externo)
 app.post('/api/webhook', async (req, res) => {
   try {
     res.status(200).send('<Response></Response>');
