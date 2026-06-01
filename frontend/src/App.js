@@ -9,6 +9,7 @@ import LandingPage from './pages/LandingPage';
 import GoogleCallback from './pages/GoogleCallback';
 import PublicChat from './pages/PublicChat';
 import InvitePage from './pages/InvitePage';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 
 const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem('token');
@@ -61,6 +62,7 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+              <Route path="/politica-de-privacidade" element={<PrivacyPolicy />} />
             </Routes>
           </div>
         </Router>
