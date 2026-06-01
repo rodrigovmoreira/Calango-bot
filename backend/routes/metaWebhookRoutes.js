@@ -1,19 +1,20 @@
 import express from 'express';
+import axios from 'axios';
+import Contact from '../models/Contact.js';
+import Tag from '../models/Tag.js';
+import BusinessConfig from '../models/BusinessConfig.js';
 
 const router = express.Router();
 
-// 1. Rota de VERIFICAÇÃO (GET) - A Meta bate aqui quando você clica em "Verificar e Salvar"
+// 1. Rota de VERIFICAÇÃO (GET) - Mantida intacta
 router.get('/webhook', (req, res) => {
-  // Parâmetros que a Meta envia na URL
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
 
   if (mode && token) {
-    // Valida se a intenção é assinar e se a senha é exatamente a que criamos no .env
     if (mode === 'subscribe' && token === process.env.META_VERIFY_TOKEN) {
       console.log('✅ Webhook da Meta verificado com sucesso!');
-      // É obrigatório devolver apenas o "challenge" e o status 200
       res.status(200).send(challenge);
     } else {
       console.error('❌ Falha na verificação da Meta: Token incorreto.');
@@ -24,19 +25,79 @@ router.get('/webhook', (req, res) => {
   }
 });
 
-// 2. Rota de RECEBIMENTO (POST) - A Meta vai mandar os dados do Lead Ads para cá
-router.post('/webhook', (req, res) => {
+// 2. Rota de RECEBIMENTO DOS DADOS REAIS (POST)
+router.post('/webhook', async (req, res) => {
   const body = req.body;
 
-  // Verifica se o evento veio de uma Página do Facebook/Instagram
   if (body.object === 'page') {
     // ⚠️ REGRA DE OURO DA META: Devolver status 200 IMEDIATAMENTE antes de processar
-    // Se não fizermos isso rápido, a Meta acha que deu erro e tenta reenviar o mesmo dado.
     res.status(200).send('EVENT_RECEIVED');
 
-    // Aqui vamos inserir a lógica de buscar os dados do lead e salvar no MongoDB depois!
-    console.log('📥 Notificação de Lead recebida:', JSON.stringify(body, null, 2));
-    
+    for (const entry of body.entry) {
+      for (const change of entry.changes) {
+        if (change.field === 'leadgen') {
+          const leadgenId = change.value.leadgen_id;
+          
+          console.log(`🚀 Novo Lead recebido da Meta! ID: ${leadgenId}`);
+
+          try {
+            // 1. Buscar os dados reais na Graph API usando o Token
+            const url = `https://graph.facebook.com/v25.0/${leadgenId}?access_token=${process.env.META_PAGE_ACCESS_TOKEN}`;
+            const response = await axios.get(url);
+            const leadData = response.data;
+
+            // 2. Extrair Nome, Telefone e Email do array field_data
+            let leadName = 'Lead Sem Nome';
+            let leadPhone = '';
+            let leadEmail = '';
+
+            leadData.field_data.forEach(field => {
+              // Os nomes dos campos podem variar consoante o idioma do formulário
+              if (field.name === 'full_name' || field.name === 'nome') leadName = field.values[0];
+              if (field.name === 'phone_number' || field.name === 'telefone') leadPhone = field.values[0];
+              if (field.name === 'email') leadEmail = field.values[0];
+            });
+
+            if (!leadPhone) {
+              console.log('⚠️ Lead sem número de telemóvel ignorado.');
+              continue;
+            }
+
+            // 3. Limpar o número (manter apenas números para compatibilidade com o wwebjs)
+            const cleanPhone = leadPhone.replace(/\D/g, '');
+
+            // 4. Identificar a Empresa (Como temos Multi-Tenant, usamos a primeira como fallback)
+            let businessConfig = await BusinessConfig.findOne();
+            if (!businessConfig) {
+              throw new Error("Nenhum BusinessConfig encontrado no banco de dados.");
+            }
+            const businessId = businessConfig._id;
+
+            // 5. Garantir que a Tag "Lead Meta Ads" existe
+            let tagMeta = await Tag.findOne({ businessId, name: 'Lead Meta Ads' });
+            if (!tagMeta) {
+              tagMeta = await Tag.create({ businessId, name: 'Lead Meta Ads', color: '#1877F2' });
+            }
+
+            // 6. Guardar ou Atualizar o Contato no CRM
+            const novoContato = await Contact.findOneAndUpdate(
+              { businessId, phone: cleanPhone }, // Procura pelo telemóvel dentro da mesma empresa
+              { 
+                name: leadName,
+                email: leadEmail,
+                $addToSet: { tags: tagMeta._id } // Adiciona a etiqueta sem duplicar
+              },
+              { upsert: true, new: true } // Cria se não existir, atualiza se existir
+            );
+
+            console.log(`✅ Sucesso! Lead ${leadName} (${cleanPhone}) guardado no CRM Calango Bot!`);
+
+          } catch (error) {
+            console.error('❌ Erro ao processar Lead da Meta:', error.response ? error.response.data : error.message);
+          }
+        }
+      }
+    }
   } else {
     res.sendStatus(404);
   }
