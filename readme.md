@@ -5,7 +5,8 @@
 [![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-green?logo=mongodb)](https://www.mongodb.com/)
 [![DeepSeek](https://img.shields.io/badge/AI-DeepSeek-blue)](https://deepseek.com/)
 
-Um CRM com atendimento automatizado que centraliza seus leads e te mostra suas oportunidades de marketing. Utiliza a API oficial do Twilio para comunicação e IA Generativa (DeepSeek) para atuar como um "Vendedor Especialista", realizando triagem e tirando dúvidas de clientes.
+Um CRM com atendimento automatizado que centraliza seus leads e te mostra suas oportunidades de marketing. Utiliza a API de conversa do whatsapp web para comunicação e IA Generativa (DeepSeek) para atuar como um "Vendedor Especialista", realizando triagem e tirando dúvidas de clientes.
+Atende seus clientes e trata seus leads em um funil que posiciona cada um deles na etapa ideal de atendimento, gera campanhas e organiza seus fluxo de atendimento, agendamento e repescagem de clientes.
 
 ---
 
