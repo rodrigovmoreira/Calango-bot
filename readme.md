@@ -5,7 +5,7 @@
 [![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-green?logo=mongodb)](https://www.mongodb.com/)
 [![DeepSeek](https://img.shields.io/badge/AI-DeepSeek-blue)](https://deepseek.com/)
 
-Um SaaS de atendimento automatizado para WhatsApp focado no nicho de Tatuagem (MVP). Utiliza a API oficial do Twilio para comunicação e IA Generativa (DeepSeek) para atuar como um "Vendedor Especialista", realizando triagem e tirando dúvidas de clientes.
+Um CRM com atendimento automatizado que centraliza seus leads e te mostra suas oportunidades de marketing. Utiliza a API oficial do Twilio para comunicação e IA Generativa (DeepSeek) para atuar como um "Vendedor Especialista", realizando triagem e tirando dúvidas de clientes.
 
 ---
 
