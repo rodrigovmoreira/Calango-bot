@@ -1,5 +1,39 @@
 import axios from 'axios';
 import BusinessConfig from '../models/BusinessConfig.js';
+import { executeAITool, searchProducts } from './aiTools.js';
+import { getTagNames } from './tagService.js';
+import { getLastMessages } from './message.js';
+
+// === TEXT STRIPPING ===
+
+const stripThinking = (text) => {
+    if (!text) return "";
+    let clean = text;
+
+    // 1. Remove Markdown de código (```json, ```)
+    clean = clean.replace(/```json/g, '').replace(/```/g, '');
+
+    // 2. Remove blocos <thinking> completos
+    clean = clean.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
+
+    // 3. SEGURANÇA CRÍTICA: Se a IA cortou o texto e deixou um <thinking> aberto,
+    // nós cortamos tudo dali para frente para não vazar o pensamento incompleto.
+    if (clean.includes('<thinking>')) {
+        clean = clean.split('<thinking>')[0];
+    }
+
+    // 4. Remove tags de fechamento órfãs
+    clean = clean.replace(/<\/thinking>/gi, '');
+
+    return clean.trim();
+};
+
+const stripJsonBlocks = (text) => {
+    if (!text) return "";
+    let clean = text.replace(/```json[\s\S]*?```/gi, ''); // Tira blocos markdown
+    clean = clean.replace(/\{[\s\S]*?"action"[\s\S]*?\}/gi, ''); // Tira o JSON solto
+    return clean.trim();
+};
 
 function sanitizeContext(messages) {
     return messages.filter(msg => {
@@ -108,7 +142,213 @@ function formatHistoryText(historyMessages, botName) {
     return historyText;
 }
 
-import { searchProducts } from './aiTools.js';
+// === ORCHESTRATION ===
+
+async function buildAIContext(contextData) {
+    const {
+        businessConfig,
+        activeBusinessId,
+        contact,
+        currentName,
+        isNewContact,
+        isUnknownName,
+        channel,
+        cleanFromForDb
+    } = contextData;
+
+    let welcomeContext = "";
+    if (isNewContact) {
+        welcomeContext = `
+--- CONTEXTO: PRIMEIRO CONTATO ---
+Este é um cliente NOVO.
+1. Apresente-se brevemente de forma humana e amigável.
+2. Pergunte qual o nome do cliente para que você possa anotá-lo.
+`;
+    } else if (isUnknownName && (!contact || contact.totalMessages < 5)) {
+        welcomeContext = `
+--- CONTEXTO: IDENTIFICAÇÃO ---
+Ainda não sabemos o nome deste cliente.
+Em um momento oportuno, pergunte o nome dele(a).
+`;
+    } else {
+        welcomeContext = `
+--- CONTEXTO: CLIENTE CONHECIDO ---
+Nome do Cliente: ${currentName}.
+Você pode chamá-lo(a) pelo nome esporadicamente para gerar conexão.
+`;
+    }
+
+    const timeZone = businessConfig.timezone || businessConfig.operatingHours?.timezone || 'America/Sao_Paulo';
+    contextData.timeZone = timeZone;
+    const now = new Date();
+    const formattedDateTime = new Intl.DateTimeFormat('pt-BR', {
+        timeZone,
+        weekday: 'long',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+    }).format(now);
+    const contextDateTime = `${formattedDateTime} (${timeZone})`;
+
+    let catalogContext = "";
+    if (businessConfig.products?.length > 0) {
+        const allTags = new Set();
+        businessConfig.products.forEach(p => {
+            if (p.tags && Array.isArray(p.tags)) {
+                p.tags.forEach(t => allTags.add(t));
+            }
+        });
+        const uniqueTags = Array.from(allTags).join(', ');
+
+        if (uniqueTags) {
+            catalogContext = `CONTEXT: You have a database of products/services related to: [${uniqueTags}]. DO NOT guess prices or durations. If the user asks about a service, you MUST use the search_catalog tool to find its exact price and duration.`;
+        }
+    }
+
+    const { instagram, website } = businessConfig.socialMedia || {};
+    const basePrompt = await buildSystemPrompt(activeBusinessId);
+
+    const contactTags = getTagNames(contact ? contact.tags : []);
+    const funnelSteps = businessConfig.funnelSteps || [];
+    const stageContext = getFunnelStagePrompt(funnelSteps, contactTags);
+    const tagsContext = contactTags.length > 0 ? `--- TAGS DO CLIENTE (CRM) ---\n[${contactTags.join(', ')}]\n` : "";
+
+    const rawDbHistory = await getLastMessages(cleanFromForDb, 15, activeBusinessId, channel);
+    const historyText = formatHistoryText(rawDbHistory, businessConfig.botName);
+
+    const toolsInstruction = `
+--- FERRAMENTAS DISPONÍVEIS (Responda APENAS JSON) ---
+Se precisar usar uma ferramenta, envie SOMENTE o bloco JSON correspondente.
+1. Escolha APENAS UMA ferramenta por vez. NUNCA envie dois blocos JSON.
+2. Se decidir usar uma ferramenta, envie SOMENTE o JSON puro. NUNCA misture texto humano com JSON na mesma resposta.
+3. Se não for usar ferramenta, responda apenas com texto normal.
+
+1. **SALVAR NOME DO CLIENTE**
+   - Use ASSIM QUE o cliente disser o nome dele.
+   - JSON: {"action": "update_name", "name": "Nome Identificado"}
+
+2. **VERIFICAR AGENDA**
+   - Calcule o "end" somando a duração do serviço (durationMinutes) ao "start".
+   - JSON: {"action": "check", "start": "YYYY-MM-DD HH:mm", "end": "YYYY-MM-DD HH:mm"}
+
+3. **AGENDAR (Apenas com confirmação)**
+   - O campo "end" DEVE respeitar a duração exata do serviço.
+   - JSON: {"action": "book", "clientName": "${currentName}", "start": "YYYY-MM-DD HH:mm", "end": "YYYY-MM-DD HH:mm", "title": "Nome do Serviço"}
+
+4. **CATÁLOGO**
+   - JSON: {"action": "search_catalog", "keywords": ["termo1"]}
+
+5. **ENVIAR GUIA VISUAL**
+   - Use SOMENTE APÓS pesquisar no catálogo e identificar que o produto tem visualGuideUrls. Você deve enviar a PRIMEIRA URL (índice 0) deste array. Opcionalmente adicione tags para registrar a escolha do cliente.
+   - JSON: {"action": "send_visual_guide", "url": "url_da_primeira_imagem", "message": "Mensagem para o cliente"}
+
+6. **ENVIAR MAIS GUIAS VISUAIS**
+   - Use APENAS se o cliente pedir para ver MAIS imagens de guia visual de um produto que você já encontrou no catálogo e que possua mais de uma imagem em visualGuideUrls. Envie o array contendo as imagens restantes.
+   - JSON: {"action": "send_more_visual_guides", "urls": ["url2", "url3"], "message": "Mensagem para o cliente"}
+
+7. **ADICIONAR TAG (CRM)**
+   - Use para marcar uma escolha, preferência ou variação selecionada pelo cliente.
+   - JSON: {"action": "add_tag", "tag": "Nome da Tag"}
+
+Se for apenas conversar, responda texto normal.
+`;
+
+    const systemInstruction = `
+${basePrompt}
+${welcomeContext}
+${tagsContext}
+${stageContext}
+${toolsInstruction}
+${historyText}
+
+--- CONTEXTO TÉCNICO ---
+Data/Hora: ${contextDateTime}
+${catalogContext}
+Links: Insta=${instagram || 'N/A'}, Site=${website || 'N/A'}
+
+--- PROTOCOLO DE RACIOCÍNIO ---
+1. **ANALISE:** Veja o histórico. Se já saudou, NÃO repita a saudação.
+2. **PENSE:** Use <thinking>...</thinking> para planejar a resposta.
+3. **RESPONDA:** A resposta final para o cliente deve vir DEPOIS da tag </thinking>.
+
+--- FORMATO DE SAÍDA ---
+- Texto normal: Apenas a resposta.
+- Ações: Use JSON puro ({"action": "..."}).
+`;
+
+    return systemInstruction;
+}
+
+
+async function processConversation(contextData) {
+    const systemInstruction = await buildAIContext(contextData);
+
+    const aiMessages = [
+        { role: "system", content: systemInstruction },
+        { role: "user", content: contextData.userMessage }
+    ];
+
+    let finalResponseText = "";
+
+    try {
+        const rawResponseText = await callDeepSeek(aiMessages, contextData.activeBusinessId);
+
+        const thoughtMatch = rawResponseText.match(/<thinking>([\s\S]*?)<\/thinking>/i);
+        if (thoughtMatch) console.log(`🧠 [IA PENSOU]: ${thoughtMatch[1].substring(0, 100)}...`);
+
+        let cleanResponse = stripThinking(rawResponseText);
+
+        if (!cleanResponse || cleanResponse.trim() === "") {
+            console.warn("⚠️ IA gerou resposta vazia após limpeza. Usando Fallback.");
+            cleanResponse = "Entendi. Poderia me dar mais detalhes?";
+        }
+
+        const jsonText = cleanResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+        const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+
+        if (jsonMatch) {
+            try {
+                const command = JSON.parse(jsonMatch[0]);
+
+                const toolResult = await executeAITool(command, contextData);
+
+                // --- RECURSIVIDADE ---
+                aiMessages.push({ role: "assistant", content: rawResponseText });
+                aiMessages.push({ role: "user", content: `[SISTEMA]: Resultado da ação: ${toolResult}. Agora responda ao cliente.` });
+
+                const rawFinalResponse = await callDeepSeek(aiMessages, contextData.activeBusinessId);
+
+                finalResponseText = stripThinking(rawFinalResponse);
+
+                if (!finalResponseText || finalResponseText.trim() === "") {
+                    finalResponseText = "Certo, verifiquei aqui.";
+                }
+
+            } catch (jsonErr) {
+                console.error("Erro JSON IA:", jsonErr);
+                finalResponseText = cleanResponse;
+            }
+        } else {
+            finalResponseText = cleanResponse;
+        }
+
+    } catch (aiErr) {
+        console.error("Erro Geração IA:", aiErr);
+        throw new Error('AI Error');
+    }
+
+    finalResponseText = stripJsonBlocks(finalResponseText);
+
+    if (!finalResponseText || finalResponseText.trim() === "") {
+        throw new Error("Mensagem final vazia detectada.");
+    }
+
+    return finalResponseText;
+}
+
 
 async function callDeepSeek(messages, businessId, depth = 0) {
     if (depth > 5) {
@@ -247,4 +487,4 @@ async function generateCampaignMessage(promptText, context, businessId) {
     } catch (e) { return promptText; }
 }
 
-export { callDeepSeek, buildSystemPrompt, generateCampaignMessage, getFunnelStagePrompt, formatHistoryText };
+export { callDeepSeek, buildSystemPrompt, generateCampaignMessage, getFunnelStagePrompt, formatHistoryText, processConversation, buildAIContext };
