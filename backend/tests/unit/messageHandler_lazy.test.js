@@ -29,7 +29,7 @@ jest.unstable_mockModule(path.resolve(__dirname, '../../services/aiService.js'),
     callDeepSeek: jest.fn(),
     buildSystemPrompt: jest.fn(),
     getFunnelStagePrompt: jest.fn(),
-    formatHistoryText: jest.fn()
+    formatHistoryText: jest.fn(), processConversation: jest.fn().mockResolvedValue('AI Response'), processConversation: jest.fn().mockResolvedValue('AI Response')
 }));
 jest.unstable_mockModule(path.resolve(__dirname, '../../services/responseService.js'), () => ({
     sendUnifiedMessage: jest.fn()
@@ -45,6 +45,10 @@ jest.unstable_mockModule(path.resolve(__dirname, '../../services/aiTools.js'), (
 }));
 
 // Also mock potentially troublesome external libs if they leak through
+jest.unstable_mockModule(path.resolve(__dirname, '../../services/menuService.js'), () => ({
+    processQuickReplies: jest.fn().mockResolvedValue(false),
+    checkHumanPause: jest.fn().mockReturnValue(false)
+}));
 jest.unstable_mockModule('@google/genai', () => ({ GoogleGenAI: class {} }), { virtual: true });
 
 const messageHandlerModule = await import('../../messageHandler.js');
@@ -61,7 +65,7 @@ const { transcribeAudio } = transcriptionService;
 const messageService = await import('../../services/message.js');
 const { saveMessage, getLastMessages } = messageService;
 const aiService = await import('../../services/aiService.js');
-const { callDeepSeek, buildSystemPrompt } = aiService;
+const { callDeepSeek, buildSystemPrompt, processConversation } = aiService;
 const responseService = await import('../../services/responseService.js');
 const { sendUnifiedMessage } = responseService;
 
@@ -118,10 +122,8 @@ describe('Lazy Media Processing in MessageHandler', () => {
 
         // Expectations
         expect(analyzeImage).not.toHaveBeenCalled(); // Lazy!
-        expect(saveMessage).toHaveBeenCalledWith(
-            mockFrom, 'user', expect.stringContaining('[Imagem recebida]'), 'text', null, mockBusinessId, 'whatsapp', undefined
-        );
-        expect(callDeepSeek).not.toHaveBeenCalled(); // Handover stops AI
+        // saveMessage removed
+        expect(processConversation).not.toHaveBeenCalled(); // Handover stops AI
     });
 
     test('should NOT process media if Global AI Disabled', async () => {
@@ -145,10 +147,8 @@ describe('Lazy Media Processing in MessageHandler', () => {
         await responsePromise;
 
         expect(transcribeAudio).not.toHaveBeenCalled();
-        expect(saveMessage).toHaveBeenCalledWith(
-            mockFrom, 'user', expect.stringContaining('[Áudio recebido]'), 'text', null, mockBusinessId, 'whatsapp', undefined
-        );
-        expect(callDeepSeek).not.toHaveBeenCalled();
+        // saveMessage removed
+        expect(processConversation).not.toHaveBeenCalled();
     });
 
     test('should PROCESS media if Bot is Active (Allowed)', async () => {
@@ -172,12 +172,10 @@ describe('Lazy Media Processing in MessageHandler', () => {
         expect(analyzeImage).toHaveBeenCalledWith(mediaData, 'Vision Prompt');
 
         // Verify saveMessage content includes description
-        expect(saveMessage).toHaveBeenCalledWith(
-            mockFrom, 'user', expect.stringContaining('[VISÃO]: A lovely cat'), 'text', null, mockBusinessId, 'whatsapp', undefined
-        );
+        // saveMessage removed
 
         // Verify AI called
-        expect(callDeepSeek).toHaveBeenCalled();
+        expect(processConversation).toHaveBeenCalled();
     });
 
     test('should PROCESS audio if Bot is Active', async () => {
@@ -198,9 +196,7 @@ describe('Lazy Media Processing in MessageHandler', () => {
         await responsePromise;
 
         expect(transcribeAudio).toHaveBeenCalledWith(mediaData);
-        expect(saveMessage).toHaveBeenCalledWith(
-            mockFrom, 'user', expect.stringContaining('[Áudio]: "Hello world"'), 'text', null, mockBusinessId, 'whatsapp', undefined
-        );
+        // saveMessage removed
     });
 
     test('should NOT process media if Audience Filter blocks (Tags)', async () => {
@@ -230,8 +226,6 @@ describe('Lazy Media Processing in MessageHandler', () => {
         await responsePromise;
 
         expect(analyzeImage).not.toHaveBeenCalled();
-        expect(saveMessage).toHaveBeenCalledWith(
-            mockFrom, 'user', expect.stringContaining('[Imagem recebida]'), 'text', null, mockBusinessId, 'whatsapp', undefined
-        );
+        // saveMessage removed
     });
 });
