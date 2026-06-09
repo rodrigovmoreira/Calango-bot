@@ -96,3 +96,6 @@ Use this map to locate issues based on symptoms:
 1.  **Single Source of Truth:** Tags are now stored in the `Tags` collection (Objects), not just as Strings in `Contacts`.
 2.  **Separation:** Never write DB queries directly in a Controller. Use a Service.
 3.  **Stability:** The WhatsApp client must auto-reconnect on failure (`LocalAuth` strategy).
+4. **(DDD):** Nenhuma regra de negócio deve importar serviços de infraestrutura (como WhatsApp ou MongoDB). Use Injeção de Dependência.
+5. **Early Return:** É expressamente proibido o aninhamento de if maior que 2 níveis. Use retornos antecipados.
+6. **SRP:** Se uma função passar de 50 linhas, o agente DEVE questionar a arquitetura antes de prosseguir.
