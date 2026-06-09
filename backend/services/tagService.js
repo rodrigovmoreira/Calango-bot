@@ -8,6 +8,15 @@ const escapeRegExp = (string) => {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 };
 
+// Helper: Normalize Tags (Strings or Objects)
+const getTagNames = (tags) => {
+    if (!Array.isArray(tags)) return [];
+    return tags.map(t => {
+        // If it's an object with a name property, use that. If it's a string, use it directly.
+        return (t && t.name ? t.name : t).toString().toLowerCase().trim();
+    });
+};
+
 /**
  * Migrates legacy tags from BusinessConfig.availableTags to the Tag collection.
  * Helper for syncWithWhatsapp.
@@ -293,4 +302,4 @@ const runGlobalTagSync = async () => {
     }
 };
 
-export { syncWithWhatsapp, syncTags, createTag, updateTag, deleteTag, runGlobalTagSync };
+export { syncWithWhatsapp, syncTags, createTag, updateTag, deleteTag, runGlobalTagSync, getTagNames };

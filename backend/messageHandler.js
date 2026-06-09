@@ -1,7 +1,6 @@
 import axios from 'axios';
 import { saveMessage, getLastMessages } from './services/message.js';
-import { analyzeImage } from './services/visionService.js';
-import { transcribeAudio } from './services/transcriptionService.js';
+import { parseMediaToText } from './services/mediaProcessorService.js';
 import { sendUnifiedMessage } from './services/responseService.js';
 import * as wwebjsService from './services/wwebjsService.js';
 import BusinessConfig from './models/BusinessConfig.js';
@@ -9,6 +8,8 @@ import Contact from './models/Contact.js'; // Import Contact model
 import * as aiTools from './services/aiTools.js';
 import { callDeepSeek, buildSystemPrompt, getFunnelStagePrompt, formatHistoryText } from './services/aiService.js';
 import { fromZonedTime, format } from 'date-fns-tz';
+import { evaluateMessageFilters, handleBlockedMessage } from './services/messageFilterService.js';
+import { getTagNames } from './services/tagService.js';
 
 const MAX_HISTORY = 15; // Increased history fetch
 
@@ -29,15 +30,6 @@ const messageBuffer = new Map();
 const BUFFER_DELAY = 11000;
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-
-// Helper: Normalize Tags (Strings or Objects)
-const getTagNames = (tags) => {
-    if (!Array.isArray(tags)) return [];
-    return tags.map(t => {
-        // If it's an object with a name property, use that. If it's a string, use it directly.
-        return (t && t.name ? t.name : t).toString().toLowerCase().trim();
-    });
-};
 
 // Aggressive cleaner for <thinking> tags
 const stripThinking = (text) => {
@@ -80,42 +72,6 @@ function checkRateLimit(key) {
     record.count++;
     if (record.count > MAX_MSGS_PER_WINDOW) { record.isBlocked = true; record.blockedAt = now; return false; }
     return true;
-}
-
-function isWithinOperatingHours(businessConfig) {
-    if (businessConfig.operatingHours && businessConfig.operatingHours.active === false) return false;
-    if (!businessConfig.operatingHours || !businessConfig.operatingHours.opening) return true;
-
-    const timeZone = businessConfig.operatingHours.timezone || 'America/Sao_Paulo';
-
-    // Use Intl.DateTimeFormat for robust timezone handling down to the second
-    const formatter = new Intl.DateTimeFormat('en-US', {
-        timeZone,
-        hour: 'numeric',
-        minute: 'numeric',
-        second: 'numeric',
-        hour12: false
-    });
-
-    const parts = formatter.formatToParts(new Date());
-    const getPart = (type) => parseInt(parts.find(p => p.type === type).value, 10);
-
-    const nowH = getPart('hour');
-    const nowM = getPart('minute');
-    const nowS = getPart('second');
-
-    // Convert everything to Total Seconds for precision comparison
-    const currentTotalSeconds = nowH * 3600 + nowM * 60 + nowS;
-
-    const [openH, openM] = businessConfig.operatingHours.opening.split(':').map(Number);
-    const [closeH, closeM] = businessConfig.operatingHours.closing.split(':').map(Number);
-
-    const openTotalSeconds = openH * 3600 + (openM || 0) * 60;
-    const closeTotalSeconds = closeH * 3600 + (closeM || 0) * 60;
-
-    console.log(`🕒 OpHours Check (${timeZone}): Now=${nowH}:${nowM}:${nowS} (${currentTotalSeconds}s) | Range=[${openTotalSeconds}, ${closeTotalSeconds})`);
-
-    return currentTotalSeconds >= openTotalSeconds && currentTotalSeconds < closeTotalSeconds;
 }
 
 // ==========================================
@@ -183,153 +139,53 @@ Você pode chamá-lo(a) pelo nome esporadicamente para gerar conexão.
 `;
         }
 
-        // --- LAZY PROCESSING LOGIC ---
-        // Determines if we should process media or keep it generic
-        let shouldProcessMedia = true;
-        let blockReason = null; // 'handover', 'global', 'audience', 'hours'
+        // --- LAZY PROCESSING LOGIC (Fase 1: Filter Extraction) ---
+        const filterResult = evaluateMessageFilters(contact, businessConfig, channel);
+        const shouldProcessMedia = filterResult.shouldProcess;
+        const blockReason = filterResult.blockReason;
 
-        // 1. Handover
-        if (contact && contact.isHandover) {
-            shouldProcessMedia = false;
-            blockReason = 'handover';
-            // 🛑 TRAVA DE SEGURANÇA: Desativa a cobrança automática se o humano assumiu
-            if (contact.followUpActive) {
-                await Contact.updateOne({ _id: contact._id }, { $set: { followUpActive: false } });
-            }
-        }
+        if (!shouldProcessMedia) {
+            await handleBlockedMessage(blockReason, contact, businessConfig);
 
-        // 2. Global Disabled
-        if (shouldProcessMedia && businessConfig.aiGlobalDisabled) {
-            shouldProcessMedia = false;
-            blockReason = 'global';
-        }
-
-        // 3. Audience Filter
-        if (shouldProcessMedia && channel !== 'web') {
-            const aiMode = businessConfig.aiResponseMode || 'all';
-            let audienceBlocked = false;
-
-            if (aiMode === 'new_contacts') {
-                if (contact) {
-                    const hasPriorHistory = contact.totalMessages > 0;
-                    const isOld = (Date.now() - new Date(contact.createdAt).getTime()) > 24 * 60 * 60 * 1000;
-                    if (hasPriorHistory || isOld) audienceBlocked = true;
-                }
-                // If !contact, it's new.
-            } else {
-                const contactTags = getTagNames(contact ? contact.tags : []);
-                const whitelist = getTagNames(businessConfig.aiWhitelistTags || []);
-                const blacklist = getTagNames(businessConfig.aiBlacklistTags || []);
-
-                if (aiMode === 'whitelist') {
-                    const hasTag = contactTags.some(t => whitelist.includes(t));
-                    if (!hasTag) audienceBlocked = true;
-                } else if (aiMode === 'blacklist') {
-                    if (blacklist.length > 0) {
-                        const hasBadTag = contactTags.some(t => blacklist.includes(t));
-                        if (hasBadTag) audienceBlocked = true;
+            // --- EXECUTE BLOCKS (Responses/Logging) ---
+            if (blockReason === 'handover') {
+                console.log(`🛑 Handover ativo para ${from}. Robô silenciado.`);
+                if (resolve) resolve({ text: "" });
+            } else if (blockReason === 'global') {
+                console.log(`🛑 AI Global Disabled (Observer Mode) for business ${businessConfig._id}.`);
+                if (resolve) resolve({ text: "" });
+            } else if (blockReason === 'audience') {
+                console.log(`🛑 AI Audience Filter: Ignored (Mode: ${businessConfig.aiResponseMode}).`);
+                if (resolve) resolve({ text: "" });
+            } else if (blockReason === 'hours') {
+                const awayMsg = businessConfig.awayMessage;
+                // FIX: Prevent 'Away Message' Loop
+                const lastMessages = await getLastMessages(cleanFromForDb, 1, activeBusinessId, channel);
+                if (lastMessages && lastMessages.length > 0) {
+                    const lastMsg = lastMessages[0];
+                    if (lastMsg.role === 'bot' && lastMsg.content === awayMsg) {
+                        console.log(`🔕 Away Message suprimida para ${from} (loop prevent).`);
+                        if (resolve) resolve({ text: "" });
+                        return; // Exit early inside the block as well to prevent away message
                     }
                 }
-            }
 
-            if (audienceBlocked) {
-                shouldProcessMedia = false;
-                blockReason = 'audience';
-            }
-        }
-
-        // 4. Operating Hours
-        if (shouldProcessMedia && !isWithinOperatingHours(businessConfig)) {
-            shouldProcessMedia = false;
-            blockReason = 'hours';
-        }
-
-        // --- PROCESS MESSAGES ---
-        const finalMessages = [];
-        for (const msg of messages) {
-            let content = msg.body;
-
-            if (msg.type === 'image' && msg.mediaData) {
-                if (shouldProcessMedia) {
-                    const visionPrompt = businessConfig.prompts?.visionSystem || "Descreva esta imagem.";
-                    try {
-                        const desc = await analyzeImage(msg.mediaData, visionPrompt);
-                        const caption = desc ? `[VISÃO]: ${desc}` : "[Imagem]";
-                        content = content ? `${content}\n${caption}` : caption;
-                    } catch (e) {
-                        console.error("Erro Visão:", e);
-                        content = content ? `${content}\n[Erro na análise de imagem]` : "[Erro na análise de imagem]";
-                    }
+                await saveMessage(cleanFromForDb, 'bot', awayMsg, 'text', null, activeBusinessId, channel, null, from);
+                if (resolve) {
+                    resolve({ text: awayMsg });
                 } else {
-                    content = content ? `${content} [Imagem recebida]` : "[Imagem recebida]";
+                    await sendUnifiedMessage(from, awayMsg, provider, businessConfig._id);
                 }
-            } else if (msg.type === 'audio' && msg.mediaData) {
-                if (shouldProcessMedia) {
-                    try {
-                        const trans = await transcribeAudio(msg.mediaData);
-                        const caption = trans ? `[Áudio]: "${trans}"` : "[Áudio]";
-                        content = content ? `${content}\n${caption}` : caption;
-                    } catch (e) {
-                        console.error("Erro Transcrição:", e);
-                        content = "[Erro ao processar áudio]";
-                    }
-                } else {
-                    content = "[Áudio recebido]";
-                }
-            } else if (msg.type !== 'text') {
-                // Outros tipos de mídia
-                const mediaDesc = `[Mídia: ${msg.type}]`;
-                content = content ? `${content}\n${mediaDesc}` : mediaDesc;
             }
 
-            if (content) finalMessages.push(content);
+            return; // Early return aplicando o bloqueio
         }
 
-        const userMessage = finalMessages.join('\n');
+        // --- PROCESS MESSAGES (Fase 2: Media Processor) ---
+        const userMessage = await parseMediaToText(messages, shouldProcessMedia, businessConfig);
 
         // Salva a mensagem combinada como 'user'
         await saveMessage(cleanFromForDb, 'user', userMessage, 'text', null, activeBusinessId, channel, name, from);
-
-        // --- EXECUTE BLOCKS (Responses/Logging) ---
-        if (blockReason === 'handover') {
-            console.log(`🛑 Handover ativo para ${from}. Robô silenciado.`);
-            if (resolve) resolve({ text: "" });
-            return;
-        }
-
-        if (blockReason === 'global') {
-            console.log(`🛑 AI Global Disabled (Observer Mode) for business ${businessConfig._id}.`);
-            if (resolve) resolve({ text: "" });
-            return;
-        }
-
-        if (blockReason === 'audience') {
-            console.log(`🛑 AI Audience Filter: Ignored (Mode: ${businessConfig.aiResponseMode}).`);
-            if (resolve) resolve({ text: "" });
-            return;
-        }
-
-        if (blockReason === 'hours') {
-            const awayMsg = businessConfig.awayMessage;
-            // FIX: Prevent 'Away Message' Loop
-            const lastMessages = await getLastMessages(cleanFromForDb, 1, activeBusinessId, channel);
-            if (lastMessages && lastMessages.length > 0) {
-                const lastMsg = lastMessages[0];
-                if (lastMsg.role === 'bot' && lastMsg.content === awayMsg) {
-                    console.log(`🔕 Away Message suprimida para ${from} (loop prevent).`);
-                    if (resolve) resolve({ text: "" });
-                    return;
-                }
-            }
-
-            await saveMessage(cleanFromForDb, 'bot', awayMsg, 'text', null, activeBusinessId, channel, null, from);
-            if (resolve) {
-                resolve({ text: awayMsg });
-            } else {
-                await sendUnifiedMessage(from, awayMsg, provider, businessConfig._id);
-            }
-            return;
-        }
 
         // =========================================================================
         // ⚡ MENU DE RESPOSTAS RÁPIDAS
