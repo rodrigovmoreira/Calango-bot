@@ -10,12 +10,9 @@ import { callDeepSeek, buildSystemPrompt, getFunnelStagePrompt, formatHistoryTex
 import { fromZonedTime, format } from 'date-fns-tz';
 import { evaluateMessageFilters, handleBlockedMessage } from './services/messageFilterService.js';
 import { getTagNames } from './services/tagService.js';
+import { processQuickReplies, checkHumanPause } from './services/menuService.js';
 
 const MAX_HISTORY = 15; // Increased history fetch
-
-// === CONTROLE DE PAUSA (ATENDIMENTO HUMANO) ===
-const humanPauseMap = new Map();
-const HUMAN_PAUSE_TIME = 30 * 60 * 1000;
 
 // === CONTROLE DE PROTEÇÃO (ANTI-LOOP) ===
 const rateLimitMap = new Map();
@@ -190,45 +187,19 @@ Você pode chamá-lo(a) pelo nome esporadicamente para gerar conexão.
         // =========================================================================
         // ⚡ MENU DE RESPOSTAS RÁPIDAS
         // =========================================================================
-        if (businessConfig.menuOptions && businessConfig.menuOptions.length > 0) {
-            const lowerMsg = userMessage.toLowerCase();
-            const matchedOption = businessConfig.menuOptions.find(opt => {
-                const keywords = opt.keyword.split(',').map(k => k.trim().toLowerCase());
-                return keywords.some(k => k && lowerMsg.includes(k));
-            });
+        const isMenuHandled = await processQuickReplies({
+            userMessage,
+            businessConfig,
+            activeBusinessId,
+            from,
+            provider,
+            uniqueKey,
+            channel,
+            cleanFromForDb,
+            resolve
+        });
 
-            if (matchedOption) {
-                let finalResponse = matchedOption.response;
-
-                if (matchedOption.useAI) {
-                    const menuPrompt = `
-${businessConfig.prompts.chatSystem}
----
-INSTRUÇÃO: O usuário perguntou sobre "${matchedOption.keyword}".
-A informação oficial é: "${matchedOption.response}".
-Responda de forma natural usando APENAS a informação oficial.
-Cliente: ${userMessage}`;
-
-                    try {
-                        finalResponse = await callDeepSeek([
-                            { role: "user", content: menuPrompt }
-                        ], activeBusinessId);
-                    } catch (e) { console.error("Erro IA Menu:", e); }
-                }
-
-                if (matchedOption.requiresHuman) {
-                    humanPauseMap.set(uniqueKey, Date.now() + HUMAN_PAUSE_TIME);
-                }
-
-                if (channel === 'web' && resolve) {
-                    resolve({ text: finalResponse });
-                } else {
-                    await sendUnifiedMessage(from, finalResponse, provider, businessConfig._id);
-                }
-                await saveMessage(cleanFromForDb, 'bot', finalResponse, 'text', null, activeBusinessId, channel, null, from);
-                return;
-            }
-        }
+        if (isMenuHandled) return;
 
         // =========================================================================
         // 🧠 CÉREBRO DA IA + AGENDA (AGORA COM DEEPSEEK)
@@ -594,8 +565,7 @@ async function handleIncomingMessage(normalizedMsg, activeBusinessId) {
     const uniqueKey = `${activeBusinessId}_${from}`;
 
     // 1. VERIFICA PAUSA
-    const pauseUntil = humanPauseMap.get(uniqueKey);
-    if (pauseUntil && Date.now() < pauseUntil) {
+    if (checkHumanPause(uniqueKey)) {
         return { text: "Atendimento pausado para intervenção humana." };
     }
 
