@@ -28,6 +28,14 @@ router.post('/', authenticateToken, async (req, res) => {
   try {
     const { clientName, clientPhone, title, start, end, type } = req.body;
 
+    // Limpeza pesada do telefone: tira tudo que não for número
+    let cleanPhone = clientPhone.replace(/\D/g, '');
+    
+    // Se a pessoa digitou só o DDD e o número (ex: 11999999999), adicionamos o 55 (Brasil) na frente
+    if (cleanPhone.length === 10 || cleanPhone.length === 11) {
+        cleanPhone = `55${cleanPhone}`;
+    }
+
     // Validação de Conflito de Horário
     const conflito = await Appointment.findOne({
       businessId: req.user.activeBusinessId,
@@ -45,7 +53,7 @@ router.post('/', authenticateToken, async (req, res) => {
     const newAppointment = await Appointment.create({
       businessId: req.user.activeBusinessId,
       clientName,
-      clientPhone,
+      clientPhone: cleanPhone, // Salva o telefone limpo
       title,
       start,
       end,

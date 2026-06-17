@@ -46,7 +46,7 @@ const ScheduleTab = () => {
   useEffect(() => {
     fetchAppointments();
     if (state.businessConfig?.minSchedulingNoticeMinutes) {
-        setMinNotice(state.businessConfig.minSchedulingNoticeMinutes);
+      setMinNotice(state.businessConfig.minSchedulingNoticeMinutes);
     }
   }, [state.businessConfig]);
 
@@ -102,6 +102,19 @@ const ScheduleTab = () => {
     return true;
   };
 
+  const handlePhoneChange = (e) => {
+    // Pega apenas os números
+    let value = e.target.value.replace(/\D/g, '');
+
+    // Aplica a máscara (XX) XXXXX-XXXX
+    if (value.length <= 11) {
+      value = value.replace(/^(\d{2})(\d)/g, '($1) $2');
+      value = value.replace(/(\d)(\d{4})$/, '$1-$2');
+    }
+
+    setNewEvent({ ...newEvent, clientPhone: value });
+  };
+
   const handleSelectSlot = ({ start, end }) => {
     setSelectedEvent(null);
     setNewEvent({
@@ -146,15 +159,15 @@ const ScheduleTab = () => {
       onFollowUpClose();
     } catch (error) {
       if (error.response?.status === 409) {
-          toast({
-              title: "Conflito de Versão",
-              description: "Atenção: Este agendamento foi modificado por outro usuário. Recarregue a página (ou feche e abra o modal novamente) para ver as atualizações.",
-              status: "error",
-              duration: null,
-              isClosable: true
-          });
+        toast({
+          title: "Conflito de Versão",
+          description: "Atenção: Este agendamento foi modificado por outro usuário. Recarregue a página (ou feche e abra o modal novamente) para ver as atualizações.",
+          status: "error",
+          duration: null,
+          isClosable: true
+        });
       } else {
-          toast({ title: 'Erro ao atualizar status', status: 'error' });
+        toast({ title: 'Erro ao atualizar status', status: 'error' });
       }
     }
   };
@@ -170,6 +183,15 @@ const ScheduleTab = () => {
   };
 
   const handleSave = async () => {
+
+    // Removemos os traços e parênteses só para contar quantos números reais tem ali
+    const rawPhone = newEvent.clientPhone.replace(/\D/g, '');
+
+    if (!newEvent.title || !newEvent.clientName || rawPhone.length < 10) {
+      toast({ title: 'Preencha título, nome e um telefone válido com DDD.', status: 'warning' });
+      return;
+    }
+
     if (!newEvent.title || !newEvent.clientName || !newEvent.clientPhone) {
       toast({ title: 'Preencha título, nome e telefone.', status: 'warning' });
       return;
@@ -220,15 +242,15 @@ const ScheduleTab = () => {
       onClose();
     } catch (error) {
       if (error.response?.status === 409) {
-          toast({
-              title: "Conflito de Versão",
-              description: "Atenção: Este agendamento foi modificado por outro usuário. Recarregue a página para ver as atualizações.",
-              status: "error",
-              duration: null,
-              isClosable: true
-          });
+        toast({
+          title: "Conflito de Versão",
+          description: "Atenção: Este agendamento foi modificado por outro usuário. Recarregue a página para ver as atualizações.",
+          status: "error",
+          duration: null,
+          isClosable: true
+        });
       } else {
-          toast({ title: 'Erro ao salvar agendamento', status: 'error' });
+        toast({ title: 'Erro ao salvar agendamento', status: 'error' });
       }
     }
   };
@@ -324,46 +346,46 @@ const ScheduleTab = () => {
       {/* MOBILE CARD VIEW */}
       <Box display={{ base: 'block', md: 'none' }} h="90%" overflowY="auto" pb={20}>
         <HStack justify="space-between" mb={4}>
-           <Text fontWeight="bold" fontSize="lg">Agenda</Text>
-           <HStack>
-               <IconButton icon={<SettingsIcon />} size={{ base: 'lg', md: 'md' }} onClick={onSettingsOpen} aria-label="Configurações" />
-               <Button leftIcon={<AddIcon />} colorScheme="blue" size={{ base: 'lg', md: 'md' }} onClick={() => handleSelectSlot({ start: new Date(), end: new Date() })}>
-                 Novo
-               </Button>
-           </HStack>
+          <Text fontWeight="bold" fontSize="lg">Agenda</Text>
+          <HStack>
+            <IconButton icon={<SettingsIcon />} size={{ base: 'lg', md: 'md' }} onClick={onSettingsOpen} aria-label="Configurações" />
+            <Button leftIcon={<AddIcon />} colorScheme="blue" size={{ base: 'lg', md: 'md' }} onClick={() => handleSelectSlot({ start: new Date(), end: new Date() })}>
+              Novo
+            </Button>
+          </HStack>
         </HStack>
 
         <VStack spacing={3} align="stretch">
           {filteredEvents.length === 0 ? (
-             <Text color="gray.500" textAlign="center" mt={10}>Nenhum agendamento encontrado.</Text>
+            <Text color="gray.500" textAlign="center" mt={10}>Nenhum agendamento encontrado.</Text>
           ) : (
-             filteredEvents.map((evt, idx) => (
-               <Box
-                 key={idx}
-                 p={4}
-                 bg={cardBg}
-                 borderRadius="md"
-                 boxShadow="sm"
-                 borderLeft="4px solid"
-                 borderLeftColor={
-                    evt.status === 'completed' ? 'green.500' :
+            filteredEvents.map((evt, idx) => (
+              <Box
+                key={idx}
+                p={4}
+                bg={cardBg}
+                borderRadius="md"
+                boxShadow="sm"
+                borderLeft="4px solid"
+                borderLeftColor={
+                  evt.status === 'completed' ? 'green.500' :
                     evt.status === 'cancelled' ? 'red.500' :
-                    evt.status === 'followup_pending' ? 'orange.500' :
-                    'blue.500'
-                 }
-                 onClick={() => handleSelectEvent(evt)}
-               >
-                 <HStack justify="space-between">
-                    <Text fontWeight="bold">{evt.clientName}</Text>
-                    <Badge colorScheme={statusColors[evt.status]}>{evt.status}</Badge>
-                 </HStack>
-                 <Text fontSize="sm">{evt.title}</Text>
-                 <HStack fontSize="xs" color="gray.500" mt={2}>
-                    <TimeIcon />
-                    <Text>{moment(evt.start).format('DD/MM HH:mm')} - {moment(evt.end).format('HH:mm')}</Text>
-                 </HStack>
-               </Box>
-             ))
+                      evt.status === 'followup_pending' ? 'orange.500' :
+                        'blue.500'
+                }
+                onClick={() => handleSelectEvent(evt)}
+              >
+                <HStack justify="space-between">
+                  <Text fontWeight="bold">{evt.clientName}</Text>
+                  <Badge colorScheme={statusColors[evt.status]}>{evt.status}</Badge>
+                </HStack>
+                <Text fontSize="sm">{evt.title}</Text>
+                <HStack fontSize="xs" color="gray.500" mt={2}>
+                  <TimeIcon />
+                  <Text>{moment(evt.start).format('DD/MM HH:mm')} - {moment(evt.end).format('HH:mm')}</Text>
+                </HStack>
+              </Box>
+            ))
           )}
         </VStack>
       </Box>
@@ -371,8 +393,8 @@ const ScheduleTab = () => {
       {/* DESKTOP CALENDAR VIEW */}
       <Box display={{ base: 'none', md: 'block' }} h="100%">
 
-      {/* BARRA DE FILTROS DE STATUS */}
-      <HStack mb={4} justify="space-between">
+        {/* BARRA DE FILTROS DE STATUS */}
+        <HStack mb={4} justify="space-between">
           <HStack spacing={4} overflowX="auto" pb={2} css={{
             '&::-webkit-scrollbar': { height: '4px' },
             '&::-webkit-scrollbar-thumb': { background: '#CBD5E0', borderRadius: '24px' },
@@ -416,40 +438,40 @@ const ScheduleTab = () => {
           </HStack>
 
           <Tooltip label="Configurar Antecedência Mínima">
-             <IconButton icon={<SettingsIcon />} size="sm" onClick={onSettingsOpen} aria-label="Configurações da Agenda" />
+            <IconButton icon={<SettingsIcon />} size="sm" onClick={onSettingsOpen} aria-label="Configurações da Agenda" />
           </Tooltip>
-      </HStack>
+        </HStack>
 
-      <Box flex="1" overflowX="auto" h="90%">
-        <Box minW="700px" h="100%">
-          <Calendar
-            localizer={localizer}
-            events={filteredEvents}
-            startAccessor="start"
-            endAccessor="end"
-            style={{ height: '100%' }}
-            selectable
-            onSelectSlot={handleSelectSlot}
-            onSelectEvent={handleSelectEvent}
-            eventPropGetter={eventStyleGetter}
+        <Box flex="1" overflowX="auto" h="90%">
+          <Box minW="700px" h="100%">
+            <Calendar
+              localizer={localizer}
+              events={filteredEvents}
+              startAccessor="start"
+              endAccessor="end"
+              style={{ height: '100%' }}
+              selectable
+              onSelectSlot={handleSelectSlot}
+              onSelectEvent={handleSelectEvent}
+              eventPropGetter={eventStyleGetter}
 
-            view={view}
-            onView={setView}
-            date={date}
-            onNavigate={setDate}
+              view={view}
+              onView={setView}
+              date={date}
+              onNavigate={setDate}
 
-            messages={{
-              next: "Próximo", previous: "Anterior", today: "Hoje",
-              month: "Mês", week: "Semana", day: "Dia", agenda: "Lista",
-              date: "Data", time: "Hora", event: "Evento", noEventsInRange: "Sem agendamentos."
-            }}
-          />
+              messages={{
+                next: "Próximo", previous: "Anterior", today: "Hoje",
+                month: "Mês", week: "Semana", day: "Dia", agenda: "Lista",
+                date: "Data", time: "Hora", event: "Evento", noEventsInRange: "Sem agendamentos."
+              }}
+            />
+          </Box>
         </Box>
-      </Box>
 
       </Box>
 
-      <Modal isOpen={isOpen} onClose={onClose} size="md">
+      <Modal isOpen={isOpen} onClose={onClose} size="lg">
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>
@@ -502,11 +524,12 @@ const ScheduleTab = () => {
                   />
                 </FormControl>
                 <FormControl isRequired>
-                  <FormLabel>Telefone</FormLabel>
+                  <FormLabel>Telefone (WhatsApp)</FormLabel>
                   <Input
-                    placeholder="11999999999"
+                    placeholder="(11) 99999-9999"
                     value={newEvent.clientPhone}
-                    onChange={(e) => setNewEvent({ ...newEvent, clientPhone: e.target.value })}
+                    onChange={handlePhoneChange}
+                    maxLength={15} // Limita o tamanho máximo com a formatação
                     size={{ base: 'lg', md: 'md' }}
                   />
                 </FormControl>
@@ -594,40 +617,40 @@ const ScheduleTab = () => {
       <Modal isOpen={isSettingsOpen} onClose={onSettingsClose}>
         <ModalOverlay />
         <ModalContent>
-            <ModalHeader>Configurações da Agenda</ModalHeader>
-            <ModalCloseButton />
-            <ModalBody>
-                <FormControl>
-                    <FormLabel>
-                        Tempo Mínimo de Antecedência (Minutos)
-                        <Tooltip label="Tempo mínimo entre agora e o próximo agendamento disponível. Ex: Se colocar 60 min, o cliente só verá vagas daqui a 1 hora.">
-                            <TimeIcon ml={2} color="gray.500" />
-                        </Tooltip>
-                    </FormLabel>
-                    <Input
-                        type="number"
-                        value={minNotice}
-                        onChange={(e) => setMinNotice(Number(e.target.value))}
-                    />
-                    <Text fontSize="sm" color="gray.500" mt={2}>
-                        Isso impede que a IA agende horários muito próximos de "agora".
-                    </Text>
-                </FormControl>
-            </ModalBody>
-            <ModalFooter>
-                <Button variant="ghost" mr={3} onClick={onSettingsClose}>Cancelar</Button>
-                <Button colorScheme="blue" onClick={async () => {
-                    try {
-                        await businessAPI.updateConfig({ minSchedulingNoticeMinutes: minNotice });
-                        toast({ title: 'Configuração salva!', status: 'success' });
-                        onSettingsClose();
-                    } catch (e) {
-                        toast({ title: 'Erro ao salvar', status: 'error' });
-                    }
-                }}>
-                    Salvar
-                </Button>
-            </ModalFooter>
+          <ModalHeader>Configurações da Agenda</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <FormControl>
+              <FormLabel>
+                Tempo Mínimo de Antecedência (Minutos)
+                <Tooltip label="Tempo mínimo entre agora e o próximo agendamento disponível. Ex: Se colocar 60 min, o cliente só verá vagas daqui a 1 hora.">
+                  <TimeIcon ml={2} color="gray.500" />
+                </Tooltip>
+              </FormLabel>
+              <Input
+                type="number"
+                value={minNotice}
+                onChange={(e) => setMinNotice(Number(e.target.value))}
+              />
+              <Text fontSize="sm" color="gray.500" mt={2}>
+                Isso impede que a IA agende horários muito próximos de "agora".
+              </Text>
+            </FormControl>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onSettingsClose}>Cancelar</Button>
+            <Button colorScheme="blue" onClick={async () => {
+              try {
+                await businessAPI.updateConfig({ minSchedulingNoticeMinutes: minNotice });
+                toast({ title: 'Configuração salva!', status: 'success' });
+                onSettingsClose();
+              } catch (e) {
+                toast({ title: 'Erro ao salvar', status: 'error' });
+              }
+            }}>
+              Salvar
+            </Button>
+          </ModalFooter>
         </ModalContent>
       </Modal>
 

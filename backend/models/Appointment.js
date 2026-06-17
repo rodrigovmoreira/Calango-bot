@@ -12,7 +12,8 @@ const appointmentSchema = new mongoose.Schema({
   whatsappSessionId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Session',
-    required: true
+    required: false, // Alterado para false no MVP para permitir agendamentos manuais rápidos
+    default: null
   }, // Carimbo de qual número/sessão é dona deste agendamento
 
   // Dados do Cliente (Para o bot saber quem é)
@@ -22,17 +23,17 @@ const appointmentSchema = new mongoose.Schema({
   // Dados do Evento (Padrão Google Calendar)
   title: { type: String, required: true }, // Ex: "Sessão Fechamento Braço"
   description: { type: String }, // Detalhes extras
-  
+
   start: { type: Date, required: true }, // Data e Hora de Início
   end: { type: Date, required: true },   // Data e Hora de Fim
-  
+
   // Categorização (Sua solicitação de etapas)
-  type: { 
-    type: String, 
+  type: {
+    type: String,
     enum: ['orcamento', 'servico', 'retorno', 'pos_venda', 'outros'],
     default: 'servico'
   },
-  
+
   status: {
     type: String,
     enum: ['scheduled', 'confirmed', 'completed', 'no_show', 'cancelled', 'followup_pending', 'archived'],

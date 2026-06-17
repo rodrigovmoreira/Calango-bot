@@ -11,8 +11,8 @@ const getMinutes = (timeStr) => {
     return h * 60 + (m || 0);
 };
 
-// 1. FERRAMENTA: Verificar Disponibilidade
-const checkAvailability = async (userId, start, end) => {
+/// 1. FERRAMENTA: Verificar Disponibilidade
+const checkAvailability = async (businessId, start, end) => {
     try {
         const startTime = new Date(start);
         const endTime = new Date(end);
@@ -23,7 +23,7 @@ const checkAvailability = async (userId, start, end) => {
              return { available: false, reason: "Data inválida." };
         }
 
-        const config = await BusinessConfig.findOne({ _id: userId });
+        const config = await BusinessConfig.findOne({ _id: businessId });
 
         // 0. Verifica Antecedência Mínima (Buffer)
         if (config) {
@@ -61,7 +61,7 @@ const checkAvailability = async (userId, start, end) => {
         // 2. Verifica conflitos na agenda (LÓGICA BLINDADA)
         // Conflito existe se: (StartA < EndB) E (EndA > StartB)
         const conflito = await Appointment.findOne({
-            userId,
+            businessId,
             status: { $in: ['scheduled', 'confirmed'] },
             start: { $lt: endTime },
             end: { $gt: startTime }
@@ -80,16 +80,25 @@ const checkAvailability = async (userId, start, end) => {
 };
 
 // 2. FERRAMENTA: Criar Agendamento (Usado pela IA)
-const createAppointmentByAI = async (userId, data) => {
+const createAppointmentByAI = async (businessId, data) => {
     try {
-        const check = await checkAvailability(userId, data.start, data.end);
+        const check = await checkAvailability(businessId, data.start, data.end);
         if (!check.available) return { success: false, error: check.reason };
+
+        // === LIMPEZA E FORMATAÇÃO DO TELEFONE ===
+        // Tira o '@c.us' e qualquer outro caractere especial
+        let cleanPhone = String(data.clientPhone || '').replace(/\D/g, '');
+        
+        // Se a IA pegou só "11999999999", adicionamos o 55
+        if (cleanPhone.length === 10 || cleanPhone.length === 11) {
+            cleanPhone = `55${cleanPhone}`;
+        }
 
         // Cria o agendamento
         const newAppt = await Appointment.create({
-            userId,
+            businessId,
             clientName: data.clientName,
-            clientPhone: data.clientPhone,
+            clientPhone: cleanPhone, // Usa o telefone limpo e formatado!
             start: new Date(data.start),
             end: new Date(data.end),
             title: data.title || "Agendamento via IA",
@@ -104,9 +113,9 @@ const createAppointmentByAI = async (userId, data) => {
 };
 
 // 3. FERRAMENTA: Listar Horários Livres (Dinâmico)
-const getFreeSlots = async (userId, dateStr) => {
+const getFreeSlots = async (businessId, dateStr) => {
     try {
-        const config = await BusinessConfig.findOne({ _id: userId });
+        const config = await BusinessConfig.findOne({ _id: businessId });
         if (!config || !config.operatingHours) return [];
 
         const slots = [];
@@ -129,7 +138,7 @@ const getFreeSlots = async (userId, dateStr) => {
 
             const slotEnd = new Date(slotStart.getTime() + duration * 60000);
 
-            const check = await checkAvailability(userId, slotStart, slotEnd);
+            const check = await checkAvailability(businessId, slotStart, slotEnd);
             
             if (check.available) {
                 // Formata HH:mm
