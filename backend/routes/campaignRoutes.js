@@ -1,10 +1,12 @@
 import express from 'express';
 const router = express.Router();
+import Contact from '../models/Contact.js';
 import Campaign from '../models/Campaign.js';
 import CampaignLog from '../models/CampaignLog.js';
-import Contact from '../models/Contact.js';
 import BusinessConfig from '../models/BusinessConfig.js';
+import { dispatchCampaign } from '../services/campaignScheduler.js';
 import authenticateToken from '../middleware/auth.js';
+import * as wwebjsService from '../services/wwebjsService.js'; // Importação adicionada para o disparo manual
 
 // List all campaigns for the logged-in user
 router.get('/', authenticateToken, async (req, res) => {
@@ -50,7 +52,7 @@ router.get('/:id/audience', authenticateToken, async (req, res) => {
     const config = await BusinessConfig.findById(req.user.activeBusinessId);
 
     if (!config) {
-        return res.status(400).json({ message: 'Business config not found' });
+      return res.status(400).json({ message: 'Business config not found' });
     }
 
     // If campaign has no tags, it targets ALL? Or NONE?
@@ -62,19 +64,19 @@ router.get('/:id/audience', authenticateToken, async (req, res) => {
 
     let pendingContacts = [];
     if (campaign.targetTags && campaign.targetTags.length > 0) {
-        pendingContacts = await Contact.find({
-            businessId: config._id,
-            tags: { $in: campaign.targetTags },
-            phone: { $exists: true, $ne: null }, // Valid targets only
-            _id: { $nin: sentContactIds }
-        }).select('name phone lastInteraction');
+      pendingContacts = await Contact.find({
+        businessId: config._id,
+        tags: { $in: campaign.targetTags },
+        phone: { $exists: true, $ne: null }, // Valid targets only
+        _id: { $nin: sentContactIds }
+      }).select('name phone lastInteraction');
     }
 
     res.json({
-        sent: sentContacts,
-        pending: pendingContacts,
-        totalPending: pendingContacts.length,
-        totalSent: sentContacts.length
+      sent: sentContacts,
+      pending: pendingContacts,
+      totalPending: pendingContacts.length,
+      totalSent: sentContacts.length
     });
 
   } catch (error) {
@@ -144,8 +146,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
     // But we should add the same validation logic if triggerType/schedule are involved.
 
     if (updates.triggerType === 'time' && (!updates.schedule || !updates.schedule.time)) {
-        // If switching to time, ensure time is present.
-         return res.status(400).json({ message: 'Missing schedule time for time-based campaign' });
+      // If switching to time, ensure time is present.
+      return res.status(400).json({ message: 'Missing schedule time for time-based campaign' });
     }
 
     const query = { _id: id, businessId: req.user.activeBusinessId };
@@ -189,6 +191,59 @@ router.delete('/:id', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error deleting campaign:', error);
     res.status(500).json({ message: 'Error deleting campaign' });
+  }
+});
+
+// Disparo Manual da Campanha (Play)
+router.post('/:id/send', authenticateToken, async (req, res) => {
+  try {
+    const campaignId = req.params.id;
+    const businessId = req.user.activeBusinessId;
+
+    // 1. Busca a campanha
+    const campaign = await Campaign.findOne({ _id: campaignId, businessId });
+    if (!campaign) {
+      return res.status(404).json({ message: 'Campanha não encontrada.' });
+    }
+
+    // 2. Busca os contatos correspondentes às tags
+    let pendingContacts = [];
+    if (campaign.targetTags && campaign.targetTags.length > 0) {
+      pendingContacts = await Contact.find({
+        businessId: businessId,
+        tags: { $in: campaign.targetTags },
+        phone: { $exists: true, $ne: null }
+      });
+    }
+
+    if (pendingContacts.length === 0) {
+      return res.status(400).json({ message: 'Nenhum contato com telefone foi encontrado para as tags desta campanha.' });
+    }
+
+    // 3. Dispara as mensagens usando o motor completo (com suporte a Imagens, IA e Logs)
+    const config = await BusinessConfig.findById(businessId);
+
+    let sentCount = 0;
+    for (const contact of pendingContacts) {
+      try {
+        // O dispatchCampaign já lida com imagens, delay anti-ban e cria os logs no banco
+        await dispatchCampaign(campaign, contact, null, config);
+        sentCount++;
+        console.log(`[Campanha Manual] 🚀 Disparo programado para ${contact.phone} (Processamento em background)`);
+      } catch (err) {
+        console.error(`❌ Erro ao programar disparo manual para ${contact.phone}:`, err);
+      }
+    }
+
+    // 4. Atualiza a campanha (Desativando-a para não haver duplicidade caso o agendador acorde e tenha status enviado)
+    campaign.status = 'active';
+    await campaign.save();
+
+    res.json({ message: `Campanha disparada! ${sentCount} mensagens foram processadas.`, success: true });
+
+  } catch (error) {
+    console.error('Erro no disparo manual:', error);
+    res.status(500).json({ message: 'Erro interno ao disparar campanha.' });
   }
 });
 

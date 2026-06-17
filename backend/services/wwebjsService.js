@@ -2,6 +2,7 @@ import fs from 'fs';
 import pkg from 'whatsapp-web.js';
 const { Client, RemoteAuth, MessageMedia } = pkg;
 import mongoose from 'mongoose';
+import axios from 'axios';
 //import { MongoStore } from 'wwebjs-mongo';
 import UnifiedMongoStore from './UnifiedMongoStore.js';
 import { adaptWWebJSMessage } from './providerAdapter.js';
@@ -103,12 +104,13 @@ const startSession = async (businessIdRaw) => {
     }),
     puppeteer: {
       headless: true,
+      protocolTimeout: 300000, // AUMENTO DE TIMEOUT PARA IMAGENS (5 minutos)
       //dumpio: true, // Ativa logs detalhados do Puppeteer (útil para debugging)
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
+        // '--disable-accelerated-2d-canvas', // 🚨 REMOVIDO: O WWebJS precisa do canvas para renderizar a miniatura (thumbnail) de imagens antes do envio. Desativar isso causa crash (Execution context was destroyed).
         '--no-first-run',
         //'--no-zygote',
         '--disable-gpu',
@@ -127,8 +129,8 @@ const startSession = async (businessIdRaw) => {
         '--disable-domain-reliability',
         '--disable-sync',
         '--disable-remote-fonts',
-        '--blink-settings=imagesEnabled=false',
-        '--disable-software-rasterizer',
+        // '--blink-settings=imagesEnabled=false', // 🚨 REMOVIDO: Impede o carregamento da tag <img> no DOM do WhatsApp Web. Sem isso, mídias (fotos/vídeos) não podem ser enviadas e dão Timeout.
+        // '--disable-software-rasterizer', // 🚨 REMOVIDO: Em conjunto com o bloqueio de GPU, desligar o rasterizer cega totalmente a capacidade gráfica do Chrome, causando falha letal no processamento de imagens.
         '--disable-features=IsolateOrigins,site-per-process'
       ],
       executablePath: process.env.CHROME_BIN || undefined
@@ -327,7 +329,7 @@ const sendWWebJSMessage = async (businessId, to, message) => {
   }
 };
 
-// 4. FUNÇÃO DE ENVIO DE IMAGEM (Novo - Changelog 4)
+// 4. FUNÇÃO DE ENVIO DE IMAGEM (Memória direta - Sem corrupção)
 const sendImage = async (businessId, to, imageUrl, caption) => {
   const client = sessions.get(businessId.toString());
 
@@ -337,38 +339,58 @@ const sendImage = async (businessId, to, imageUrl, caption) => {
   }
 
   try {
-    // Formata número
+    // Formata o número
     let formattedNumber = to.replace(/\D/g, '');
     if (!formattedNumber.includes('@c.us')) formattedNumber = `${formattedNumber}@c.us`;
 
-    // Baixa e prepara a mídia
-    const media = await MessageMedia.fromUrl(imageUrl);
+    console.log(`⬇️ [WWebJS] Baixando imagem da URL...`);
 
-    // Envia com legenda (se houver)
-    // FIX: Pass { sendSeen: false } to prevent crash on 'markedUnread'
-    await client.sendMessage(formattedNumber, media, { caption: caption || "", sendSeen: false });
+    // 1. Faz o download nativo via axios
+    const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+
+    // 2. CORREÇÃO CRÍTICA: Não usar 'binary'! O response.data já é um Buffer perfeito.
+    const imageBuffer = Buffer.from(response.data);
+    const base64Image = imageBuffer.toString('base64'); // Converte limpo para Base64
+
+    // 3. Verifica o formato da imagem (MimeType) para o WhatsApp não rejeitar
+    let mimeType = response.headers['content-type'];
+    if (!mimeType || mimeType.includes('octet-stream')) {
+      // Fallback caso o Firebase oculte o tipo do arquivo
+      mimeType = imageUrl.toLowerCase().includes('.png') ? 'image/png' : 'image/jpeg';
+    }
+
+    // 4. Cria o objeto de mídia oficial do WWebJS
+    const filename = mimeType.includes('png') ? 'imagem_campanha.png' : 'imagem_campanha.jpg';
+    const media = new MessageMedia(mimeType, base64Image, filename);
+
+    console.log(`🚀 [WWebJS] Enviando imagem de ${imageBuffer.length} bytes para ${formattedNumber}...`);
+
+    // 5. Dispara a mensagem anexando a legenda (caption)
+    const options = caption ? { caption: caption } : {};
+    await client.sendMessage(formattedNumber, media, options);
+
     return true;
 
   } catch (error) {
-    console.error(`💥 Erro ao enviar imagem (User ${businessId}):`, error.message);
+    console.error(`💥 Erro ao baixar/enviar imagem (User ${businessId}):`, error.message);
     return false;
   }
-}; // <--- AQUI É O FIM DA FUNÇÃO DE IMAGEM
+};
 
 
 // 5. FUNÇÃO DE ESTADO "DIGITANDO..." (UX / Humanização)
 const sendPresenceAvailable = async (businessId) => {
-    const client = getClientSession(businessId);
-    
-    if (!client || !client.info) {
-        return; 
-    }
-    
-    try {
-        await client.sendPresenceAvailable();
-    } catch (error) {
-        // Ignora erros silenciosamente
-    }
+  const client = getClientSession(businessId);
+
+  if (!client || !client.info) {
+    return;
+  }
+
+  try {
+    await client.sendPresenceAvailable();
+  } catch (error) {
+    // Ignora erros silenciosamente
+  }
 };
 
 const sendStateTyping = async (businessId, to) => {
@@ -385,13 +407,13 @@ const sendStateTyping = async (businessId, to) => {
     if (!formattedNumber.includes('@c.us')) formattedNumber = `${formattedNumber}@c.us`;
 
     const chat = await client.getChatById(formattedNumber);
-    
+
     // 🛡️ Garante que o chat foi encontrado antes de enviar o status
     if (chat) {
       // Dispara o status "digitando..." (o WWebJS mantém isso por alguns segundos ou até enviar mensagem)
       await chat.sendStateTyping();
     }
-    
+
     return true;
   } catch (error) {
     // Ignora erros visuais para não derrubar o servidor
@@ -510,19 +532,6 @@ const getSessionQR = (businessId) => qrCodes.get(businessId);
 const getClientSession = (businessId) => sessions.get(businessId.toString());
 
 export {
-  initializeWWebJS,
-  startSession,
-  stopSession,
-  getSessionStatus,
-  getSessionQR,
-  getClientSession,
-  sendWWebJSMessage,
-  sendImage,
-  sendStateTyping,
-  closeAllSessions,
-  getLabels,
-  updateLabel,
-  deleteLabel,
-  setChatLabels,
-  getChatLabels
+  initializeWWebJS, startSession, stopSession, getSessionStatus, getSessionQR, getClientSession, sendWWebJSMessage,
+  sendImage, sendStateTyping, closeAllSessions, getLabels, updateLabel, deleteLabel, setChatLabels, getChatLabels
 };

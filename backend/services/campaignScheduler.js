@@ -15,17 +15,18 @@ const CRON_EXPRESSION = '* * * * *';
 
 // === HELPER: CLEAN AI THOUGHTS (Consolidated Logic) ===
 const stripThinking = (text) => {
-    if (!text) return "";
-    let clean = text;
-    clean = clean.replace(/```json/g, '').replace(/```/g, '');
-    clean = clean.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
-    if (clean.includes('<thinking>')) clean = clean.split('<thinking>')[0];
-    clean = clean.replace(/<\/thinking>/gi, '');
-    return clean.trim();
+  if (!text) return "";
+  let clean = text;
+  clean = clean.replace(/```json/g, '').replace(/```/g, '');
+  clean = clean.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
+  if (clean.includes('<thinking>')) clean = clean.split('<thinking>')[0];
+  clean = clean.replace(/<\/thinking>/gi, '');
+  return clean.trim();
 };
 
 async function processCampaigns() {
   try {
+    console.log('⏳ [Scheduler] Verificando campanhas automáticas...');
     // Prevent re-entrancy race conditions
     const campaigns = await Campaign.find({
       isActive: true,
@@ -51,8 +52,12 @@ async function processCampaigns() {
 }
 
 async function processTimeCampaign(campaign) {
-  const config = await BusinessConfig.findOne({ userId: campaign.businessId });
-  if (!config) return;
+  // CORREÇÃO: Usar findById com o businessId
+  const config = await BusinessConfig.findById(campaign.businessId);
+  if (!config) {
+      console.log(`⚠️ [Scheduler] Empresa não encontrada para a campanha: ${campaign.name}`);
+      return;
+  }
 
   const timeZone = config.operatingHours?.timezone || 'America/Sao_Paulo';
   const now = new Date();
@@ -107,18 +112,18 @@ async function processTimeCampaign(campaign) {
 
   // 1. Exclusion Logic (Batch optimization)
   let excludedContactIds = [];
-  
+
   if (campaign.type === 'broadcast') {
     excludedContactIds = await CampaignLog.find({ campaignId: campaign._id }).distinct('contactId');
   } else if (campaign.type === 'recurring') {
     const intradayFreqs = ['minutes_1', 'minutes_30', 'hours_1', 'hours_6', 'hours_12'];
     if (!intradayFreqs.includes(campaign.schedule?.frequency)) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        excludedContactIds = await CampaignLog.find({
-          campaignId: campaign._id,
-          sentAt: { $gte: today }
-        }).distinct('contactId');
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      excludedContactIds = await CampaignLog.find({
+        campaignId: campaign._id,
+        sentAt: { $gte: today }
+      }).distinct('contactId');
     }
   }
 
@@ -140,7 +145,7 @@ async function processTimeCampaign(campaign) {
   const BATCH_SIZE = 50;
   for (let i = 0; i < contacts.length; i += BATCH_SIZE) {
     const batch = contacts.slice(i, i + BATCH_SIZE);
-    
+
     // Process each contact in batch
     // We do sequential dispatch per batch to not overload, but parallel inside batch could be an option.
     // Sticking to sequential for safety with AI rate limits.
@@ -152,26 +157,31 @@ async function processTimeCampaign(campaign) {
   // 4. Update Campaign Status
   const updateData = { 'stats.lastRun': now, processing: false };
   if (campaign.schedule?.frequency === 'once') {
-      updateData.status = 'completed';
-      updateData.isActive = false;
+    updateData.status = 'completed';
+    updateData.isActive = false;
   } else {
-      updateData.status = 'active';
-      if (campaign.tempNextRun) updateData.nextRun = campaign.tempNextRun;
+    updateData.status = 'active';
+    if (campaign.tempNextRun) updateData.nextRun = campaign.tempNextRun;
   }
   await Campaign.updateOne({ _id: campaign._id }, updateData);
 }
 
 async function processEventCampaign(campaign) {
-  const config = await BusinessConfig.findOne({ userId: campaign.businessId });
-  if (!config) return;
+  // CORREÇÃO 1: Usar findById para a configuração
+  const config = await BusinessConfig.findById(campaign.businessId);
+  if (!config) {
+      console.log(`⚠️ [Scheduler] Empresa não encontrada para a campanha: ${campaign.name}`);
+      return;
+  }
 
   const now = new Date();
   const offsetMinutes = campaign.eventOffset || 0;
   const startRange = new Date(now.getTime() + offsetMinutes * 60000);
   const endRange = new Date(startRange.getTime() + 60000);
 
+  // CORREÇÃO 2: Buscar a agenda por businessId e não userId
   const appointments = await Appointment.find({
-    userId: campaign.businessId,
+    businessId: campaign.businessId, 
     status: { $in: campaign.eventTargetStatus },
     start: { $gte: startRange, $lt: endRange }
   });
@@ -183,13 +193,13 @@ async function processEventCampaign(campaign) {
   for (const appt of appointments) {
     // Find or create temp contact wrapper
     let contact = await Contact.findOne({ businessId: config._id, phone: appt.clientPhone });
-    
+
     if (contact && contact.isHandover) continue;
 
     // Check if already sent for this specific appointment ID
     const alreadySent = await CampaignLog.exists({
-        campaignId: campaign._id,
-        relatedId: appt._id.toString()
+      campaignId: campaign._id,
+      relatedId: appt._id.toString()
     });
 
     if (alreadySent) continue;
@@ -211,21 +221,21 @@ async function dispatchCampaign(campaign, contact, appointment, config) {
 
   if (campaign.contentMode === 'ai_prompt') {
     try {
-        // 1. Fetch History (Last 10 messages)
-        // We use the phone number or contact ID to fetch history
-        const identifier = contact.phone || contact._id;
-        const rawHistory = await getLastMessages(identifier, 10, config._id, 'whatsapp');
-        
-        // Format history for the prompt
-        const historyText = rawHistory.reverse().map(m => 
-            `${m.role === 'bot' || m.role === 'assistant' ? 'Assistant' : 'User'}: "${m.content}"`
-        ).join('\n');
+      // 1. Fetch History (Last 10 messages)
+      // We use the phone number or contact ID to fetch history
+      const identifier = contact.phone || contact._id;
+      const rawHistory = await getLastMessages(identifier, 10, config._id, 'whatsapp');
 
-        // 2. Build Smart Prompt
-        const prompt = [
-            {
-                role: 'system',
-                content: `
+      // Format history for the prompt
+      const historyText = rawHistory.reverse().map(m =>
+        `${m.role === 'bot' || m.role === 'assistant' ? 'Assistant' : 'User'}: "${m.content}"`
+      ).join('\n');
+
+      // 2. Build Smart Prompt
+      const prompt = [
+        {
+          role: 'system',
+          content: `
 You are a marketing assistant for ${config.businessName || 'a business'}.
 CONTEXT: You are sending a campaign message to ${contact.name || 'a client'}.
 
@@ -240,21 +250,21 @@ ${historyText || "No previous history."}
 3. **ANTI-REPETITION:** If the history shows the user already rejected this offer, do not offer again. Just check in on them.
 4. **THINKING:** Use <thinking>...</thinking> to plan, but it will be hidden.
 `
-            },
-            {
-                role: 'user',
-                content: "Generate the campaign message now."
-            }
-        ];
+        },
+        {
+          role: 'user',
+          content: "Generate the campaign message now."
+        }
+      ];
 
-        // 3. Call AI
-        const rawResponse = await callDeepSeek(prompt, appointment.userId || contact.businessId);
-        
-        // 4. Strip Thoughts
-        messageToSend = stripThinking(rawResponse);
-        
-        // Safety Fallback
-        if (!messageToSend) messageToSend = campaign.message; // Fallback to raw prompt if AI fails
+      // 3. Call AI
+      const rawResponse = await callDeepSeek(prompt, appointment.userId || contact.businessId);
+
+      // 4. Strip Thoughts
+      messageToSend = stripThinking(rawResponse);
+
+      // Safety Fallback
+      if (!messageToSend) messageToSend = campaign.message; // Fallback to raw prompt if AI fails
 
     } catch (e) {
       console.error('⚠️ Campaign AI failed, using static fallback:', e.message);
@@ -264,14 +274,14 @@ ${historyText || "No previous history."}
     // Static Replacements
     const contactName = contact.name || '';
     if (appointment) {
-        messageToSend = messageToSend
-            .replace(/\{\{name\}\}/gi, appointment.clientName || contactName)
-            .replace(/\{nome\}/gi, appointment.clientName || contactName)
-            .replace(/\{\{time\}\}/gi, new Date(appointment.start).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}));
+      messageToSend = messageToSend
+        .replace(/\{\{name\}\}/gi, appointment.clientName || contactName)
+        .replace(/\{nome\}/gi, appointment.clientName || contactName)
+        .replace(/\{\{time\}\}/gi, new Date(appointment.start).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
     } else {
-        messageToSend = messageToSend
-            .replace(/\{\{name\}\}/gi, contactName)
-            .replace(/\{nome\}/gi, contactName);
+      messageToSend = messageToSend
+        .replace(/\{\{name\}\}/gi, contactName)
+        .replace(/\{nome\}/gi, contactName);
     }
   }
 
@@ -280,7 +290,7 @@ ${historyText || "No previous history."}
   const minDelay = (campaign.delayRange?.min !== undefined ? campaign.delayRange.min : 3) * 1000;
   const maxDelay = (campaign.delayRange?.max !== undefined ? campaign.delayRange.max : 8) * 1000;
   let delay = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay;
-  
+
   if (process.env.NODE_ENV === 'test') delay = 0;
 
   // Helper to wait
@@ -296,56 +306,56 @@ ${historyText || "No previous history."}
       let textAlreadySent = false;
 
       const sendImages = async (urls, withCaptionOnFirst = false) => {
-          for (let i = 0; i < urls.length; i++) {
-              if (i > 0) await wait(Math.floor(Math.random() * 2000) + 2000); // 2-4s delay between multiple images
-              const caption = (withCaptionOnFirst && i === 0) ? messageToSend : undefined;
-              try {
-                  const imageSent = await sendImage(campaign.businessId, contact.phone, urls[i], caption);
-                  if (!imageSent) throw new Error("sendImage returned false");
-                  if (caption) textAlreadySent = true;
-              } catch (imageErr) {
-                  console.error(`⚠️ Erro ao enviar imagem ${urls[i]} para ${contact.phone}:`, imageErr);
-              }
+        for (let i = 0; i < urls.length; i++) {
+          if (i > 0) await wait(Math.floor(Math.random() * 2000) + 2000); // 2-4s delay between multiple images
+          const caption = (withCaptionOnFirst && i === 0) ? messageToSend : undefined;
+          try {
+            const imageSent = await sendImage(campaign.businessId, contact.phone, urls[i], caption);
+            if (!imageSent) throw new Error("sendImage returned false");
+            if (caption) textAlreadySent = true;
+          } catch (imageErr) {
+            console.error(`⚠️ Erro ao enviar imagem ${urls[i]} para ${contact.phone}:`, imageErr);
           }
+        }
       };
 
       if (mediaUrls.length > 0) {
-          if (mediaOrder === 'image_with_caption') {
-              await sendImages(mediaUrls, true);
-              if (!textAlreadySent && messageToSend) {
-                  // Fallback if image fails but we need to send text
-                  await wait(1000);
-                  sent = await sendUnifiedMessage(contact.phone, messageToSend, 'wwebjs', campaign.businessId);
-              } else {
-                  sent = true;
-              }
-          } else if (mediaOrder === 'image_first') {
-              await sendImages(mediaUrls, false);
-              if (messageToSend) {
-                  await wait(Math.floor(Math.random() * 2000) + 2000);
-                  sent = await sendUnifiedMessage(contact.phone, messageToSend, 'wwebjs', campaign.businessId);
-              } else {
-                  sent = true;
-              }
-          } else if (mediaOrder === 'text_first') {
-              if (messageToSend) {
-                  sent = await sendUnifiedMessage(contact.phone, messageToSend, 'wwebjs', campaign.businessId);
-                  textAlreadySent = true;
-                  await wait(Math.floor(Math.random() * 2000) + 2000);
-              }
-              await sendImages(mediaUrls, false);
-              sent = true;
-          } else if (mediaOrder === 'only_image') {
-              await sendImages(mediaUrls, false);
-              sent = true;
-          }
-      } else {
-          // No media, just send text
-          if (messageToSend) {
-              sent = await sendUnifiedMessage(contact.phone, messageToSend, 'wwebjs', campaign.businessId);
+        if (mediaOrder === 'image_with_caption') {
+          await sendImages(mediaUrls, true);
+          if (!textAlreadySent && messageToSend) {
+            // Fallback if image fails but we need to send text
+            await wait(1000);
+            sent = await sendUnifiedMessage(contact.phone, messageToSend, 'wwebjs', campaign.businessId);
           } else {
-              sent = true; // Nothing to send
+            sent = true;
           }
+        } else if (mediaOrder === 'image_first') {
+          await sendImages(mediaUrls, false);
+          if (messageToSend) {
+            await wait(Math.floor(Math.random() * 2000) + 2000);
+            sent = await sendUnifiedMessage(contact.phone, messageToSend, 'wwebjs', campaign.businessId);
+          } else {
+            sent = true;
+          }
+        } else if (mediaOrder === 'text_first') {
+          if (messageToSend) {
+            sent = await sendUnifiedMessage(contact.phone, messageToSend, 'wwebjs', campaign.businessId);
+            textAlreadySent = true;
+            await wait(Math.floor(Math.random() * 2000) + 2000);
+          }
+          await sendImages(mediaUrls, false);
+          sent = true;
+        } else if (mediaOrder === 'only_image') {
+          await sendImages(mediaUrls, false);
+          sent = true;
+        }
+      } else {
+        // No media, just send text
+        if (messageToSend) {
+          sent = await sendUnifiedMessage(contact.phone, messageToSend, 'wwebjs', campaign.businessId);
+        } else {
+          sent = true; // Nothing to send
+        }
       }
 
       const status = sent ? 'sent' : 'failed';
@@ -363,11 +373,11 @@ ${historyText || "No previous history."}
 
       // Ultimate Fallback: Try to send text if everything exploded
       if (messageToSend && err.message !== "Ultimate fallback attempt") {
-          try {
-             await sendUnifiedMessage(contact.phone, messageToSend, 'wwebjs', campaign.businessId);
-          } catch (e) {
-             console.error("Ultimate text fallback failed:", e);
-          }
+        try {
+          await sendUnifiedMessage(contact.phone, messageToSend, 'wwebjs', campaign.businessId);
+        } catch (e) {
+          console.error("Ultimate text fallback failed:", e);
+        }
       }
 
       await CampaignLog.create({
@@ -385,4 +395,4 @@ function initScheduler() {
   console.log('🚀 Campaign Scheduler initialized.');
 }
 
-export { initScheduler, processCampaigns };
+export { initScheduler, processCampaigns, dispatchCampaign};
