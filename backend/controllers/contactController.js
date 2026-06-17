@@ -24,7 +24,7 @@ const getContacts = async (req, res) => {
         const userRole = userBusiness?.role || 'operator'; // Default to operator if role not found
 
         let filter = { businessId };
-        
+
         if (userRole === 'operator') {
             // Operators see only contacts assigned to them or unassigned (null)
             filter.$or = [
@@ -228,47 +228,38 @@ const syncContacts = async (req, res) => {
             return res.status(503).json({ message: 'WhatsApp não está pronto. Aguarde a conexão.' });
         }
 
-        console.log('🔄 Iniciando Sincronização Cirúrgica (Via Injeção)...');
+        console.log('🔄 Iniciando Sincronização Segura (Via API Nativa)...');
 
-        const rawChats = await client.pupPage.evaluate(() => {
-            const chats = window.Store.Chat.getModelsArray();
+        // Puxa todos os chats através da função nativa estabilizada do WWebJS
+        const allChats = await client.getChats();
 
-            return chats
-                .filter(chat => {
-                    // --- FILTRO DE BLINDAGEM CONTRA GRUPOS ---
-                    const id = chat.id._serialized;
-                    const user = chat.id.user;
+        // Filtramos do lado do Node (em vez de dentro do navegador)
+        const rawChats = allChats
+            .filter(chat => {
+                const id = chat.id._serialized;
+                const user = chat.id.user;
 
-                    // 1. Elimina Grupos explicitamente
-                    if (chat.isGroup) return false;
+                // Bloqueios de Segurança
+                if (chat.isGroup) return false;
+                if (chat.id.server === 'broadcast') return false; // Elimina Status e Newsletters
+                if (id.includes('@g.us')) return false;
+                if (user && user.includes('-')) return false;
+                if (user && user.length > 15) return false;
 
-                    // 2. Elimina Canais e Status
-                    if (chat.isNewsletter || id.includes('newsletter') || id.includes('status')) return false;
+                return true;
+            })
+            // .timestamp é padrão nativo no retorno do getChats()
+            .sort((a, b) => b.timestamp - a.timestamp)
+            .slice(0, 15) // Pega as Top 15 mais recentes
+            .map(chat => ({
+                phone: chat.id._serialized,
+                name: chat.name, // WWebJS já formata o nome de forma confiável
+                pushname: chat.name,
+                timestamp: chat.timestamp,
+                unread: chat.unreadCount
+            }));
 
-                    // 3. Elimina Grupos pelo padrão de ID (@g.us)
-                    if (id.includes('@g.us')) return false;
-
-                    // 4. Elimina Grupos antigos pelo formato (número-timestamp)
-                    if (user.includes('-')) return false;
-
-                    // 5. Elimina números suspeitosamente longos (Grupos tem IDs gigantes)
-                    // Um número de telefone tem no máximo 13-14 dígitos (DDI + DDD + 9 + Num)
-                    if (user.length > 15) return false;
-
-                    return true;
-                })
-                .sort((a, b) => b.t - a.t)
-                .slice(0, 15) // Top 15 conversas LIMPAS
-                .map(chat => ({
-                    phone: chat.id._serialized || chat.id.user, // Garante que pega com sufixo ou @lid se houver
-                    name: chat.formattedTitle || chat.name || chat.contact.name || chat.contact.pushname,
-                    pushname: chat.contact.pushname,
-                    timestamp: chat.t,
-                    unread: chat.unreadCount
-                }));
-        });
-
-        console.log(`✅ Recebidos ${rawChats.length} chats do navegador.`);
+        console.log(`✅ Recebidos e filtrados ${rawChats.length} chats recentes de forma segura.`);
 
         let imported = 0;
 
