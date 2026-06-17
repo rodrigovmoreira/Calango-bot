@@ -6,11 +6,10 @@ import {
   FormControl, FormLabel, Input, Select, Textarea, useToast, NumberInput, NumberInputField, NumberInputStepper, NumberIncrementStepper, NumberDecrementStepper, Checkbox, SimpleGrid,
   RadioGroup, Radio, Stack, FormHelperText
 } from '@chakra-ui/react';
-import { AddIcon, EditIcon, DeleteIcon, TimeIcon, CalendarIcon } from '@chakra-ui/icons';
+import { AddIcon, EditIcon, DeleteIcon, TimeIcon, CalendarIcon, SmallCloseIcon, ViewIcon, ArrowRightIcon } from '@chakra-ui/icons';
 // Using direct axios for this specific module as it is not fully integrated into standard services yet,
 // but auth headers are handled carefully.
 import axios from 'axios';
-import { SmallCloseIcon, ViewIcon } from '@chakra-ui/icons';
 import CampaignAudienceModal from '../campaigns/CampaignAudienceModal';
 import TagAutocomplete from '../Tags/TagAutocomplete';
 import { uploadMultipleFiles } from '../../utils/uploadHelper';
@@ -121,6 +120,33 @@ const CampaignTab = () => {
           ...currentCampaign,
           schedule: { ...currentCampaign.schedule, days: newDays }
       });
+  };
+
+  const handlePlayCampaign = async (id) => {
+    if (!window.confirm('Deseja disparar esta campanha manualmente agora?')) return;
+    try {
+      toast({ title: 'Iniciando disparo...', status: 'info', duration: 2000 });
+      const token = localStorage.getItem('token');
+      const { data } = await axios.post(`${API_URL}/api/campaigns/${id}/send`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      toast({
+        title: 'Sucesso',
+        description: data.message,
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+      loadCampaigns(); 
+    } catch (error) {
+      toast({
+        title: 'Erro ao disparar',
+        description: error.response?.data?.message || 'Erro de conexão',
+        status: 'error',
+        duration: 3000,
+      });
+    }
   };
 
   const openModal = (campaign = null) => {
@@ -302,6 +328,18 @@ const CampaignTab = () => {
                       <IconButton icon={<EditIcon />} size="sm" mr={2} onClick={() => openModal(c)} />
                       <IconButton icon={<DeleteIcon />} size="sm" colorScheme="red" onClick={() => handleDelete(c._id)} />
                     </Td>
+                    <Td>
+                      {/* BOTÃO PLAY ADICIONADO AQUI */}
+                      <IconButton
+                          icon={<ArrowRightIcon />}
+                          size="sm"
+                          mr={2}
+                          colorScheme="green"
+                          onClick={() => handlePlayCampaign(c._id)}
+                          title="Disparar Campanha Agora"
+                          isDisabled={!c.isActive} 
+                      />
+                      </Td>
                   </Tr>
                 ))}
                   </Tbody>

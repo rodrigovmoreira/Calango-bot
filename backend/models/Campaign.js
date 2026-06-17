@@ -44,7 +44,7 @@ const campaignSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['scheduled', 'completed', 'paused', 'processing'],
+    enum: ['scheduled', 'active', 'completed', 'paused', 'processing', 'sent', 'failed'],
     default: 'scheduled'
   },
   nextRun: {
