@@ -110,7 +110,7 @@ const startSession = async (businessIdRaw) => {
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
+        // '--disable-accelerated-2d-canvas', // 🚨 REMOVIDO: O WWebJS precisa do canvas para renderizar a miniatura (thumbnail) de imagens antes do envio. Desativar isso causa crash (Execution context was destroyed).
         '--no-first-run',
         //'--no-zygote',
         '--disable-gpu',
@@ -129,8 +129,8 @@ const startSession = async (businessIdRaw) => {
         '--disable-domain-reliability',
         '--disable-sync',
         '--disable-remote-fonts',
-        '--blink-settings=imagesEnabled=false',
-        '--disable-software-rasterizer',
+        // '--blink-settings=imagesEnabled=false', // 🚨 REMOVIDO: Impede o carregamento da tag <img> no DOM do WhatsApp Web. Sem isso, mídias (fotos/vídeos) não podem ser enviadas e dão Timeout.
+        // '--disable-software-rasterizer', // 🚨 REMOVIDO: Em conjunto com o bloqueio de GPU, desligar o rasterizer cega totalmente a capacidade gráfica do Chrome, causando falha letal no processamento de imagens.
         '--disable-features=IsolateOrigins,site-per-process'
       ],
       executablePath: process.env.CHROME_BIN || undefined
@@ -347,16 +347,16 @@ const sendImage = async (businessId, to, imageUrl, caption) => {
 
     // 1. Faz o download nativo via axios
     const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-    
+
     // 2. CORREÇÃO CRÍTICA: Não usar 'binary'! O response.data já é um Buffer perfeito.
-    const imageBuffer = Buffer.from(response.data); 
+    const imageBuffer = Buffer.from(response.data);
     const base64Image = imageBuffer.toString('base64'); // Converte limpo para Base64
-    
+
     // 3. Verifica o formato da imagem (MimeType) para o WhatsApp não rejeitar
     let mimeType = response.headers['content-type'];
     if (!mimeType || mimeType.includes('octet-stream')) {
-        // Fallback caso o Firebase oculte o tipo do arquivo
-        mimeType = imageUrl.toLowerCase().includes('.png') ? 'image/png' : 'image/jpeg';
+      // Fallback caso o Firebase oculte o tipo do arquivo
+      mimeType = imageUrl.toLowerCase().includes('.png') ? 'image/png' : 'image/jpeg';
     }
 
     // 4. Cria o objeto de mídia oficial do WWebJS
@@ -364,11 +364,11 @@ const sendImage = async (businessId, to, imageUrl, caption) => {
     const media = new MessageMedia(mimeType, base64Image, filename);
 
     console.log(`🚀 [WWebJS] Enviando imagem de ${imageBuffer.length} bytes para ${formattedNumber}...`);
-    
+
     // 5. Dispara a mensagem anexando a legenda (caption)
     const options = caption ? { caption: caption } : {};
     await client.sendMessage(formattedNumber, media, options);
-    
+
     return true;
 
   } catch (error) {
