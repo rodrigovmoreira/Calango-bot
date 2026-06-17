@@ -6,14 +6,14 @@ import {
   FormControl, FormLabel, Input, Select, Textarea, useToast, NumberInput, NumberInputField, NumberInputStepper, NumberIncrementStepper, NumberDecrementStepper, Checkbox, SimpleGrid,
   RadioGroup, Radio, Stack, FormHelperText
 } from '@chakra-ui/react';
-import { AddIcon, EditIcon, DeleteIcon, TimeIcon, CalendarIcon, SmallCloseIcon, ViewIcon, ArrowRightIcon } from '@chakra-ui/icons';
+import { AddIcon, EditIcon, DeleteIcon, TimeIcon, CalendarIcon, SmallCloseIcon, ViewIcon, CloseIcon } from '@chakra-ui/icons';
 // Using direct axios for this specific module as it is not fully integrated into standard services yet,
 // but auth headers are handled carefully.
 import axios from 'axios';
 import CampaignAudienceModal from '../campaigns/CampaignAudienceModal';
 import TagAutocomplete from '../Tags/TagAutocomplete';
 import { uploadMultipleFiles } from '../../utils/uploadHelper';
-import { CloseIcon } from '@chakra-ui/icons';
+import { FaPlay } from 'react-icons/fa';
 
 const CampaignTab = () => {
   const [campaigns, setCampaigns] = useState([]);
@@ -331,7 +331,7 @@ const CampaignTab = () => {
                     <Td>
                       {/* BOTÃO PLAY ADICIONADO AQUI */}
                       <IconButton
-                          icon={<ArrowRightIcon />}
+                          icon={<FaPlay />}
                           size="sm"
                           mr={2}
                           colorScheme="green"

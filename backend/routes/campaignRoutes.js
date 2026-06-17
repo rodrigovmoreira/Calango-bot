@@ -236,8 +236,7 @@ router.post('/:id/send', authenticateToken, async (req, res) => {
     }
 
     // 4. Atualiza a campanha (Desativando-a para não haver duplicidade caso o agendador acorde e tenha status enviado)
-    campaign.isActive = false;
-    // campaign.status = 'sent'; // Descomente se o seu schema no MongoDB já possuir esse campo
+    campaign.status = 'active';
     await campaign.save();
 
     res.json({ message: `Campanha disparada! ${sentCount} mensagens foram processadas.`, success: true });
