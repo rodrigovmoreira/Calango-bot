@@ -244,13 +244,13 @@ const syncContacts = async (req, res) => {
                 if (chat.id.server === 'broadcast') return false; // Elimina Status e Newsletters
                 if (id.includes('@g.us')) return false;
                 if (user && user.includes('-')) return false;
-                if (user && user.length > 15) return false;
+                if (user && user.length > 30) return false;
 
                 return true;
             })
             // .timestamp é padrão nativo no retorno do getChats()
             .sort((a, b) => b.timestamp - a.timestamp)
-            .slice(0, 15) // Pega as Top 15 mais recentes
+            .slice(0, 500) // Pega as Top 500 mais recentes
             .map(chat => ({
                 phone: chat.id._serialized,
                 name: chat.name, // WWebJS já formata o nome de forma confiável
