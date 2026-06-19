@@ -62,15 +62,20 @@ router.get('/:id/audience', authenticateToken, async (req, res) => {
     // In scheduler: tags: { $in: campaign.targetTags }. If targetTags is empty, $in [] matches nothing.
     // So if empty tags, pending is empty.
 
-    let pendingContacts = [];
+    // Prepara a consulta base: empresa certa, telefone válido e que ainda não recebeu a mensagem
+    const queryPending = {
+      businessId: config._id,
+      phone: { $exists: true, $ne: null },
+      _id: { $nin: sentContactIds }
+    };
+
+    // Se houver tags selecionadas na campanha, adiciona o filtro. 
+    // Se não houver, a query permanece ampla, pegando todos os contatos.
     if (campaign.targetTags && campaign.targetTags.length > 0) {
-      pendingContacts = await Contact.find({
-        businessId: config._id,
-        tags: { $in: campaign.targetTags },
-        phone: { $exists: true, $ne: null }, // Valid targets only
-        _id: { $nin: sentContactIds }
-      }).select('name phone lastInteraction');
+      queryPending.tags = { $in: campaign.targetTags };
     }
+
+    const pendingContacts = await Contact.find(queryPending).select('name phone lastInteraction');
 
     res.json({
       sent: sentContacts,
@@ -206,18 +211,22 @@ router.post('/:id/send', authenticateToken, async (req, res) => {
       return res.status(404).json({ message: 'Campanha não encontrada.' });
     }
 
-    // 2. Busca os contatos correspondentes às tags
-    let pendingContacts = [];
+    // 2. Monta a busca dinâmica: Se não tem tag, pega todos com telefone.
+    const querySend = {
+      businessId: businessId,
+      phone: { $exists: true, $ne: null }
+    };
+
     if (campaign.targetTags && campaign.targetTags.length > 0) {
-      pendingContacts = await Contact.find({
-        businessId: businessId,
-        tags: { $in: campaign.targetTags },
-        phone: { $exists: true, $ne: null }
-      });
+      querySend.tags = { $in: campaign.targetTags };
     }
 
+    const pendingContacts = await Contact.find(querySend);
+
     if (pendingContacts.length === 0) {
-      return res.status(400).json({ message: 'Nenhum contato com telefone foi encontrado para as tags desta campanha.' });
+      return res.status(400).json({
+        message: 'Nenhum contato válido com telefone foi encontrado para esta campanha.'
+      });
     }
 
     // 3. Dispara as mensagens usando o motor completo (com suporte a Imagens, IA e Logs)

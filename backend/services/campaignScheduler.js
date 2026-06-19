@@ -127,17 +127,28 @@ async function processTimeCampaign(campaign) {
     }
   }
 
-  // 2. Find Targets (Exclude "Não Perturbe" / "Nao Perturbe")
-  const contacts = await Contact.find({
+// 2. Find Targets (Montagem dinâmica para aceitar sem tags)
+  const queryContacts = {
     businessId: config._id,
-    tags: {
-      $in: campaign.targetTags,
-      $nin: [/n[ãa]o perturbe/i] // Regra de exclusão opt-out
-    },
-    isHandover: false,
+    isHandover: false, // Ignora quem está em atendimento humano
     phone: { $exists: true, $ne: null },
     _id: { $nin: excludedContactIds }
-  });
+  };
+
+  // Se houver tags específicas, buscamos elas. Se não, pegamos todos.
+  // Em AMBOS os casos, garantimos que a tag "Não Perturbe" fique de fora!
+  if (campaign.targetTags && campaign.targetTags.length > 0) {
+    queryContacts.tags = {
+      $in: campaign.targetTags,
+      $nin: [/n[ãa]o perturbe/i]
+    };
+  } else {
+    queryContacts.tags = {
+      $nin: [/n[ãa]o perturbe/i]
+    };
+  }
+
+  const contacts = await Contact.find(queryContacts);
 
   console.log(`👥 Found ${contacts.length} targets for ${campaign.name}`);
 
