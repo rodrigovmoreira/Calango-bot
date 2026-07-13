@@ -297,9 +297,10 @@ ${historyText || "No previous history."}
   }
 
   // --- DISPATCH ---
-  // Jitter (Delay randômico anti-ban): entre 3s e 8s a menos que campaign.delayRange mude isso especificamente
-  const minDelay = (campaign.delayRange?.min !== undefined ? campaign.delayRange.min : 3) * 1000;
-  const maxDelay = (campaign.delayRange?.max !== undefined ? campaign.delayRange.max : 8) * 1000;
+  // Jitter (Delay randômico anti-ban): entre 3s e 8s por padrão,
+  // a menos que campaign.delayRange defina valores customizados maiores que zero
+  const minDelay = (campaign.delayRange?.min || 23) * 1000;
+  const maxDelay = (campaign.delayRange?.max || 58) * 1000;
   let delay = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay;
 
   if (process.env.NODE_ENV === 'test') delay = 0;
@@ -307,98 +308,101 @@ ${historyText || "No previous history."}
   // Helper to wait
   const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-  console.log(`⏳ Sending to ${contact.phone} in ${delay}ms`);
+  console.log(`⏳ Waiting ${delay}ms before sending to ${contact.phone}...`);
 
-  setTimeout(async () => {
-    try {
-      let sent = false;
-      const mediaUrls = campaign.mediaUrls || [];
-      const mediaOrder = campaign.mediaOrder || 'image_with_caption';
-      let textAlreadySent = false;
+  // AGUARDAR o delay ANTES de enviar (respeita intervalo entre contatos)
+  await wait(delay);
 
-      const sendImages = async (urls, withCaptionOnFirst = false) => {
-        for (let i = 0; i < urls.length; i++) {
-          if (i > 0) await wait(Math.floor(Math.random() * 2000) + 2000); // 2-4s delay between multiple images
-          const caption = (withCaptionOnFirst && i === 0) ? messageToSend : undefined;
-          try {
-            const imageSent = await sendImage(campaign.businessId, contact.phone, urls[i], caption);
-            if (!imageSent) throw new Error("sendImage returned false");
-            if (caption) textAlreadySent = true;
-          } catch (imageErr) {
-            console.error(`⚠️ Erro ao enviar imagem ${urls[i]} para ${contact.phone}:`, imageErr);
-          }
+  try {
+    let sent = false;
+    const mediaUrls = campaign.mediaUrls || [];
+    const mediaOrder = campaign.mediaOrder || 'image_with_caption';
+    let textAlreadySent = false;
+
+    const sendImages = async (urls, withCaptionOnFirst = false) => {
+      for (let i = 0; i < urls.length; i++) {
+        if (i > 0) await wait(Math.floor(Math.random() * 2000) + 2000); // 2-4s delay between multiple images
+        const caption = (withCaptionOnFirst && i === 0) ? messageToSend : undefined;
+        try {
+          const imageSent = await sendImage(campaign.businessId, contact.phone, urls[i], caption);
+          if (!imageSent) throw new Error("sendImage returned false");
+          if (caption) textAlreadySent = true;
+        } catch (imageErr) {
+          console.error(`⚠️ Erro ao enviar imagem ${urls[i]} para ${contact.phone}:`, imageErr);
         }
-      };
+      }
+    };
 
-      if (mediaUrls.length > 0) {
-        if (mediaOrder === 'image_with_caption') {
-          await sendImages(mediaUrls, true);
-          if (!textAlreadySent && messageToSend) {
-            // Fallback if image fails but we need to send text
-            await wait(1000);
-            sent = await sendUnifiedMessage(contact.phone, messageToSend, 'wwebjs', campaign.businessId);
-          } else {
-            sent = true;
-          }
-        } else if (mediaOrder === 'image_first') {
-          await sendImages(mediaUrls, false);
-          if (messageToSend) {
-            await wait(Math.floor(Math.random() * 2000) + 2000);
-            sent = await sendUnifiedMessage(contact.phone, messageToSend, 'wwebjs', campaign.businessId);
-          } else {
-            sent = true;
-          }
-        } else if (mediaOrder === 'text_first') {
-          if (messageToSend) {
-            sent = await sendUnifiedMessage(contact.phone, messageToSend, 'wwebjs', campaign.businessId);
-            textAlreadySent = true;
-            await wait(Math.floor(Math.random() * 2000) + 2000);
-          }
-          await sendImages(mediaUrls, false);
-          sent = true;
-        } else if (mediaOrder === 'only_image') {
-          await sendImages(mediaUrls, false);
-          sent = true;
-        }
-      } else {
-        // No media, just send text
-        if (messageToSend) {
+    if (mediaUrls.length > 0) {
+      if (mediaOrder === 'image_with_caption') {
+        await sendImages(mediaUrls, true);
+        if (!textAlreadySent && messageToSend) {
+          // Fallback if image fails but we need to send text
+          await wait(1000);
           sent = await sendUnifiedMessage(contact.phone, messageToSend, 'wwebjs', campaign.businessId);
         } else {
-          sent = true; // Nothing to send
+          sent = true;
         }
-      }
-
-      const status = sent ? 'sent' : 'failed';
-
-      await CampaignLog.create({
-        campaignId: campaign._id,
-        contactId: contact._id || new mongoose.Types.ObjectId(),
-        relatedId: appointment ? appointment._id.toString() : null,
-        messageContent: messageToSend || "[Midia]",
-        status: status,
-        sentAt: new Date()
-      });
-    } catch (err) {
-      console.error(`💥 Campaign send error for ${contact.phone}:`, err);
-
-      // Ultimate Fallback: Try to send text if everything exploded
-      if (messageToSend && err.message !== "Ultimate fallback attempt") {
-        try {
-          await sendUnifiedMessage(contact.phone, messageToSend, 'wwebjs', campaign.businessId);
-        } catch (e) {
-          console.error("Ultimate text fallback failed:", e);
+      } else if (mediaOrder === 'image_first') {
+        await sendImages(mediaUrls, false);
+        if (messageToSend) {
+          await wait(Math.floor(Math.random() * 2000) + 2000);
+          sent = await sendUnifiedMessage(contact.phone, messageToSend, 'wwebjs', campaign.businessId);
+        } else {
+          sent = true;
         }
+      } else if (mediaOrder === 'text_first') {
+        if (messageToSend) {
+          sent = await sendUnifiedMessage(contact.phone, messageToSend, 'wwebjs', campaign.businessId);
+          textAlreadySent = true;
+          await wait(Math.floor(Math.random() * 2000) + 2000);
+        }
+        await sendImages(mediaUrls, false);
+        sent = true;
+      } else if (mediaOrder === 'only_image') {
+        await sendImages(mediaUrls, false);
+        sent = true;
       }
-
-      await CampaignLog.create({
-        campaignId: campaign._id,
-        contactId: contact._id || new mongoose.Types.ObjectId(),
-        status: 'failed',
-        error: err.message
-      });
+    } else {
+      // No media, just send text
+      if (messageToSend) {
+        sent = await sendUnifiedMessage(contact.phone, messageToSend, 'wwebjs', campaign.businessId);
+      } else {
+        sent = true; // Nothing to send
+      }
     }
-  }, delay);
+
+    const status = sent ? 'sent' : 'failed';
+
+    await CampaignLog.create({
+      campaignId: campaign._id,
+      contactId: contact._id || new mongoose.Types.ObjectId(),
+      relatedId: appointment ? appointment._id.toString() : null,
+      messageContent: messageToSend || "[Midia]",
+      status: status,
+      sentAt: new Date()
+    });
+
+    console.log(`✅ Sent to ${contact.phone} (status: ${status})`);
+  } catch (err) {
+    console.error(`💥 Campaign send error for ${contact.phone}:`, err);
+
+    // Ultimate Fallback: Try to send text if everything exploded
+    if (messageToSend && err.message !== "Ultimate fallback attempt") {
+      try {
+        await sendUnifiedMessage(contact.phone, messageToSend, 'wwebjs', campaign.businessId);
+      } catch (e) {
+        console.error("Ultimate text fallback failed:", e);
+      }
+    }
+
+    await CampaignLog.create({
+      campaignId: campaign._id,
+      contactId: contact._id || new mongoose.Types.ObjectId(),
+      status: 'failed',
+      error: err.message
+    });
+  }
 }
 
 function initScheduler() {
