@@ -7,24 +7,24 @@
 ## 📋 Resumo da Arquitetura Final
 
 ```
-┌──────────────────┐     ┌─────────────────────┐     ┌──────────────────┐
-│  Calango-Bot     │     │   Squamata-Login     │     │  Calango-Bot     │
-│   Frontend       │────▶│     Frontend         │────▶│    Backend        │
-│  host:3004       │     │    host:5174         │     │   host:3003       │
-│  (cont:3000)     │     │   (cont:5174)        │     │  (cont:3001)      │
-└──────────────────┘     └─────────────────────┘     └──────────────────┘
-       │                         │                          │
-       │                         ▼                          │
-       │                ┌─────────────────────┐             │
-       │                │  Squamata-Login     │             │
-       │                │     Backend         │─────────────┤
-       │                │    host:3001        │ JWT_SECRET  │
-       │                │   (cont:3001)       │ (compartilhada)
-       │                └─────────────────────┘             │
-       │                                                   │
-       ▼                                                   ▼
-  localStorage              MongoDB                  MongoDB
-  (token, user)        (squamata_login_db)      (chatbot-platform)
+┌──────────────────┐      ┌───────────────────────┐     ┌───────────────────┐
+│  Calango-Bot     │      │   Squamata-Login      │     │  Calango-Bot      │
+│   Frontend       │────▶│     Frontend          │────▶│    Backend        │
+│  host:3004       │      │    host:5174          │     │   host:3003       │
+│  (cont:3000)     │      │   (cont:5174)         │     │  (cont:3001)      │
+└──────────────────┘      └───────────────────────┘     └───────────────────┘
+       │                          │                          │
+       │                          ▼                          │
+       │                ┌─────────────────────┐              │
+       │                │  Squamata-Login     │              │
+       │                │     Backend         │──────────────┤
+       │                │    host:3001        │ JWT_SECRET   │
+       │                │   (cont:3001)       │compartilhada │
+       │                └─────────────────────┘              │
+       │                                                     │
+       ▼                                                     ▼
+  localStorage              MongoDB                        MongoDB
+  (token, user)        (squamata_login_db)           (chatbot-platform)
 
 Fluxo:
 1. Usuário clica "Entrar" no Calango-Bot (http://localhost:3004) → redirecionado ao Squamata-Login (http://localhost:5174)
