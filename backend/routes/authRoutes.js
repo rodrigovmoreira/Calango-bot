@@ -450,4 +450,26 @@ router.get('/invites/:token', async (req, res) => {
   }
 });
 
+// ROTA: /api/auth/profile — NOVO (Checkpoint 1 — SSO)
+router.get('/profile', authenticateToken, async (req, res) => {
+  try {
+    const user = await SystemUser.findById(req.user.userId)
+      .populate('businesses.businessId', 'businessName');
+
+    if (!user) return res.status(404).json({ message: 'Usuário não encontrado' });
+
+    res.json({
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      avatarUrl: user.avatarUrl,
+      activeBusinessId: user.activeBusinessId,
+      businesses: user.businesses,
+      role: req.user.role
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Erro ao buscar perfil' });
+  }
+});
+
 export default router;

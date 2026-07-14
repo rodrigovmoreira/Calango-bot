@@ -20,7 +20,7 @@ const systemUserSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: [true, 'Senha é obrigatória'],
+    required: false,  // ← mudado para false (SSO users usam placeholder)
     minlength: 6,
     select: false
   },
@@ -76,17 +76,22 @@ const systemUserSchema = new mongoose.Schema({
 
 // Hash password antes de salvar
 systemUserSchema.pre('save', async function(next) {
-  console.log('🔑 Hashando senha para SystemUser:', this.email);
-  
   if (this.isModified()) {
     this.updatedAt = Date.now();
   }
   
+  // Pular hash para placeholder de SSO ou se senha não foi modificada
   if (!this.isModified('password')) return next();
+  
+  // SSO users: placeholder não precisa de hash
+  if (this.password === 'sso_placeholder_do_not_use') {
+    console.log('🔑 SystemUser SSO — pulando hash do placeholder');
+    return next();
+  }
   
   try {
     this.password = await bcrypt.hash(this.password, 12);
-    console.log('✅ Senha hasheada com sucesso para SystemUser');
+    console.log('✅ Senha hasheada com sucesso para SystemUser:', this.email);
     next();
   } catch (error) {
     console.error('💥 ERRO ao hashear senha do SystemUser:', error);
