@@ -82,18 +82,20 @@ Checkpoint 0     Checkpoint 1        Checkpoint 2         Checkpoint 3        Ch
 
 ## 🔧 Checkpoint 0: Infraestrutura e Configuração
 
-### 0.1 Sincronizar `JWT_SECRET`
+### 0.1 Sincronizar `JWT_SECRET_LOGIN`
 
 **Arquivo**: `c:\Calango-bot\.env`
 
-Copie o valor de `JWT_SECRET` do `.env` do Squamata-Login **exatamente igual** para o `.env` do Calango-Bot:
+Copie o valor de `JWT_SECRET_LOGIN` do `.env` do Squamata-Login **exatamente igual** para o `.env` do Calango-Bot. O Calango-Bot mantém seu próprio `JWT_SECRET` para tokens legados durante a transição.
 
 ```env
-# No Calango-bot/.env - DEVE SER IDÊNTICO ao Squamata-login/.env
-JWT_SECRET=6vDB0x1y2dwqtii4udYKeiImV3Uwgrydmfrmys49bwy4xScpPzdDSkKCpOJ0aew5
+# No Calango-bot/.env
+JWT_SECRET=chave_de_autenticacao
+# Chave compartilhada com Squamata-Login para validação de tokens SSO
+JWT_SECRET_LOGIN=chave_de_autenticacao
 ```
 
-> ⚠️ **Crítico**: Se este valor for diferente, o backend do Calango-Bot rejeitará todos os tokens do Squamata como inválidos.
+> ⚠️ **Crítico**: `JWT_SECRET_LOGIN` deve ser idêntico nos 3 projetos (Squamata-Login, Calango-Food, Calango-Bot). O middleware do Calango-Bot tenta `JWT_SECRET_LOGIN` primeiro (tokens Squamata) e depois `JWT_SECRET` (tokens legados).
 
 ### 0.2 Conectar à Rede Docker `squamata-global`
 
@@ -195,13 +197,23 @@ export const authenticateToken = async (req, res, next) => {
   if (!token) return res.status(401).json({ message: 'Token necessário' });
 
   try {
-    const secret = process.env.JWT_SECRET;
-    const decoded = jwt.verify(token, secret);
+    // 1. Tentar validar com JWT_SECRET_LOGIN (Squamata SSO)
+    const secretLogin = process.env.JWT_SECRET_LOGIN;
+    let decoded = null;
+    let isSquamataToken = false;
+
+    try {
+      decoded = jwt.verify(token, secretLogin);
+      isSquamataToken = !!decoded.uid;
+    } catch (squamataErr) {
+      // Se falhar, tentar com o segredo legado do Calango-Bot
+      const secretLegacy = process.env.JWT_SECRET;
+      decoded = jwt.verify(token, secretLegacy);
+    }
 
     // ─── DETECÇÃO DE FORMATO ───────────────────────
     // Token do Squamata tem { uid, email, appSlug, tenantId }
     // Token antigo do Calango-Bot tem { userId, activeBusinessId, role }
-    const isSquamataToken = !!decoded.uid;
 
     if (isSquamataToken) {
       // ─── FLUXO SQUAMATA (NOVO) ──────────────────
@@ -866,7 +878,7 @@ Execute esta bateria completa após todos os checkpoints.
 
 ## ⚠️ Pontos de Atenção
 
-1. **`JWT_SECRET` idêntico**: Se não for exatamente igual, nada funciona. (CP0)
+1. **`JWT_SECRET_LOGIN` idêntico**: Deve ser igual nos 3 projetos (Squamata-Login, Calango-Food, Calango-Bot). O `JWT_SECRET` do Calango-Bot é mantido para tokens legados. (CP0)
 
 2. **Mapeamento `tenantId` → `BusinessConfig`**: No CP1, o middleware usa fallback para o primeiro negócio do usuário. Se houver multi-tenancy real, refine esta lógica (ex: adicionar campo `squamataTenantId` ao model `BusinessConfig`).
 
@@ -925,7 +937,8 @@ Execute esta bateria completa após todos os checkpoints.
 
 **Calango-Bot `.env` (raiz):**
 ```env
-JWT_SECRET=<copiado do Squamata-login>
+JWT_SECRET=<mantido para tokens legados>
+JWT_SECRET_LOGIN=<copiado do Squamata-login>
 FRONTEND_LOGIN_URL=http://localhost:5174
 BACKEND_PORT=3001              # porta interna do container
 MONGO_URI=mongodb://...
