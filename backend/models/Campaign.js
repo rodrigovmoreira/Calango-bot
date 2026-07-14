@@ -82,10 +82,10 @@ const campaignSchema = new mongoose.Schema({
       default: []
     }
   },
-  // Human-Like Delay
+  // Human-Like Delay (segundos entre envios para contatos diferentes)
   delayRange: {
-    min: { type: Number, default: 0 },
-    max: { type: Number, default: 0 }
+    min: { type: Number, default: 23 },
+    max: { type: Number, default: 58 }
   },
   stats: {
     sentCount: { type: Number, default: 0 },
