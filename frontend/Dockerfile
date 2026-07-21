@@ -1,5 +1,21 @@
 # STAGE 1: Builder
 FROM node:20-alpine AS builder
+
+# --- INÍCIO DA CORREÇÃO DO PUPPETEER/REACT-SNAP ---
+# Instala o Chromium nativo do Alpine e suas dependências gráficas
+RUN apk add --no-cache \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont
+
+# Informa ao Puppeteer para usar o Chromium recém-instalado e pular o download
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+# --- FIM DA CORREÇÃO ---
+
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
