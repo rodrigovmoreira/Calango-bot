@@ -34,11 +34,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import passport from 'passport';
-
-// Config do Passport
 import './config/passport.js';
-
-// Serviços e Banco de Dados
 import connectDB from './services/database.js';
 import * as scheduler from './services/scheduler.js';
 const { startScheduler } = scheduler;
@@ -92,7 +88,6 @@ const io = new Server(server, {
 });
 
 // Middlewares Globais
-
 app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
@@ -110,10 +105,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// ==========================================
 // 🔌 CONEXÃO DOS PLUGINS (ROTAS)
-// ==========================================
-
 // 1. Chat Público (Web)
 app.use('/api/chat', publicChatRoutes);
 
