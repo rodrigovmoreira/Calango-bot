@@ -215,13 +215,11 @@ io.on('connection', (socket) => {
 // 🔄 AUTO-START (RESSURREIÇÃO DE SESSÕES)
 // ==========================================
 // backend/server.js
-
 const restoreActiveSessions = async () => {
   console.log('🔄 [Auto-Start] Verificando sessões para restaurar...');
 
   try {
     // Busca TODAS as configs do banco conectado.
-    // No Local: busca do 'test'. No Railway: busca do 'calango_prod_db'.
     const configs = await BusinessConfig.find().lean();
 
     if (configs.length === 0) {
