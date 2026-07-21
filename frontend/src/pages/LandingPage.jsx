@@ -5,8 +5,15 @@ import {
 import { CheckIcon, StarIcon } from '@chakra-ui/icons';
 import { useNavigate } from 'react-router-dom';
 import { FaWhatsapp, FaRobot, FaCalendarCheck, FaImages, FaCommentDots, FaTimes } from 'react-icons/fa';
+import { Helmet } from 'react-helmet-async';
 import ColorModeToggle from '../components/ColorModeToggle';
-import React, { useState } from 'react';
+import HowItWorks from '../components/landing/HowItWorks';
+import TargetAudience from '../components/landing/TargetAudience';
+import FAQ from '../components/landing/FAQ';
+import React, { useState, Suspense } from 'react';
+
+// Lazy-loaded: seções abaixo da dobra (ganho no LCP)
+const PricingTable = React.lazy(() => import('../components/landing/PricingTable'));
 
 
 const LandingPage = () => {
@@ -17,6 +24,28 @@ const LandingPage = () => {
 
   return (
     <Box bg={bg} minH="100vh">
+      <Helmet>
+        <title>CalangoBot — CRM com Chatbot IA e Agendamento Automático 24h</title>
+        <meta name="description" content="Automatize atendimentos no WhatsApp com IA. Agendamento, catálogo visual e respostas 24h para pequenos negócios. Comece grátis." />
+        <meta name="keywords" content="chatbot, CRM, agendamento automático, WhatsApp, IA, inteligência artificial, atendimento 24h, pequenas empresas" />
+        <meta name="robots" content="index, follow" />
+        <meta name="author" content="CalangoApp" />
+        <link rel="canonical" href="https://bot.calangoapp.com.br/" />
+
+        <meta property="og:title" content="CalangoBot — CRM com Chatbot IA e Agendamento Automático 24h" />
+        <meta property="og:description" content="Automatize atendimentos no WhatsApp com IA. Agendamento, catálogo visual e respostas 24h." />
+        <meta property="og:image" content="https://bot.calangoapp.com.br/og-image.png" />
+        <meta property="og:url" content="https://bot.calangoapp.com.br/" />
+        <meta property="og:type" content="website" />
+        <meta property="og:locale" content="pt_BR" />
+        <meta property="og:site_name" content="CalangoBot" />
+
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="CalangoBot — CRM com Chatbot IA e Agendamento Automático 24h" />
+        <meta name="twitter:description" content="Automatize atendimentos no WhatsApp com IA. Agendamento, catálogo visual e respostas 24h." />
+        <meta name="twitter:image" content="https://bot.calangoapp.com.br/og-image.png" />
+      </Helmet>
+
       {/* Navbar */}
       <Box
         as="nav"
@@ -159,6 +188,9 @@ const LandingPage = () => {
         </Container>
       </Box>
 
+      {/* Como Funciona */}
+      <HowItWorks />
+
       {/* Features Grid */}
       <Box py={20}>
         <Container maxW="container.xl">
@@ -185,6 +217,9 @@ const LandingPage = () => {
           </SimpleGrid>
         </Container>
       </Box>
+
+      {/* Para Quem é */}
+      <TargetAudience />
 
       {/* Galeria de Telas (Screenshots) */}
       <Box bg={useColorModeValue('gray.100', 'gray.800')} py={20}>
@@ -268,6 +303,14 @@ const LandingPage = () => {
           </SimpleGrid>
         </Container>
       </Box>
+
+      {/* Tabela Detalhada de Planos */}
+      <Suspense fallback={<Box py={20} textAlign="center">Carregando...</Box>}>
+        <PricingTable />
+      </Suspense>
+
+      {/* FAQ */}
+      <FAQ />
 
       {/* Footer */}
       <Box bg={useColorModeValue('gray.900', 'black')} color="white" py={12}>
@@ -390,7 +433,7 @@ const FeatureCard = ({ icon, title, text }) => {
       _hover={{ transform: 'translateY(-5px)', transition: '0.3s' }}
     >
       <Icon as={icon} w={10} h={10} color="brand.500" />
-      <Heading size="md">{title}</Heading>
+      <Heading as="h3" size="md">{title}</Heading>
       <Text color="gray.500">{text}</Text>
     </VStack>
   );
@@ -417,7 +460,7 @@ const PricingCard = ({ title, price, features, highlight }) => {
         </Box>
       )}
       <CardHeader textAlign="center">
-        <Heading size="md">{title}</Heading>
+        <Heading as="h3" size="md">{title}</Heading>
         <Heading size="2xl" mt={4}>{price}</Heading>
       </CardHeader>
       <CardBody>
@@ -466,9 +509,12 @@ const ScreenshotPlaceholder = ({ title, desc, src }) => (
         src={src}
         alt={title}
         objectFit="cover"
-        objectPosition="top" // Foca no topo da imagem (onde geralmente está o cabeçalho)
+        objectPosition="top"
         w="100%"
         h="100%"
+        width={600}
+        height={400}
+        loading="lazy"
       />
 
       {/* Overlay opcional ao passar o mouse */}
