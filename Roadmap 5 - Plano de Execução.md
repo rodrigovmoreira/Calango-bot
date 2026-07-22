@@ -6,7 +6,7 @@
 > Ao final de cada fase, você pode testar e verificar o resultado antes de avançar.
 
 > **📅 Última auditoria:** 2026-07-22
-> **🔍 Status geral:** ~85% concluído — Pendências: robots.txt, WebP, GA4, seção Integrações
+> **🔍 Status geral:** ~90% concluído — Pendências: configurar ID real do GA4, Search Console, WebP, seção Integrações
 
 ---
 
@@ -14,7 +14,7 @@
 
 | Fase | Nome | Tempo Estimado | Complexidade | Depende de | Status |
 |------|------|---------------|-------------|------------|--------|
-| **F0** | Pré-requisitos & Setup | 30 min | 🟢 Baixa | — | ✅ 88% |
+| **F0** | Pré-requisitos & Setup | 30 min | 🟢 Baixa | — | ✅ 100% |
 | **F1** | Fundação Técnica — Meta Tags & Helmet | 1-2 h | 🟢 Baixa | F0 | ✅ 100% |
 | **F2** | Schema.org — Dados Estruturados | 1 h | 🟡 Média | F1 | ✅ 100% |
 | **F3** | Arquivos Públicos — robots.txt, sitemap, OG Image | 1 h | 🟢 Baixa | F0 | ✅ 100% |
@@ -22,7 +22,7 @@
 | **F5** | Conteúdo Estratégico — Novas Seções | 3-4 h | 🔴 Alta | F1 | ✅ 90% |
 | **F6** | Performance — Imagens & Core Web Vitals | 2-3 h | 🟡 Média | F5 | ⚠️ 50% |
 | **F7** | Infraestrutura — Nginx & Deploy | 1-2 h | 🟡 Média | F4, F5 | ✅ 100% |
-| **F8** | Monitoramento — Search Console & Analytics | 30 min | 🟢 Baixa | F7 | ❌ 0% |
+| **F8** | Monitoramento — Search Console & Analytics | 30 min | 🟢 Baixa | F7 | ⚠️ 33% |
 | **F9** | Iteração & Ajustes | Contínuo | 🟡 Média | F8 | 🔄 Contínuo |
 
 ---
@@ -39,7 +39,7 @@
 
 ---
 
-## 🔧 FASE 0 — Pré-requisitos & Setup ✅ 88% (1 pendência)
+## 🔧 FASE 0 — Pré-requisitos & Setup ✅ 100%
 
 > **Objetivo:** Instalar dependências e preparar o ambiente antes de qualquer mudança de código.
 
@@ -71,13 +71,8 @@
 - [x] **F0.5** — Criar a imagem OG (`public/og-image.png`)
   > ✅ Arquivo existe em `frontend/public/og-image.png`
 
-- [ ] **F0.6** — Criar `public/robots.txt` ❌ **PENDENTE**
-  ```
-  User-agent: *
-  Allow: /
-  Sitemap: https://bot.calangoapp.com.br/sitemap.xml
-  ```
-  > ❌ Arquivo NÃO encontrado em `frontend/public/`. Precisa ser criado.
+- [x] **F0.6** — Criar `public/robots.txt` ✅
+  > ✅ Criado em `frontend/public/robots.txt` com Allow, Sitemap
 
 - [x] **F0.7** — Criar `public/sitemap.xml`
   > ✅ Criado com URL canônica, changefreq weekly, priority 1.0
@@ -91,7 +86,7 @@
 |-------|-------------|--------|
 | Dependências instaladas | `npm ls react-helmet-async react-snap` | ✅ |
 | Scripts adicionados | Ver `package.json` — `postbuild` e `reactSnap` | ✅ |
-| Arquivos criados | `ls public/robots.txt public/sitemap.xml public/og-image.png` | ⚠️ Falta robots.txt |
+| Arquivos criados | `ls public/robots.txt public/sitemap.xml public/og-image.png` | ✅ |
 | Build não quebra | `npm run build` | ✅ |
 
 ---
@@ -368,20 +363,20 @@
 
 ---
 
-## 📊 FASE 8 — Monitoramento: Search Console & Analytics ❌ 0%
+## 📊 FASE 8 — Monitoramento: Search Console & Analytics ⚠️ 33%
 
 > **Objetivo:** Saber se está funcionando e ter dados para iterar.
 
 ### Tarefas
 
-- [ ] **F8.1** — Cadastrar propriedade no **Google Search Console** ❌ **PENDENTE**
+- [ ] **F8.1** — Cadastrar propriedade no **Google Search Console** ⚠️ **AÇÃO EXTERNA**
   - URL: [search.google.com/search-console](https://search.google.com/search-console)
-  - Adicionar `bot.calangoapp.com.br` e verificar domínio
+  - Adicionar `bot.calangoapp.com.br` e verificar domínio (DNS TXT ou HTML tag)
   - Enviar `sitemap.xml`
 
-- [ ] **F8.2** — Criar stream no **Google Analytics 4** ❌ **PENDENTE**
-  > ❌ Nenhuma tag `gtag` ou `googletagmanager` encontrada no código (`LandingPage.jsx`, `public/index.html`)
-  - Precisa adicionar script GA4 no `<Helmet>` da LandingPage
+- [x] **F8.2** — Adicionar script Google Analytics 4 no `<Helmet>` ✅
+  > ✅ Script `gtag` adicionado em `LandingPage.jsx` com placeholder `G-XXXXXXXXXX`
+  > ⚠️ **Substituir** `G-XXXXXXXXXX` pelo ID real do GA4 após criar a propriedade em [analytics.google.com](https://analytics.google.com)
 
 - [ ] **F8.3** — (Opcional) Cadastrar no **Bing Webmaster Tools** ❌
 
@@ -391,9 +386,10 @@
 
 | Teste | Como validar | Status |
 |-------|-------------|--------|
-| Search Console verificado | Dashboard mostra "Propriedade verificada" | ❌ |
+| Search Console verificado | Dashboard mostra "Propriedade verificada" | ❌ Ação externa |
+| GA4 script presente | Ver código fonte da LandingPage | ✅ (placeholder) |
+| GA4 recebendo dados | Relatório "Tempo real" mostra visitantes | ⚠️ Aguardando ID real |
 | Sitemap enviado | Search Console → Sitemaps → "Sucesso" | ❌ |
-| GA4 recebendo dados | Relatório "Tempo real" mostra visitantes | ❌ |
 | Indexação confirmada | `site:bot.calangoapp.com.br` no Google | ❌ |
 
 ---
@@ -413,10 +409,10 @@
 
 ## 📋 Resumo de Tarefas por Fase (Checklist Executiva)
 
-### F0 — Setup ✅ 88%
+### F0 — Setup ✅ 100%
 - [x] `npm install react-helmet-async react-snap --save-dev`
 - [x] `postbuild` + `reactSnap` config no `package.json`
-- [ ] `robots.txt` em `public/` ❌ **CRIAR**
+- [x] `robots.txt` em `public/`
 - [x] `sitemap.xml` em `public/`
 - [x] Imagem OG 1200×630px em `public/`
 - [x] Corrigir `lang="pt-BR"` e canonical em `public/index.html`
@@ -462,9 +458,9 @@
 - [x] Deploy da build para o servidor
 - [x] Testar headers HTTP
 
-### F8 — Monitoramento ❌ 0%
-- [ ] Cadastrar Google Search Console ❌ **URGENTE**
-- [ ] Configurar Google Analytics 4 ❌ **URGENTE**
+### F8 — Monitoramento ⚠️ 33%
+- [ ] Cadastrar Google Search Console ⚠️ **AÇÃO EXTERNA**
+- [x] Script GA4 adicionado no `<Helmet>` ⚠️ **SUBSTITUIR ID**
 - [ ] Enviar sitemap
 - [ ] Confirmar indexação
 
@@ -479,13 +475,12 @@
 
 | # | Pendência | Fase | Impacto |
 |---|----------|------|---------|
-| 1 | Criar `public/robots.txt` | F0.6 | 🔴 ALTO — Crawlers sem instruções |
-| 2 | Configurar Google Analytics 4 | F8.2 | 🔴 ALTO — Sem dados de tráfego |
-| 3 | Cadastrar Google Search Console | F8.1 | 🔴 ALTO — Sem monitoramento de indexação |
-| 4 | Converter imagens PNG → WebP | F6.1 | 🟡 MÉDIO — Performance LCP |
-| 5 | Adicionar `fallbackSrc` nas imagens | F6.4 | 🟡 MÉDIO — UX em caso de erro |
-| 6 | Implementar seção Integrações | F5.E | 🟢 BAIXO — Conteúdo adicional |
-| 7 | Medir PageSpeed Insights | F6.8 | 🟡 MÉDIO — Baseline de performance |
+| 1 | Criar propriedade no Google Analytics 4 e substituir `G-XXXXXXXXXX` | F8.2 | 🔴 ALTO — Script já adicionado, falta ID real |
+| 2 | Cadastrar Google Search Console e enviar sitemap | F8.1 | 🔴 ALTO — Ação externa no painel do Google |
+| 3 | Converter imagens PNG → WebP | F6.1 | 🟡 MÉDIO — Performance LCP |
+| 4 | Adicionar `fallbackSrc` nas imagens | F6.4 | 🟡 MÉDIO — UX em caso de erro |
+| 5 | Implementar seção Integrações | F5.E | 🟢 BAIXO — Conteúdo adicional |
+| 6 | Medir PageSpeed Insights | F6.8 | 🟡 MÉDIO — Baseline de performance |
 
 ---
 

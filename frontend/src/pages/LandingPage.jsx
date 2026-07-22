@@ -44,6 +44,15 @@ const LandingPage = () => {
         <meta name="twitter:title" content="CalangoBot — CRM com Chatbot IA e Agendamento Automático 24h" />
         <meta name="twitter:description" content="Automatize atendimentos no WhatsApp com IA. Agendamento, catálogo visual e respostas 24h." />
         <meta name="twitter:image" content="https://bot.calangoapp.com.br/og-image.png" />
+
+        {/* Google Analytics 4 — Substitua G-XXXXXXXXXX pelo seu ID real */}
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX" />
+        <script>
+          {`window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', 'G-XXXXXXXXXX');`}
+        </script>
       </Helmet>
 
       {/* Navbar */}

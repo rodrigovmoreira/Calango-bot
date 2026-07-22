@@ -1,8 +1,8 @@
 Roadmap de SEO para CalangoBot — Landing Page
 
-> **📅 Última auditoria:** 2026-07-22 | **Status geral:** ~85% concluído
+> **📅 Última auditoria:** 2026-07-22 | **Status geral:** ~90% concluído
 >
-> 🔴 **Pendências críticas:** robots.txt, Google Analytics 4, Search Console
+> 🔴 **Pendências críticas:** Substituir ID do GA4 (script já adicionado), cadastrar Search Console
 > 🟡 **Pendências médias:** Converter PNG→WebP, fallbackSrc em imagens, medir PageSpeed
 > 🟢 **Pendências baixas:** Seção Integrações (F5.E)
 
@@ -15,7 +15,7 @@ Roadmap de SEO para CalangoBot — Landing Page
 | 3. Conteúdo Estratégico | Semana 2-3 | Fazer o Google ranquear a página | Palavras-chave nos top 10 | ✅ 90% |
 | 4. Performance | Semana 2 | Fazer o Google preferir a página | Core Web Vitals no verde | ⚠️ 50% |
 | 5. Infraestrutura | Semana 2 | Servir tudo corretamente | Entrega confiável ao crawler | ✅ 100% |
-| 6. Monitoramento | Contínuo | Medir e corrigir | Melhoria contínua | ❌ 0% |
+| 6. Monitoramento | Contínuo | Medir e corrigir | Melhoria contínua | ⚠️ 33% |
 Fase 1 — Fundação Técnica
 Objetivo: O Google recebe HTML com conteúdo visível, não uma casca vazia.
 
