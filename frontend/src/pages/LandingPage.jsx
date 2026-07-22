@@ -10,6 +10,7 @@ import ColorModeToggle from '../components/ColorModeToggle';
 import HowItWorks from '../components/landing/HowItWorks';
 import TargetAudience from '../components/landing/TargetAudience';
 import FAQ from '../components/landing/FAQ';
+import Integrations from '../components/landing/Integrations';
 import React, { useState, Suspense } from 'react';
 
 // Lazy-loaded: seções abaixo da dobra (ganho no LCP)
@@ -242,22 +243,22 @@ const LandingPage = () => {
             <ScreenshotPlaceholder
               title="Dashboard Intuitivo"
               desc="Acompanhe atendimentos e métricas"
-              src="/Dashboard-intuitivo.png"
+              src="/Dashboard-intuitivo.webp"
             />
             <ScreenshotPlaceholder
               title="Gestão de Produtos"
               desc="Cadastre fotos e preços facilmente"
-              src="/Gestao-de-produtos.png"
+              src="/Gestao-de-produtos.webp"
             />
             <ScreenshotPlaceholder
               title="Agenda Visual"
               desc="Controle total dos seus horários"
-              src="/Agenda-visual.png"
+              src="/Agenda-visual.webp"
             />
             <ScreenshotPlaceholder
               title="Configuração de IA"
               desc="Personalize a personalidade do seu robô"
-              src="/Configuracao-de-IA.png"
+              src="/Configuracao-de-IA.webp"
             />
           </SimpleGrid>
         </Container>
@@ -317,6 +318,9 @@ const LandingPage = () => {
       <Suspense fallback={<Box py={20} textAlign="center">Carregando...</Box>}>
         <PricingTable />
       </Suspense>
+
+      {/* Integrações */}
+      <Integrations />
 
       {/* FAQ */}
       <FAQ />
@@ -516,6 +520,7 @@ const ScreenshotPlaceholder = ({ title, desc, src }) => (
     <Box h="250px" w="100%" position="relative" bg="gray.100">
       <Image
         src={src}
+        fallbackSrc={src.replace('.webp', '.png')}
         alt={title}
         objectFit="cover"
         objectPosition="top"
