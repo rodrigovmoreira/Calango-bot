@@ -24,7 +24,7 @@
 | **F5** | Conteúdo Estratégico — Novas Seções | 3-4 h | 🔴 Alta | F1 | ✅ 100% |
 | **F6** | Performance — Imagens & Core Web Vitals | 2-3 h | 🟡 Média | F5 | ⚠️ 88% |
 | **F7** | Infraestrutura — Nginx & Deploy | 1-2 h | 🟡 Média | F4, F5 | ✅ 100% |
-| **F8** | Monitoramento — Search Console & Analytics | 30 min | 🟢 Baixa | F7 | ⚠️ 50% |
+| **F8** | Monitoramento — Search Console & Analytics | 30 min | 🟢 Baixa | F7 | ⚠️ 75% |
 | **F9** | Iteração & Ajustes | Contínuo | 🟡 Média | F8 | 🔄 Contínuo |
 
 ---
@@ -377,8 +377,7 @@
   - Enviar `sitemap.xml`
 
 - [x] **F8.2** — Adicionar script Google Analytics 4 no `<Helmet>` ✅
-  > ✅ Script `gtag` adicionado em `LandingPage.jsx` com placeholder `G-XXXXXXXXXX`
-  > ⚠️ **Ação pendente:** Substituir `G-XXXXXXXXXX` pelo ID real do GA4 após criar a propriedade em [analytics.google.com](https://analytics.google.com)
+  > ✅ Script `gtag` configurado com ID real `G-5DKBLWDXW6` em `LandingPage.jsx`
 
 - [ ] **F8.3** — (Opcional) Cadastrar no **Bing Webmaster Tools** ❌
 
@@ -389,8 +388,8 @@
 | Teste | Como validar | Status |
 |-------|-------------|--------|
 | Search Console verificado | Dashboard mostra "Propriedade verificada" | ❌ Ação externa |
-| GA4 script presente | Ver código fonte da LandingPage | ✅ (placeholder) |
-| GA4 recebendo dados | Relatório "Tempo real" mostra visitantes | ⚠️ Aguardando ID real |
+| GA4 script presente | Ver código fonte da LandingPage | ✅ `G-5DKBLWDXW6` |
+| GA4 recebendo dados | Relatório "Tempo real" mostra visitantes | 🔄 Após deploy |
 | Sitemap enviado | Search Console → Sitemaps → "Sucesso" | ❌ |
 | Indexação confirmada | `site:bot.calangoapp.com.br` no Google | ❌ |
 
@@ -477,9 +476,8 @@
 
 | # | Pendência | Fase | Impacto | Tipo |
 |---|----------|------|---------|------|
-| 1 | Criar propriedade GA4 e substituir `G-XXXXXXXXXX` | F8.2 | 🔴 ALTO | Ação externa |
-| 2 | Cadastrar Google Search Console e enviar sitemap | F8.1 | 🔴 ALTO | Ação externa |
-| 3 | Medir PageSpeed Insights (baseline) | F6.8 | 🟡 MÉDIO | Métrica |
+| 1 | Cadastrar Google Search Console e enviar sitemap | F8.1 | 🔴 ALTO | Ação externa |
+| 2 | Medir PageSpeed Insights (baseline) | F6.8 | 🟡 MÉDIO | Métrica |
 
 ---
 
