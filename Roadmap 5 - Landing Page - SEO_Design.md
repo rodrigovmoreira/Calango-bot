@@ -43,8 +43,8 @@ No componente LandingPage, importar <Helmet> e usá-lo como primeiro filho do co
 Metadados que a Landing Page PRECISA ter
 Meta tag	Conteúdo sugerido
 <title>	"CalangoBot — CRM com Chatbot IA e Agendamento Automático 24h"
-<meta description>	Máximo 160 caracteres. Deve conter: o que é, para quem serve, principal benefício. Ex: "Automatize atendimentos no WhatsApp com IA. Agendamento, catálogo visual e respostas 24h para pequenos negócios."
-<meta keywords>	5 a 8 palavras-chave separadas por vírgula. Foco em: chatbot, CRM, agendamento automático, WhatsApp, IA, pequenas empresas.
+<meta description>	Máximo 160 caracteres. Deve conter: o que é, para quem serve, principal benefício. Ex: "Automatize atendimentos no WhatsApp com IA. Agendamento, catálogo visual e respostas 24h para seus negócios."
+<meta keywords>	5 a 8 palavras-chave separadas por vírgula. Foco em: chatbot, CRM, agendamento automático, WhatsApp, IA, empresas.
 og:title	Igual ao <title>, mas pode ser mais comercial
 og:description	Versão mais curta, pensada para compartilhamento em redes sociais
 og:image	URL absoluta para uma imagem 1200x630px. Crie uma imagem de capa do CalangoBot.

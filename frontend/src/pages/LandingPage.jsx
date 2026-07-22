@@ -26,8 +26,8 @@ const LandingPage = () => {
     <Box bg={bg} minH="100vh">
       <Helmet>
         <title>CalangoBot — CRM com Chatbot IA e Agendamento Automático 24h</title>
-        <meta name="description" content="Automatize atendimentos no WhatsApp com IA. Agendamento, catálogo visual e respostas 24h para pequenos negócios. Comece grátis." />
-        <meta name="keywords" content="chatbot, CRM, agendamento automático, WhatsApp, IA, inteligência artificial, atendimento 24h, pequenas empresas" />
+        <meta name="description" content="Automatize atendimentos no WhatsApp com IA. Agendamento, catálogo visual e respostas 24h para seus negócios. Comece grátis." />
+        <meta name="keywords" content="chatbot, CRM, agendamento automático, WhatsApp, IA, inteligência artificial, atendimento 24h, empresas e pessoas." />
         <meta name="robots" content="index, follow" />
         <meta name="author" content="CalangoApp" />
         <link rel="canonical" href="https://bot.calangoapp.com.br/" />
@@ -322,7 +322,7 @@ const LandingPage = () => {
                 <Heading size="md">CalangoBot</Heading>
               </HStack>
               <Text color="gray.400" fontSize="sm">
-                A revolução do atendimento automático para pequenos e médios negócios.
+                A revolução do atendimento automático para empresas e pessoas.
               </Text>
             </VStack>
 

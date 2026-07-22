@@ -46,7 +46,7 @@ const TargetAudience = () => {
         <VStack spacing={4} mb={16} textAlign="center">
           <Heading as="h2">Para Quem é o CalangoBot</Heading>
           <Text color="gray.500" fontSize="lg" maxW="600px">
-            Feito para pequenos e médios negócios que querem vender mais sem aumentar a equipe
+            Feito para empresas e pessoas que querem vender mais sem aumentar a equipe
           </Text>
         </VStack>
 
