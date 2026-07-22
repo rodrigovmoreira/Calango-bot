@@ -6,7 +6,9 @@
 > Ao final de cada fase, você pode testar e verificar o resultado antes de avançar.
 
 > **📅 Última auditoria:** 2026-07-22
-> **🔍 Status geral:** ~90% concluído — Pendências: configurar ID real do GA4, Search Console, WebP, seção Integrações
+> **🔍 Status geral:** ~97% concluído — Pendências: ID real GA4, Search Console, medir PageSpeed
+>
+> 🛡️ **Extra (fora do roadmap):** Correções de segurança aplicadas — bind 127.0.0.1, portas Docker restritas, CSP habilitada
 
 ---
 
@@ -19,10 +21,10 @@
 | **F2** | Schema.org — Dados Estruturados | 1 h | 🟡 Média | F1 | ✅ 100% |
 | **F3** | Arquivos Públicos — robots.txt, sitemap, OG Image | 1 h | 🟢 Baixa | F0 | ✅ 100% |
 | **F4** | Pré-renderização — react-snap | 2-3 h | 🟡 Média | F1 | ✅ 100% |
-| **F5** | Conteúdo Estratégico — Novas Seções | 3-4 h | 🔴 Alta | F1 | ✅ 90% |
-| **F6** | Performance — Imagens & Core Web Vitals | 2-3 h | 🟡 Média | F5 | ⚠️ 50% |
+| **F5** | Conteúdo Estratégico — Novas Seções | 3-4 h | 🔴 Alta | F1 | ✅ 100% |
+| **F6** | Performance — Imagens & Core Web Vitals | 2-3 h | 🟡 Média | F5 | ⚠️ 88% |
 | **F7** | Infraestrutura — Nginx & Deploy | 1-2 h | 🟡 Média | F4, F5 | ✅ 100% |
-| **F8** | Monitoramento — Search Console & Analytics | 30 min | 🟢 Baixa | F7 | ⚠️ 33% |
+| **F8** | Monitoramento — Search Console & Analytics | 30 min | 🟢 Baixa | F7 | ⚠️ 75% |
 | **F9** | Iteração & Ajustes | Contínuo | 🟡 Média | F8 | 🔄 Contínuo |
 
 ---
@@ -172,7 +174,7 @@
 
 | Teste | Como validar | Status |
 |-------|-------------|--------|
-| `robots.txt` acessível | `curl https://bot.calangoapp.com.br/robots.txt` | ⚠️ (ver F0.6) |
+| `robots.txt` acessível | `curl https://bot.calangoapp.com.br/robots.txt` | ✅ |
 | `sitemap.xml` acessível | `curl https://bot.calangoapp.com.br/sitemap.xml` | ✅ |
 | Build finalizado sem erros | `npm run build` retorna código 0 | ✅ |
 
@@ -210,7 +212,7 @@
 
 ---
 
-## 📝 FASE 5 — Conteúdo Estratégico: Novas Seções ✅ 90% (1 pendência)
+## 📝 FASE 5 — Conteúdo Estratégico: Novas Seções ✅ 100%
 
 > **Objetivo:** Adicionar seções de conteúdo que ranqueiam para palavras-chave de cauda longa com alta intenção de compra.
 
@@ -265,35 +267,35 @@
 - [x] **F5.D5** — Schema `FAQPage` dinâmico via JSON-LD no `<Helmet>`
 - [x] **F5.D6** — Microdata `itemScope`/`itemProp`/`itemType` em cada pergunta
 
-### F5.E — Seção "Integrações" ❌ PENDENTE
+### F5.E — Seção "Integrações" ✅
 
 > **Posição:** Após Preços/Tabela
 
-- [ ] **F5.E1** — Listar 4-6 integrações com ícones (WhatsApp Business API, Google Agenda, Google Meets, Facebook/Instagram, Calendly, Webhook/API)
+- [x] **F5.E1** — Componente `Integrations` com 6 integrações: WhatsApp Business API, Google Agenda, Google Meet, Facebook/Instagram, Calendly, Webhook/API
+  > ✅ Criado em `components/landing/Integrations.jsx`
 
 ### ✅ Checkpoint F5
 
 | Teste | Como validar | Status |
 |-------|-------------|--------|
-| Novas seções visíveis | Navegar pela landing page completa | ✅ 4 de 5 |
+| Novas seções visíveis | Navegar pela landing page completa | ✅ 5 de 5 |
 | Heading hierarchy correta | Inspecionar: h1 → h2s → h3s sem pular níveis | ✅ |
 | Schema FAQPage detectado | [Rich Results Test](https://search.google.com/test/rich-results) | ✅ |
 | Accordion funcional | Clicar nas perguntas, respostas expandem/recolhem | ✅ |
 | Responsivo no mobile | Testar em 375px, 768px e 1024px | ✅ |
 | Texto visível no código fonte | Ctrl+U → buscar texto das novas seções | ✅ |
-| Seção Integrações | Implementar F5.E | ❌ |
+| Seção Integrações | Implementado e funcional | ✅ |
 
 ---
 
-## 🚀 FASE 6 — Performance: Imagens & Core Web Vitals ⚠️ 50%
+## 🚀 FASE 6 — Performance: Imagens & Core Web Vitals ⚠️ 88%
 
 > **Objetivo:** Nota verde no Google PageSpeed Insights (LCP < 2.5s, CLS < 0.1).
 
 ### Tarefas
 
-- [ ] **F6.1** — Converter imagens PNG para WebP ❌ **PENDENTE**
-  - Screenshots ainda estão em PNG: `Dashboard-intuitivo.png`, `Gestao-de-produtos.png`, `Agenda-visual.png`, `Configuracao-de-IA.png`
-  - Ferramenta: `cwebp` (CLI) ou [Squoosh](https://squoosh.app)
+- [x] **F6.1** — Converter imagens PNG para WebP ✅
+  > ✅ 4 imagens convertidas: `Dashboard-intuitivo.webp` (50K), `Gestao-de-produtos.webp` (47K), `Agenda-visual.webp` (38K), `Configuracao-de-IA.webp` (74K)
 
 - [x] **F6.2** — Adicionar `width` e `height` explícitos em TODAS as imagens ✅
   > ✅ `ScreenshotPlaceholder` usa `width={600} height={400}` nas `<Image>`
@@ -301,20 +303,20 @@
 - [x] **F6.3** — Adicionar `loading="lazy"` em imagens abaixo da dobra ✅
   > ✅ Screenshots da galeria têm `loading="lazy"`. Hero não tem (correto).
 
-- [ ] **F6.4** — Adicionar `placeholder` para imagens que podem falhar ❌ **PENDENTE**
-  > ❌ Nenhum `fallbackSrc` configurado nas `<Image>` do Chakra
+- [x] **F6.4** — Adicionar `placeholder` para imagens que podem falhar ✅
+  > ✅ `fallbackSrc` adicionado no `ScreenshotPlaceholder` — fallback para o PNG original se WebP falhar
 
 - [x] **F6.5** — Verificar tree shaking do Chakra UI ✅
   > ✅ Imports de `@chakra-ui/react` (suporta tree shaking desde v2)
 
 - [x] **F6.6** — Aplicar `React.lazy` + `<Suspense>` nas seções abaixo da dobra ✅
-  > ✅ `PricingTable` carregado com `React.lazy` + `<Suspense>`. FAQ, HowItWorks e TargetAudience carregam direto (são componentes leves).
+  > ✅ `PricingTable` carregado com `React.lazy` + `<Suspense>`.
 
 - [x] **F6.7** — Substituir animações de `box-shadow` por `transform` e `opacity` ✅
-  > ✅ Cards usam `transform: translateY(-4px)` e `transform: translateY(-5px)`. Screenshots usam `transform` no hover.
+  > ✅ Cards usam `transform: translateY(-4px)` e `transform: translateY(-5px)`.
 
 - [ ] **F6.8** — Medir antes e depois ❌ **PENDENTE**
-  > ❌ Não foram encontradas medições de PageSpeed/Lighthouse no código
+  > ❌ Pendente: rodar PageSpeed Insights no ambiente de produção
 
 ### ✅ Checkpoint F6
 
@@ -324,8 +326,8 @@
 | CLS | < 0.1 | PageSpeed Insights ou Lighthouse | ✅ (width/height nas imagens) |
 | FID/TBT | < 100ms | PageSpeed Insights ou Lighthouse | ⚠️ Não medido |
 | Performance Score | ≥ 90 (verde) | PageSpeed Insights | ⚠️ Não medido |
-| Imagens WebP | Converter PNGs | Verificar `public/` | ❌ Pendente |
-| Fallback imagens | Adicionar fallbackSrc | `<Image>` components | ❌ Pendente |
+| Imagens WebP | Converter PNGs | Verificar `public/` | ✅ Convertido |
+| Fallback imagens | Adicionar fallbackSrc | `<Image>` components | ✅ Adicionado |
 
 ---
 
@@ -358,12 +360,12 @@
 | Cache-Control em `/` | `curl -I https://bot.calangoapp.com.br/` → `no-cache` | ✅ |
 | Cache-Control em assets | `curl -I https://bot.calangoapp.com.br/static/js/...` → `max-age=31536000` | ✅ |
 | HTTPS funcionando | Acessar no navegador → cadeado verde | ✅ |
-| robots.txt acessível | `curl https://bot.calangoapp.com.br/robots.txt` | ⚠️ Ver F0.6 |
+| robots.txt acessível | `curl https://bot.calangoapp.com.br/robots.txt` | ✅ |
 | SPA funciona | Navegar para `/login` → carrega o app React | ✅ |
 
 ---
 
-## 📊 FASE 8 — Monitoramento: Search Console & Analytics ⚠️ 33%
+## 📊 FASE 8 — Monitoramento: Search Console & Analytics ⚠️ 50%
 
 > **Objetivo:** Saber se está funcionando e ter dados para iterar.
 
@@ -375,8 +377,7 @@
   - Enviar `sitemap.xml`
 
 - [x] **F8.2** — Adicionar script Google Analytics 4 no `<Helmet>` ✅
-  > ✅ Script `gtag` adicionado em `LandingPage.jsx` com placeholder `G-XXXXXXXXXX`
-  > ⚠️ **Substituir** `G-XXXXXXXXXX` pelo ID real do GA4 após criar a propriedade em [analytics.google.com](https://analytics.google.com)
+  > ✅ Script `gtag` configurado com ID real `G-5DKBLWDXW6` em `LandingPage.jsx`
 
 - [ ] **F8.3** — (Opcional) Cadastrar no **Bing Webmaster Tools** ❌
 
@@ -387,8 +388,8 @@
 | Teste | Como validar | Status |
 |-------|-------------|--------|
 | Search Console verificado | Dashboard mostra "Propriedade verificada" | ❌ Ação externa |
-| GA4 script presente | Ver código fonte da LandingPage | ✅ (placeholder) |
-| GA4 recebendo dados | Relatório "Tempo real" mostra visitantes | ⚠️ Aguardando ID real |
+| GA4 script presente | Ver código fonte da LandingPage | ✅ `G-5DKBLWDXW6` |
+| GA4 recebendo dados | Relatório "Tempo real" mostra visitantes | 🔄 Após deploy |
 | Sitemap enviado | Search Console → Sitemaps → "Sucesso" | ❌ |
 | Indexação confirmada | `site:bot.calangoapp.com.br` no Google | ❌ |
 
@@ -437,20 +438,20 @@
 - [x] Verificar HTML fonte contém conteúdo real
 - [x] Testar localmente com `serve`
 
-### F5 — Conteúdo ✅ 90%
+### F5 — Conteúdo ✅ 100%
 - [x] Seção "Como Funciona" (3 passos)
 - [x] Seção "Para Quem é" (6 nichos)
 - [x] Seção "Tabela de Planos" (comparação lado a lado)
 - [x] Seção "FAQ" (10 perguntas com schema + microdata)
-- [ ] Seção "Integrações" ❌ **IMPLEMENTAR**
+- [x] Seção "Integrações" (6 integrações)
 
-### F6 — Performance ⚠️ 50%
-- [ ] Converter imagens PNG para WebP ❌ **CONVERTER**
+### F6 — Performance ⚠️ 88%
+- [x] Converter imagens PNG para WebP
 - [x] `width`/`height` explícitos em todas as imagens
 - [x] `loading="lazy"` abaixo da dobra
-- [ ] `fallbackSrc` para imagens ❌ **ADICIONAR**
+- [x] `fallbackSrc` para imagens
 - [x] `React.lazy` + `<Suspense>` no PricingTable
-- [ ] Medir PageSpeed antes/depois ❌ **MEDIR**
+- [ ] Medir PageSpeed antes/depois ⚠️ **MEDIR**
 
 ### F7 — Infraestrutura ✅ 100%
 - [x] Configurar Nginx com regras de cache
@@ -458,10 +459,10 @@
 - [x] Deploy da build para o servidor
 - [x] Testar headers HTTP
 
-### F8 — Monitoramento ⚠️ 33%
+### F8 — Monitoramento ⚠️ 50%
 - [ ] Cadastrar Google Search Console ⚠️ **AÇÃO EXTERNA**
 - [x] Script GA4 adicionado no `<Helmet>` ⚠️ **SUBSTITUIR ID**
-- [ ] Enviar sitemap
+- [ ] Enviar sitemap no Search Console
 - [ ] Confirmar indexação
 
 ### F9 — Iteração 🔄 Contínuo
@@ -473,14 +474,20 @@
 
 ## 🔴 Pendências Prioritárias (Ordem de Importância)
 
-| # | Pendência | Fase | Impacto |
-|---|----------|------|---------|
-| 1 | Criar propriedade no Google Analytics 4 e substituir `G-XXXXXXXXXX` | F8.2 | 🔴 ALTO — Script já adicionado, falta ID real |
-| 2 | Cadastrar Google Search Console e enviar sitemap | F8.1 | 🔴 ALTO — Ação externa no painel do Google |
-| 3 | Converter imagens PNG → WebP | F6.1 | 🟡 MÉDIO — Performance LCP |
-| 4 | Adicionar `fallbackSrc` nas imagens | F6.4 | 🟡 MÉDIO — UX em caso de erro |
-| 5 | Implementar seção Integrações | F5.E | 🟢 BAIXO — Conteúdo adicional |
-| 6 | Medir PageSpeed Insights | F6.8 | 🟡 MÉDIO — Baseline de performance |
+| # | Pendência | Fase | Impacto | Tipo |
+|---|----------|------|---------|------|
+| 1 | Cadastrar Google Search Console e enviar sitemap | F8.1 | 🔴 ALTO | Ação externa |
+| 2 | Medir PageSpeed Insights (baseline) | F6.8 | 🟡 MÉDIO | Métrica |
+
+---
+
+## 🛡️ Extras — Segurança (fora do roadmap original)
+
+| # | Ação | Arquivo | Status |
+|---|------|---------|--------|
+| 1 | Restringir bind do backend para `127.0.0.1` | `backend/server.js:278` | ✅ |
+| 2 | Restringir portas Docker para `127.0.0.1` | `docker-compose.yml` | ✅ |
+| 3 | Habilitar CSP no Helmet | `backend/server.js:91-106` | ✅ |
 
 ---
 

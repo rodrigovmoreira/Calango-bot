@@ -1,10 +1,10 @@
 Roadmap de SEO para CalangoBot — Landing Page
 
-> **📅 Última auditoria:** 2026-07-22 | **Status geral:** ~90% concluído
+> **📅 Última auditoria:** 2026-07-22 | **Status geral:** ~97% concluído
 >
-> 🔴 **Pendências críticas:** Substituir ID do GA4 (script já adicionado), cadastrar Search Console
-> 🟡 **Pendências médias:** Converter PNG→WebP, fallbackSrc em imagens, medir PageSpeed
-> 🟢 **Pendências baixas:** Seção Integrações (F5.E)
+> ✅ **Concluído:** robots.txt, GA4 script, CSP, bind 127.0.0.1, WebP, fallbackSrc, Integrações
+> 🔴 **Pendências externas:** Substituir ID do GA4, cadastrar Search Console
+> 🟡 **Pendência final:** Medir PageSpeed Insights
 
 ## Visão geral das fases
 
@@ -12,10 +12,10 @@ Roadmap de SEO para CalangoBot — Landing Page
 |------|---------|------|-------------------|--------|
 | 1. Fundação Técnica | Semana 1 | Fazer o Google ler a página | Indexação correta | ✅ 100% |
 | 2. Camada Semântica | Semana 1 | Fazer o Google entender a página | Rich snippets e posição zero | ✅ 100% |
-| 3. Conteúdo Estratégico | Semana 2-3 | Fazer o Google ranquear a página | Palavras-chave nos top 10 | ✅ 90% |
-| 4. Performance | Semana 2 | Fazer o Google preferir a página | Core Web Vitals no verde | ⚠️ 50% |
+| 3. Conteúdo Estratégico | Semana 2-3 | Fazer o Google ranquear a página | Palavras-chave nos top 10 | ✅ 100% |
+| 4. Performance | Semana 2 | Fazer o Google preferir a página | Core Web Vitals no verde | ⚠️ 88% |
 | 5. Infraestrutura | Semana 2 | Servir tudo corretamente | Entrega confiável ao crawler | ✅ 100% |
-| 6. Monitoramento | Contínuo | Medir e corrigir | Melhoria contínua | ⚠️ 33% |
+| 6. Monitoramento | Contínuo | Medir e corrigir | Melhoria contínua | ⚠️ 50% |
 Fase 1 — Fundação Técnica
 Objetivo: O Google recebe HTML com conteúdo visível, não uma casca vazia.
 
