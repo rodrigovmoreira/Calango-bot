@@ -1,12 +1,21 @@
 Roadmap de SEO para CalangoBot — Landing Page
-Visão geral das fases
-Fase	Duração	Foco	Resultado esperado
-1. Fundação Técnica	Semana 1	Fazer o Google ler a página	Indexação correta
-2. Camada Semântica	Semana 1	Fazer o Google entender a página	Rich snippets e posição zero
-3. Conteúdo Estratégico	Semana 2-3	Fazer o Google ranquear a página	Palavras-chave nos top 10
-4. Performance	Semana 2	Fazer o Google preferir a página	Core Web Vitals no verde
-5. Infraestrutura	Semana 2	Servir tudo corretamente	Entrega confiável ao crawler
-6. Monitoramento	Contínuo	Medir e corrigir	Melhoria contínua
+
+> **📅 Última auditoria:** 2026-07-22 | **Status geral:** ~90% concluído
+>
+> 🔴 **Pendências críticas:** Substituir ID do GA4 (script já adicionado), cadastrar Search Console
+> 🟡 **Pendências médias:** Converter PNG→WebP, fallbackSrc em imagens, medir PageSpeed
+> 🟢 **Pendências baixas:** Seção Integrações (F5.E)
+
+## Visão geral das fases
+
+| Fase | Duração | Foco | Resultado esperado | Status |
+|------|---------|------|-------------------|--------|
+| 1. Fundação Técnica | Semana 1 | Fazer o Google ler a página | Indexação correta | ✅ 100% |
+| 2. Camada Semântica | Semana 1 | Fazer o Google entender a página | Rich snippets e posição zero | ✅ 100% |
+| 3. Conteúdo Estratégico | Semana 2-3 | Fazer o Google ranquear a página | Palavras-chave nos top 10 | ✅ 90% |
+| 4. Performance | Semana 2 | Fazer o Google preferir a página | Core Web Vitals no verde | ⚠️ 50% |
+| 5. Infraestrutura | Semana 2 | Servir tudo corretamente | Entrega confiável ao crawler | ✅ 100% |
+| 6. Monitoramento | Contínuo | Medir e corrigir | Melhoria contínua | ⚠️ 33% |
 Fase 1 — Fundação Técnica
 Objetivo: O Google recebe HTML com conteúdo visível, não uma casca vazia.
 
@@ -34,8 +43,8 @@ No componente LandingPage, importar <Helmet> e usá-lo como primeiro filho do co
 Metadados que a Landing Page PRECISA ter
 Meta tag	Conteúdo sugerido
 <title>	"CalangoBot — CRM com Chatbot IA e Agendamento Automático 24h"
-<meta description>	Máximo 160 caracteres. Deve conter: o que é, para quem serve, principal benefício. Ex: "Automatize atendimentos no WhatsApp com IA. Agendamento, catálogo visual e respostas 24h para pequenos negócios."
-<meta keywords>	5 a 8 palavras-chave separadas por vírgula. Foco em: chatbot, CRM, agendamento automático, WhatsApp, IA, pequenas empresas.
+<meta description>	Máximo 160 caracteres. Deve conter: o que é, para quem serve, principal benefício. Ex: "Automatize atendimentos no WhatsApp com IA. Agendamento, catálogo visual e respostas 24h para seus negócios."
+<meta keywords>	5 a 8 palavras-chave separadas por vírgula. Foco em: chatbot, CRM, agendamento automático, WhatsApp, IA, empresas.
 og:title	Igual ao <title>, mas pode ser mais comercial
 og:description	Versão mais curta, pensada para compartilhamento em redes sociais
 og:image	URL absoluta para uma imagem 1200x630px. Crie uma imagem de capa do CalangoBot.

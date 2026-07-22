@@ -89,9 +89,20 @@ const io = new Server(server, {
 
 // Middlewares Globais
 app.use(helmet({
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://www.googletagmanager.com"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:", "blob:"],
+      connectSrc: ["'self'", "ws:", "wss:", "https://*.calangoapp.com.br"],
+      frameSrc: ["'self'", "https://bot.calangoapp.com.br"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+    },
+  },
   crossOriginEmbedderPolicy: false,
-  frameguard: false // Allows the chat widget to be embedded via iframe
+  frameguard: { action: "sameorigin" } // Permite iframe apenas do mesmo domínio
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -264,8 +275,8 @@ async function start() {
       restoreActiveSessions();
     }
 
-    server.listen(BACKEND_PORT, () => {
-      console.log(`\n🚀 SERVIDOR SAAS ONLINE NA PORTA ${BACKEND_PORT}`);
+    server.listen(BACKEND_PORT, '127.0.0.1', () => {
+      console.log(`\n🚀 SERVIDOR SAAS ONLINE NA PORTA ${BACKEND_PORT} (localhost apenas)`);
     });
   } catch (error) {
     console.error('💥 Erro fatal:', error);

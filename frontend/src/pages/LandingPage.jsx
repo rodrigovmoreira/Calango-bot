@@ -26,8 +26,8 @@ const LandingPage = () => {
     <Box bg={bg} minH="100vh">
       <Helmet>
         <title>CalangoBot — CRM com Chatbot IA e Agendamento Automático 24h</title>
-        <meta name="description" content="Automatize atendimentos no WhatsApp com IA. Agendamento, catálogo visual e respostas 24h para pequenos negócios. Comece grátis." />
-        <meta name="keywords" content="chatbot, CRM, agendamento automático, WhatsApp, IA, inteligência artificial, atendimento 24h, pequenas empresas" />
+        <meta name="description" content="Automatize atendimentos no WhatsApp com IA. Agendamento, catálogo visual e respostas 24h para seus negócios. Comece grátis." />
+        <meta name="keywords" content="chatbot, CRM, agendamento automático, WhatsApp, IA, inteligência artificial, atendimento 24h, empresas e pessoas." />
         <meta name="robots" content="index, follow" />
         <meta name="author" content="CalangoApp" />
         <link rel="canonical" href="https://bot.calangoapp.com.br/" />
@@ -44,6 +44,15 @@ const LandingPage = () => {
         <meta name="twitter:title" content="CalangoBot — CRM com Chatbot IA e Agendamento Automático 24h" />
         <meta name="twitter:description" content="Automatize atendimentos no WhatsApp com IA. Agendamento, catálogo visual e respostas 24h." />
         <meta name="twitter:image" content="https://bot.calangoapp.com.br/og-image.png" />
+
+        {/* Google Analytics 4 — Substitua G-XXXXXXXXXX pelo seu ID real */}
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX" />
+        <script>
+          {`window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', 'G-XXXXXXXXXX');`}
+        </script>
       </Helmet>
 
       {/* Navbar */}
@@ -322,7 +331,7 @@ const LandingPage = () => {
                 <Heading size="md">CalangoBot</Heading>
               </HStack>
               <Text color="gray.400" fontSize="sm">
-                A revolução do atendimento automático para pequenos e médios negócios.
+                A revolução do atendimento automático para empresas e pessoas.
               </Text>
             </VStack>
 
