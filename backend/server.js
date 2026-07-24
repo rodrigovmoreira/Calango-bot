@@ -277,7 +277,7 @@ async function start() {
       restoreActiveSessions();
     }
 
-    server.listen(BACKEND_PORT, '127.0.0.1', () => {
+    server.listen(BACKEND_PORT, '0.0.0.0', () => {
       console.log(`\n🚀 SERVIDOR SAAS ONLINE NA PORTA ${BACKEND_PORT} (localhost apenas)`);
     });
   } catch (error) {
