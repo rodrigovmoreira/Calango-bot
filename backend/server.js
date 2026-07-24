@@ -83,6 +83,8 @@ const allowedOrigins = [
   ...envOrigins
 ];
 
+console.log('🔓 CORS Allowed Origins:', allowedOrigins);
+
 const io = new Server(server, {
   cors: { origin: allowedOrigins, methods: ["GET", "POST"], credentials: true }
 });

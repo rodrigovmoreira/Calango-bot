@@ -26,7 +26,6 @@ const stripThinking = (text) => {
 
 async function processCampaigns() {
   try {
-    console.log('⏳ [Scheduler] Verificando campanhas automáticas...');
     // Prevent re-entrancy race conditions
     const campaigns = await Campaign.find({
       isActive: true,
