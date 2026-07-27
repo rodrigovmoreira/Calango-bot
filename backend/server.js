@@ -278,7 +278,7 @@ async function start() {
     }
 
     server.listen(BACKEND_PORT, '0.0.0.0', () => {
-      console.log(`\n🚀 SERVIDOR SAAS ONLINE NA PORTA ${BACKEND_PORT} (localhost apenas)`);
+      console.log(`\n🚀 SERVIDOR SAAS ONLINE NA PORTA ${BACKEND_PORT}`);
     });
   } catch (error) {
     console.error('💥 Erro fatal:', error);
