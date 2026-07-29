@@ -272,20 +272,76 @@ const fetchChatsWithRetry = async (client) => {
         }
     }
 
-    // --- ESTRATÉGIA 2: Fallback via getContacts() ---
+    // --- ESTRATÉGIA 2: Fallback via getContacts() + nomes via getChatById ---
     console.log('   🔄 Fallback: Tentando client.getContacts()...');
     try {
         const contacts = await client.getContacts();
         if (contacts && contacts.length > 0) {
             console.log(`   ✅ Fallback getContacts() retornou ${contacts.length} contatos.`);
-            // Converte contatos para formato compatível com o resto do código
-            return contacts.map(c => ({
+            // DEBUG: Log das propriedades reais dos primeiros 3 contatos
+            if (contacts.length > 0) {
+                const sample = contacts.slice(0, 3);
+                sample.forEach((c, i) => {
+                    console.log(`   🔍 [DEBUG] Contato #${i + 1}:`, JSON.stringify({
+                        id: c.id,
+                        number: c.number,
+                        name: c.name,
+                        pushname: c.pushname,
+                        shortName: c.shortName,
+                        isMe: c.isMe,
+                        isUser: c.isUser,
+                        isGroup: c.isGroup,
+                        isWAContact: c.isWAContact,
+                        isBusiness: c.isBusiness,
+                        allKeys: Object.keys(c)
+                    }));
+                });
+            }
+
+            // Mapeia contatos para formato compatível
+            const mappedContacts = contacts.map(c => ({
                 id: c.id || { _serialized: c.number + '@c.us', user: c.number, server: 'c.us' },
-                name: c.name || c.pushname || c.shortName,
+                name: c.name || c.pushname || c.shortName || '',
+                pushname: c.pushname || c.name || c.shortName || '',
+                number: c.number,
                 isGroup: false,
-                timestamp: c.lastSeen ? Math.floor(c.lastSeen / 1000) : Date.now() / 1000,
+                timestamp: Date.now() / 1000,
                 unreadCount: 0
             }));
+
+            // Para contatos sem nome, tenta buscar o nome via Chat (getChatById)
+            const contactsWithoutName = mappedContacts.filter(c => !c.name && !c.pushname);
+
+            if (contactsWithoutName.length > 0) {
+                console.log(`   🔍 ${contactsWithoutName.length} contatos sem nome — tentando buscar via Chat...`);
+
+                // Busca nomes em lotes de 10 para não sobrecarregar
+                const BATCH_SIZE = 10;
+                for (let i = 0; i < contactsWithoutName.length; i += BATCH_SIZE) {
+                    const batch = contactsWithoutName.slice(i, i + BATCH_SIZE);
+                    const batchPromises = batch.map(async (c) => {
+                        try {
+                            const rawId = c.id?._serialized || c.id;
+                            if (!rawId) return;
+
+                            // Tenta buscar o Chat individualmente (usa .find() em vez de .getModelsArray())
+                            const chat = await client.getChatById(rawId);
+                            if (chat && chat.name) {
+                                c.name = chat.name;
+                                c.pushname = chat.name;
+                            }
+                        } catch (e) {
+                            // getChatById pode falhar também — ignoramos silenciosamente
+                        }
+                    });
+                    await Promise.all(batchPromises);
+                }
+
+                const stillNoName = mappedContacts.filter(c => !c.name && !c.pushname).length;
+                console.log(`   📊 Após busca via Chat: ${mappedContacts.length - stillNoName} com nome, ${stillNoName} sem nome.`);
+            }
+
+            return mappedContacts;
         }
     } catch (contactErr) {
         console.warn(`   ⚠️ Fallback getContacts() também falhou: ${contactErr.message?.slice(0, 100)}`);
@@ -304,13 +360,19 @@ const fetchChatsWithRetry = async (client) => {
                 try {
                     const serialized = chat.serialize ? chat.serialize() : chat;
                     const id = chat.id || serialized.id || {};
+                    // Tenta todas as possíveis fontes de nome no modelo do Store
+                    const chatName = chat.name || chat.formattedTitle || serialized.name
+                        || serialized.formattedTitle || serialized.pushname || '';
+                    const chatPushname = chat.pushname || serialized.pushname
+                        || chat.contact?.pushname || serialized.contact?.pushname || '';
                     return {
                         id: {
                             _serialized: id._serialized || id.user + '@' + (id.server || 'c.us'),
                             user: id.user || '',
                             server: id.server || 'c.us'
                         },
-                        name: chat.name || chat.formattedTitle || serialized.name || '',
+                        name: chatName,
+                        pushname: chatPushname || chatName,
                         isGroup: !!(chat.groupMetadata || serialized.isGroup),
                         timestamp: chat.t || chat.timestamp || serialized.t || 0,
                         unreadCount: chat.unreadCount || serialized.unreadCount || 0
@@ -439,9 +501,36 @@ const syncContacts = async (req, res) => {
 
                 const cleanPhone = rawId.split('@')[0].replace(/\D/g, '');
 
-                // Monta o nome
-                const displayName = chatData.name || chatData.pushname || `Cliente ${cleanPhone.slice(-4)}`;
+                // Determina se um nome é "fallback" (vazio ou gerado automaticamente)
+                const isFallbackName = (name) => !name || /^Cliente \d{4}$/.test(name);
+
+                // Nome vindo do sync (pode ser vazio se o fallback não conseguiu extrair)
+                const syncedName = chatData.name || chatData.pushname || '';
                 const lastInteraction = new Date(chatData.timestamp * 1000);
+
+                let displayName;
+
+                if (!isFallbackName(syncedName)) {
+                    // Nome REAL veio do WhatsApp → usa ele (é o mais atualizado)
+                    displayName = syncedName;
+                } else {
+                    // Sync não trouxe nome → busca contato existente para preservar nome anterior
+                    const existingContact = await Contact.findOne({
+                        businessId,
+                        $or: [
+                            { phone: cleanPhone },
+                            { whatsappId: rawId }
+                        ]
+                    });
+
+                    if (existingContact && existingContact.name && !isFallbackName(existingContact.name)) {
+                        // Mantém o nome que já estava salvo (não sobrescreve com vazio)
+                        displayName = existingContact.name;
+                    } else {
+                        // Contato novo sem nome → gera fallback
+                        displayName = `Cliente ${cleanPhone.slice(-4)}`;
+                    }
+                }
 
                 await Contact.findOneAndUpdate(
                     {
