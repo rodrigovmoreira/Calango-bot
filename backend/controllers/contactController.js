@@ -212,6 +212,127 @@ const importContacts = async (req, res) => {
 
 // --- 3. WHATSAPP SYNC (New Feature) ---
 
+/**
+ * Tenta obter chats do WhatsApp com retry e fallback.
+ * A API interna WAWebCollections.Chat pode falhar se o WhatsApp Web
+ * atualizou sua estrutura DOM/JS (erro comum: "r: r" do Puppeteer evaluate).
+ *
+ * Estratégia:
+ * 1. Verifica saúde da página (isClosed, crash)
+ * 2. Aguarda estabilidade da página (networkidle)
+ * 3. Tenta getChats() até 3x com backoff exponencial
+ * 4. Fallback: tenta getContacts() (usa WAWebCollections.Contact)
+ * 5. Fallback final: page.evaluate direto no window.Store
+ */
+const fetchChatsWithRetry = async (client) => {
+    // --- HEALTH CHECK ---
+    if (!client.pupPage || client.pupPage.isClosed()) {
+        throw new Error('pupPage fechada. Reinicie a conexão.');
+    }
+
+    // Aguarda a página estar estável
+    try {
+        await client.pupPage.waitForFunction(
+            () => document.readyState === 'complete',
+            { timeout: 10000 }
+        );
+    } catch {
+        console.warn('⚠️ Timeout aguardando document.readyState, continuando...');
+    }
+
+    // Pequena pausa para garantir que scripts internos do WA terminaram de carregar
+    await new Promise(r => setTimeout(r, 2000));
+
+    // --- ESTRATÉGIA 1: getChats() com retry ---
+    const MAX_RETRIES = 3;
+    let lastError = null;
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+            console.log(`   🔄 Tentativa ${attempt}/${MAX_RETRIES} - client.getChats()...`);
+            const chats = await client.getChats();
+            console.log(`   ✅ getChats() retornou ${chats.length} chats.`);
+            return chats;
+        } catch (err) {
+            lastError = err;
+            console.warn(`   ⚠️ Tentativa ${attempt} falhou: ${err.message?.slice(0, 100) || err}`);
+
+            if (attempt < MAX_RETRIES) {
+                const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
+                console.log(`   ⏳ Aguardando ${delay}ms antes da próxima tentativa...`);
+                await new Promise(r => setTimeout(r, delay));
+
+                // Se o execution context foi destruído, a página pode ter sido fechada.
+                // Neste caso não adianta retentar — propaga o erro.
+                if (err.message?.includes('Execution context was destroyed')) {
+                    console.warn('   ❌ Execution context destruído — abortando retentativas.');
+                    throw err;
+                }
+            }
+        }
+    }
+
+    // --- ESTRATÉGIA 2: Fallback via getContacts() ---
+    console.log('   🔄 Fallback: Tentando client.getContacts()...');
+    try {
+        const contacts = await client.getContacts();
+        if (contacts && contacts.length > 0) {
+            console.log(`   ✅ Fallback getContacts() retornou ${contacts.length} contatos.`);
+            // Converte contatos para formato compatível com o resto do código
+            return contacts.map(c => ({
+                id: c.id || { _serialized: c.number + '@c.us', user: c.number, server: 'c.us' },
+                name: c.name || c.pushname || c.shortName,
+                isGroup: false,
+                timestamp: c.lastSeen ? Math.floor(c.lastSeen / 1000) : Date.now() / 1000,
+                unreadCount: 0
+            }));
+        }
+    } catch (contactErr) {
+        console.warn(`   ⚠️ Fallback getContacts() também falhou: ${contactErr.message?.slice(0, 100)}`);
+    }
+
+    // --- ESTRATÉGIA 3: Fallback final via window.Store ---
+    console.log('   🔄 Fallback Final: Acessando window.Store diretamente...');
+    try {
+        const rawChats = await client.pupPage.evaluate(() => {
+            // Tenta acessar Store diretamente (API comum do WhatsApp Web)
+            const Store = window.Store || window.require?.('WAWebCollections');
+            if (!Store || !Store.Chat) return [];
+
+            const chats = Store.Chat.getModelsArray();
+            return chats.map(chat => {
+                try {
+                    const serialized = chat.serialize ? chat.serialize() : chat;
+                    const id = chat.id || serialized.id || {};
+                    return {
+                        id: {
+                            _serialized: id._serialized || id.user + '@' + (id.server || 'c.us'),
+                            user: id.user || '',
+                            server: id.server || 'c.us'
+                        },
+                        name: chat.name || chat.formattedTitle || serialized.name || '',
+                        isGroup: !!(chat.groupMetadata || serialized.isGroup),
+                        timestamp: chat.t || chat.timestamp || serialized.t || 0,
+                        unreadCount: chat.unreadCount || serialized.unreadCount || 0
+                    };
+                } catch (e) {
+                    return null;
+                }
+            }).filter(Boolean);
+        });
+
+        if (rawChats && rawChats.length > 0) {
+            console.log(`   ✅ Fallback Store retornou ${rawChats.length} chats.`);
+            return rawChats;
+        }
+    } catch (storeErr) {
+        console.warn(`   ⚠️ Fallback Store também falhou: ${storeErr.message?.slice(0, 100)}`);
+    }
+
+    // Se tudo falhou, lança o erro original
+    throw lastError || new Error('Todos os métodos de obtenção de chats falharam.');
+};
+
 const syncContacts = async (req, res) => {
     try {
 
@@ -230,34 +351,63 @@ const syncContacts = async (req, res) => {
 
         console.log('🔄 Iniciando Sincronização Segura (Via API Nativa)...');
 
-        // Puxa todos os chats através da função nativa estabilizada do WWebJS
-        const allChats = await client.getChats();
+        // Puxa todos os chats com retry e fallback automáticos
+        const allChats = await fetchChatsWithRetry(client);
 
         // Filtramos do lado do Node (em vez de dentro do navegador)
+        // Compatível com múltiplos formatos: getChats() (objetos Chat), getContacts() e Store fallback
         const rawChats = allChats
             .filter(chat => {
-                const id = chat.id._serialized;
-                const user = chat.id.user;
+                try {
+                    // Extrai ID de forma defensiva (compatível com múltiplos formatos)
+                    const rawId = typeof chat.id === 'string'
+                        ? chat.id
+                        : chat.id?._serialized || chat.id?.user || '';
 
-                // Bloqueios de Segurança
-                if (chat.isGroup) return false;
-                if (chat.id.server === 'broadcast') return false; // Elimina Status e Newsletters
-                if (id.includes('@g.us')) return false;
-                if (user && user.includes('-')) return false;
-                if (user && user.length > 30) return false;
+                    if (!rawId) return false;
 
-                return true;
+                    const isGroup =
+                        chat.isGroup === true ||
+                        (typeof chat.id === 'object' && chat.id?.server === 'g.us') ||
+                        rawId.includes('@g.us');
+
+                    const isBroadcast =
+                        (typeof chat.id === 'object' && chat.id?.server === 'broadcast') ||
+                        rawId.includes('@broadcast');
+
+                    // Bloqueios de Segurança
+                    if (isGroup) return false;
+                    if (isBroadcast) return false; // Elimina Status e Newsletters
+                    if (rawId.includes('@g.us')) return false;
+                    if (rawId.includes('status@broadcast')) return false;
+                    if (rawId.includes('@newsletter')) return false;
+
+                    // Filtra IDs técnicos muito longos (comunidades, etc.)
+                    const user = typeof chat.id === 'object' ? chat.id?.user : rawId.split('@')[0];
+                    if (user && user.includes('-')) return false;
+                    if (user && user.length > 30) return false;
+
+                    return true;
+                } catch {
+                    return false; // Ignora chats que causam erro na filtragem
+                }
             })
             // .timestamp é padrão nativo no retorno do getChats()
-            .sort((a, b) => b.timestamp - a.timestamp)
+            .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
             .slice(0, 500) // Pega as Top 500 mais recentes
-            .map(chat => ({
-                phone: chat.id._serialized,
-                name: chat.name, // WWebJS já formata o nome de forma confiável
-                pushname: chat.name,
-                timestamp: chat.timestamp,
-                unread: chat.unreadCount
-            }));
+            .map(chat => {
+                const rawId = typeof chat.id === 'string'
+                    ? chat.id
+                    : chat.id?._serialized || '';
+
+                return {
+                    phone: rawId,
+                    name: chat.name || chat.pushname || chat.shortName || '',
+                    pushname: chat.pushname || chat.name || '',
+                    timestamp: chat.timestamp || 0,
+                    unread: chat.unreadCount || 0
+                };
+            });
 
         console.log(`✅ Recebidos e filtrados ${rawChats.length} chats recentes de forma segura.`);
 
