@@ -54,7 +54,6 @@ async function processTimeCampaign(campaign) {
   // CORREÇÃO: Usar findById com o businessId
   const config = await BusinessConfig.findById(campaign.businessId);
   if (!config) {
-      console.log(`⚠️ [Scheduler] Empresa não encontrada para a campanha: ${campaign.name}`);
       return;
   }
 
@@ -180,7 +179,6 @@ async function processEventCampaign(campaign) {
   // CORREÇÃO 1: Usar findById para a configuração
   const config = await BusinessConfig.findById(campaign.businessId);
   if (!config) {
-      console.log(`⚠️ [Scheduler] Empresa não encontrada para a campanha: ${campaign.name}`);
       return;
   }
 
