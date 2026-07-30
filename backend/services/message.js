@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import Contact from '../models/Contact.js';
 import Message from '../models/Message.js';
+import { normalizePhone } from '../utils/phoneUtils.js';
 
 async function saveMessage(identifier, role, content, messageType = 'text', visionResult = null, businessId, channel = 'whatsapp', pushName = null, whatsappId = null) {
   try {
@@ -14,7 +15,20 @@ async function saveMessage(identifier, role, content, messageType = 'text', visi
     if (channel === 'web') {
         query.sessionId = identifier;
     } else {
-        query.phone = identifier;
+        // 🔧 CORREÇÃO: Normaliza o identificador (pode vir em formato internacional 5511999999999
+        // ou já normalizado 11999999999) e busca por phone (formato nacional) OU whatsappId
+        const normalizedIdentifier = normalizePhone(identifier);
+        
+        query.$or = [
+            { phone: normalizedIdentifier },
+            { phone: identifier }, // fallback: busca também pelo formato original
+        ];
+        if (whatsappId) {
+            query.$or.push({ whatsappId: whatsappId });
+        }
+        
+        // Atualiza o identifier para o formato normalizado (será usado na criação)
+        identifier = normalizedIdentifier;
     }
 
     let contact = await Contact.findOne(query);
@@ -152,6 +166,8 @@ async function getLastMessages(identifier, limit = 15, businessId, channel = 'wh
     if (channel === 'web') {
         query.sessionId = identifier;
     } else {
+        // 🔧 CORREÇÃO: Busca por phone (formato novo) — se não encontrar, busca no Message pelo contactId
+        // Nota: O identifier aqui já vem normalizado do messageHandler
         query.phone = identifier;
     }
 

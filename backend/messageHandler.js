@@ -67,7 +67,12 @@ async function processBufferedMessages(uniqueKey) {
             contactQuery.sessionId = from;
         } else {
             cleanFromForDb = normalizePhone(from);
-            contactQuery.phone = cleanFromForDb;
+            // 🔧 CORREÇÃO: Busca por phone (formato novo) OU whatsappId (formato original do WA)
+            // Evita criar contato duplicado se o formato do phone mudou na migração
+            contactQuery.$or = [
+                { phone: cleanFromForDb },
+                { whatsappId: from }
+            ];
         }
 
         let contact = await Contact.findOne(contactQuery);

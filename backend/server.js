@@ -49,7 +49,8 @@ import {
   startSession,
   getSessionStatus,
   getSessionQR,
-  closeAllSessions
+  closeAllSessions,
+  startGlobalHealthCheck
 } from './services/wwebjsService.js';
 
 // --- IMPORTAÇÃO DOS NOVOS PLUGINS (ROTAS) ---
@@ -243,9 +244,40 @@ const restoreActiveSessions = async () => {
       });
 
       if (sessionFile) {
-        console.log(`▶️ [${index + 1}/${configs.length}] Iniciando ${config.businessName}...`);
+        console.log(`▶️ [${index + 1}/${configs.length}] Restaurando ${config.businessName}...`);
         startSession(businessId);
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        
+        // Aguarda a sessão ficar pronta OU falhar, com timeout de 45 segundos
+        const RESTORE_TIMEOUT = 45000;
+        const startTime = Date.now();
+        let sessionReady = false;
+        
+        while (Date.now() - startTime < RESTORE_TIMEOUT) {
+          const status = getSessionStatus(businessId);
+          
+          if (status === 'ready') {
+            sessionReady = true;
+            console.log(`   ✅ [${config.businessName}] Sessão restaurada com sucesso!`);
+            break;
+          }
+          
+          if (status === 'error' || status === 'disconnected') {
+            console.warn(`   ⚠️ [${config.businessName}] Sessão falhou ao restaurar (status: ${status}).`);
+            break;
+          }
+          
+          // Aguarda 2 segundos antes de verificar novamente
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+        
+        if (!sessionReady) {
+          const finalStatus = getSessionStatus(businessId);
+          console.warn(`   ⚠️ [${config.businessName}] Timeout ao restaurar sessão (status final: ${finalStatus}).`);
+          console.warn(`   💡 Dica: O celular pode estar desconectado. A sessão será limpa.`);
+        }
+        
+        // Delay entre restaurações para não sobrecarregar
+        await new Promise(resolve => setTimeout(resolve, 3000));
       }
     }
     console.log('🏁 [Auto-Start] Finalizado.');
@@ -271,6 +303,9 @@ async function start() {
 
     // Passamos o IO para o serviço WWebJS poder emitir eventos
     initializeWWebJS(io);
+    
+    // 🩺 Inicia o health check global de sessões (detecta zumbis)
+    startGlobalHealthCheck();
 
     // 👇 CHAMA A FUNÇÃO DE RESSURREIÇÃO AQUI 👇
     if (process.env.NODE_ENV !== 'test') {
