@@ -7,6 +7,7 @@ import Contact from './models/Contact.js';
 import { processConversation } from './services/aiService.js';
 import { evaluateMessageFilters, handleBlockedMessage } from './services/messageFilterService.js';
 import { processQuickReplies, checkHumanPause } from './services/menuService.js';
+import { normalizePhone } from './utils/phoneUtils.js';
 
 // === CONTROLE DE PROTEÇÃO (ANTI-LOOP) ===
 const rateLimitMap = new Map();
@@ -65,7 +66,7 @@ async function processBufferedMessages(uniqueKey) {
         if (channel === 'web') {
             contactQuery.sessionId = from;
         } else {
-            cleanFromForDb = from.split('@')[0].replace(/\D/g, '');
+            cleanFromForDb = normalizePhone(from);
             contactQuery.phone = cleanFromForDb;
         }
 

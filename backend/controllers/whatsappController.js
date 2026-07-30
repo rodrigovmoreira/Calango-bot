@@ -1,4 +1,5 @@
 import { getClientSession } from '../services/wwebjsService.js';
+import { normalizePhone } from '../utils/phoneUtils.js';
 import Tag from '../models/Tag.js';
 import Contact from '../models/Contact.js';
 import BusinessConfig from '../models/BusinessConfig.js';
@@ -61,7 +62,8 @@ const importLabels = async (req, res) => {
             const chats = await client.getChatsByLabelId(label.id);
 
             for (const chat of chats) {
-                const phone = chat.id.user; // e.g. "5511999999999"
+                const rawPhone = chat.id.user; // e.g. "5511999999999"
+                const phone = normalizePhone(rawPhone); // Converte para formato nacional (ex: "11999999999")
 
                 // Update Contact
                 const result = await Contact.updateOne(

@@ -2,6 +2,7 @@ import Contact from '../models/Contact.js';
 import BusinessConfig from '../models/BusinessConfig.js';
 import Tag from '../models/Tag.js'; // Kept if needed for future expansions
 import * as wwebjsService from '../services/wwebjsService.js';
+import { normalizePhone, toWhatsAppId } from '../utils/phoneUtils.js';
 import xlsx from 'xlsx';
 import csv from 'csv-parser';
 import { Readable } from 'stream';
@@ -163,14 +164,14 @@ const importContacts = async (req, res) => {
                 continue;
             }
 
-            phone = String(phone).replace(/\D/g, '');
+            phone = normalizePhone(phone);
 
             if (phone.length < 8) {
                 stats.failed++;
                 continue;
             }
 
-            const waId = `${phone}@c.us`;
+            const waId = toWhatsAppId(phone);
 
             let contact = await Contact.findOne({ businessId, phone });
 
@@ -499,7 +500,7 @@ const syncContacts = async (req, res) => {
                     }
                 }
 
-                const cleanPhone = rawId.split('@')[0].replace(/\D/g, '');
+                const cleanPhone = normalizePhone(rawId); // Agora extrai DDD+número (sem código de país)
 
                 // Determina se um nome é "fallback" (vazio ou gerado automaticamente)
                 const isFallbackName = (name) => !name || /^Cliente \d{4}$/.test(name);
@@ -595,8 +596,8 @@ const createContact = async (req, res) => {
             return res.status(400).json({ message: 'O número de telefone é obrigatório.' });
         }
 
-        const cleanPhone = String(phone).replace(/\D/g, '');
-        const waId = `${cleanPhone}@c.us`;
+        const cleanPhone = normalizePhone(phone);
+        const waId = toWhatsAppId(cleanPhone);
 
         const existingContact = await Contact.findOne({ businessId, phone: cleanPhone });
 

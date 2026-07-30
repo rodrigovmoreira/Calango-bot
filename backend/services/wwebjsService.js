@@ -317,8 +317,20 @@ const sendWWebJSMessage = async (businessId, to, message) => {
   }
 
   try {
-    let formattedNumber = to.replace(/\D/g, '');
-    if (!formattedNumber.includes('@c.us')) formattedNumber = `${formattedNumber}@c.us`;
+    let formattedNumber = to.trim();
+    
+    // Se já está no formato WhatsApp ID (@c.us), usa como está
+    if (!formattedNumber.includes('@c.us')) {
+      // Número nacional (ex: 11999999999) → adiciona código do país (55) + @c.us
+      const digits = formattedNumber.replace(/\D/g, '');
+      if (digits.length <= 12) {
+        // Número nacional (sem código de país) → adiciona 55 (Brasil)
+        formattedNumber = `55${digits}@c.us`;
+      } else {
+        // Já tem código de país → só adiciona @c.us
+        formattedNumber = `${digits}@c.us`;
+      }
+    }
 
     // FIX: Pass { sendSeen: false } to prevent crash on 'markedUnread'
     await client.sendMessage(formattedNumber, message, { sendSeen: false });
@@ -339,9 +351,16 @@ const sendImage = async (businessId, to, imageUrl, caption) => {
   }
 
   try {
-    // Formata o número
-    let formattedNumber = to.replace(/\D/g, '');
-    if (!formattedNumber.includes('@c.us')) formattedNumber = `${formattedNumber}@c.us`;
+    // Formata o número: suporta tanto formato nacional (11999999999) quanto internacional (5511999999999@c.us)
+    let formattedNumber = to.trim();
+    if (!formattedNumber.includes('@c.us')) {
+      const digits = formattedNumber.replace(/\D/g, '');
+      if (digits.length <= 12) {
+        formattedNumber = `55${digits}@c.us`;
+      } else {
+        formattedNumber = `${digits}@c.us`;
+      }
+    }
 
     console.log(`⬇️ [WWebJS] Baixando imagem da URL...`);
 
@@ -403,8 +422,16 @@ const sendStateTyping = async (businessId, to) => {
   }
 
   try {
-    let formattedNumber = to.replace(/\D/g, '');
-    if (!formattedNumber.includes('@c.us')) formattedNumber = `${formattedNumber}@c.us`;
+    // Suporta tanto formato nacional (11999999999) quanto internacional (5511999999999@c.us)
+    let formattedNumber = to.trim();
+    if (!formattedNumber.includes('@c.us')) {
+      const digits = formattedNumber.replace(/\D/g, '');
+      if (digits.length <= 12) {
+        formattedNumber = `55${digits}@c.us`;
+      } else {
+        formattedNumber = `${digits}@c.us`;
+      }
+    }
 
     const chat = await client.getChatById(formattedNumber);
 

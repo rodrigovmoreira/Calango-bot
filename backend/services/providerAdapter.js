@@ -1,18 +1,4 @@
-// --- HELPER: Normalização de Telefone ---
-const normalizePhone = (phone) => {
-    if (!phone) return '';
-    
-    // 🛡️ PROTEÇÃO MULTI-CANAL:
-    // Se a Meta ocultou o número real e mandou o LID de privacidade (@lid),
-    // ou se a mensagem veio de um Grupo (@g.us), NÓS PRESERVAMOS a string intacta.
-    // Sem o domínio, o bot não consegue devolver a mensagem e dá erro de "No LID".
-    if (phone.includes('@lid') || phone.includes('@g.us')) {
-        return phone;
-    }
-    
-    // Caso seja um número normal (@c.us), limpa para o padrão numérico do CRM
-    return phone.replace(/\D/g, '');
-};
+import { normalizePhone } from '../utils/phoneUtils.js';
 
 // --- TRADUTOR DO TWILIO (Mantido para compatibilidade) ---
 const adaptTwilioMessage = (twilioBody) => {
