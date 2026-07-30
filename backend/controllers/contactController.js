@@ -285,35 +285,46 @@ const fetchChatsWithRetry = async (client) => {
                 });
             }
 
-            // Filtra e mapeia contatos — apenas contatos pessoais reais
+            // Filtra e mapeia contatos — AGENDA DE CONTATOS (apenas salvos no telefone)
+            // 🔧 REGRA 1: isMyContact === true → só contatos salvos na agenda do telefone
+            // 🔧 REGRA 2: c.number é o telefone real (doc oficial do wwebjs)
+            // 🔧 REGRA 3: Deduplica por id._serialized (WhatsApp duplica entradas Business)
+            const seenIds = new Set();
+            
             const mappedContacts = contacts
                 .filter(c => {
-                    if (c.isMe) return false;       // Não importar a si mesmo
-                    if (c.isGroup) return false;     // Não importar grupos
-                    if (!c.isUser) return false;     // Só contatos que são usuários
+                    if (c.isMe) return false;                // Não importar a si mesmo
+                    if (c.isGroup) return false;              // Não importar grupos
+                    if (!c.isMyContact) return false;          // 🆕 SÓ contatos da AGENDA
+                    
+                    const realId = c.id?._serialized || '';
+                    if (!realId || !realId.includes('@c.us')) return false;
+                    
+                    // Deduplica por id real (entradas Business duplicadas)
+                    if (seenIds.has(realId)) return false;
+                    seenIds.add(realId);
+                    
                     return true;
                 })
                 .map(c => ({
-                    // Usa c.number (número REAL) para o ID, em vez do chat ID
                     id: { 
-                        _serialized: (c.number || '') + '@c.us', 
-                        user: c.number || '', 
+                        _serialized: c.id?._serialized || '',
+                        user: (c.id?._serialized || '').split('@')[0],  // ✅ Extrai do rawId
                         server: 'c.us' 
                     },
                     name: c.name || c.pushname || c.shortName || '',
                     pushname: c.pushname || c.name || '',
-                    number: c.number,                  // ✅ NÚMERO REAL
-                    isMyContact: c.isMyContact || false,
+                    number: (c.id?._serialized || '').split('@')[0],     // ✅ rawId, não c.number
+                    isMyContact: true,
                     isBusiness: c.isBusiness || false,
-                    timestamp: Date.now() / 1000,      // Contact não tem timestamp
                     unreadCount: 0,
-                    _contactRef: c,                    // Guarda referência para buscar labels
                 }));
 
-            console.log(`   ✅ ${mappedContacts.length} contatos após filtro (isMe/grupos removidos).`);
+            // Marca a estratégia para o syncContacts saber que veio da agenda
+            mappedContacts._strategy = 'contacts';
             
-            // ⚡ Labels serão buscados DEPOIS do limit de 500 (no syncContacts)
-            // para evitar 13K chamadas à API do WhatsApp
+            console.log(`   ✅ ${mappedContacts.length} contatos da AGENDA (isMyContact + isMe/grupos removidos).`);
+            
             return mappedContacts;
         }
     } catch (contactErr) {
@@ -385,6 +396,7 @@ const fetchChatsWithRetry = async (client) => {
             }
             
             console.log(`   ✅ ${resolvedContacts.length} contatos resolvidos com número real.`);
+            resolvedContacts._strategy = 'chats';
             return resolvedContacts;
             
         } catch (err) {
@@ -435,6 +447,7 @@ const fetchChatsWithRetry = async (client) => {
 
         if (rawChats && rawChats.length > 0) {
             console.log(`   ✅ Fallback Store retornou ${rawChats.length} chats.`);
+            rawChats._strategy = 'store';
             return rawChats;
         }
     } catch (storeErr) {
@@ -464,6 +477,10 @@ const syncContacts = async (req, res) => {
 
         // Puxa todos os chats com retry e fallback automáticos
         const allChats = await fetchChatsWithRetry(client);
+        
+        // 🔧 Detecta qual estratégia foi usada (definida em fetchChatsWithRetry)
+        const strategy = allChats._strategy || 'unknown';
+        console.log(`📌 [Sync] Estratégia utilizada: ${strategy} (${allChats.length} itens)`);
 
         // Filtramos do lado do Node (em vez de dentro do navegador)
         // Compatível com múltiplos formatos: getChats() (objetos Chat), getContacts() e Store fallback
@@ -476,7 +493,7 @@ const syncContacts = async (req, res) => {
         // Obtém o ID do próprio WhatsApp para filtrar (não queremos importar a si mesmo)
         const myWid = client.info?.wid?._serialized || '';
         
-        const rawChats = allChats
+        let rawChats = allChats
             .filter(chat => {
                 try {
                     // Extrai ID de forma defensiva (compatível com múltiplos formatos)
@@ -514,17 +531,31 @@ const syncContacts = async (req, res) => {
                 } catch {
                     return false;
                 }
-            })
-            // .timestamp é padrão nativo no retorno do getChats()
-            .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
-            .slice(0, 500) // Pega as Top 500 mais recentes
+            });
+        
+        // 🔧 REGRA 3: Fluxo condicional por estratégia
+        // Se veio da AGENDA (getContacts): NÃO ordena por timestamp (é falso), NÃO aplica slice(500)
+        // Se veio de CHATS (getChats/Store): ordena por timestamp + limita a 500
+        if (strategy === 'contacts') {
+            // Agenda: processa TODOS os contatos, sem ordenação artificial
+            console.log(`   📇 [Sync] Modo AGENDA: processando todos os ${rawChats.length} contatos (sem limite de 500).`);
+        } else {
+            // Chats: ordena por timestamp (real) e limita aos 500 mais recentes
+            rawChats = rawChats
+                .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+                .slice(0, 500);
+            console.log(`   💬 [Sync] Modo CHATS: limitado aos ${rawChats.length} mais recentes.`);
+        }
+        
+        // Mapeia para o formato final
+        rawChats = rawChats
             .map(chat => {
                 const rawId = typeof chat.id === 'string'
                     ? chat.id
                     : chat.id?._serialized || '';
 
                 return {
-                    phone: rawId,
+                    rawId: rawId,                                    // ✅ Fonte real (ex: 5511999999999@c.us)
                     name: chat.name || chat.pushname || chat.shortName || '',
                     pushname: chat.pushname || chat.name || '',
                     timestamp: chat.timestamp || 0,
@@ -560,7 +591,7 @@ const syncContacts = async (req, res) => {
                 const batch = rawChats.slice(i, i + LABEL_BATCH);
                 const labelPromises = batch.map(async (c) => {
                     try {
-                        const rawId = c.phone; // phone = ID do chat (ex: 5511999999999@c.us)
+                        const rawId = c.rawId; // rawId = ID do chat (ex: 5511999999999@c.us)
                         if (!rawId || !rawId.includes('@c.us')) return;
                         const waLabels = await client.getChatLabels(rawId);
                         if (waLabels && waLabels.length > 0) {
@@ -583,7 +614,9 @@ const syncContacts = async (req, res) => {
 
         for (const chatData of rawChats) {
             try {
-                let rawId = chatData.phone;
+                // 🔧 rawId é a fonte real do telefone (ex: 5511989207636@c.us).
+                // c.number (realNumber) é um Alias/ID interno falso do WhatsApp (ex: 77825025536062).
+                let rawId = chatData.rawId;
 
                 // 🛡️ PROTEÇÃO: Pula entradas sem ID válido
                 if (!rawId || rawId.trim() === '') {
@@ -598,7 +631,7 @@ const syncContacts = async (req, res) => {
                             const lidMap = await client.getContactLidAndPhone([rawId]);
                             if (lidMap && lidMap[0] && lidMap[0].pn) {
                                 console.log(`   🔓 [Sync] @lid desmascarado: ${rawId} → ${lidMap[0].pn}`);
-                                rawId = lidMap[0].pn;
+                                rawId = lidMap[0].pn;  // Atualiza com o telefone real
                             } else {
                                 console.warn(`⚠️ [Sync] Não foi possível desmascarar @lid para ${rawId}, ignorando.`);
                                 continue;
@@ -612,6 +645,7 @@ const syncContacts = async (req, res) => {
                     }
                 }
 
+                // Extrai o telefone limpo do rawId (remove @c.us e código do país)
                 const cleanPhone = normalizePhone(rawId);
                 
                 // 🛡️ PROTEÇÃO: Pula se o telefone normalizado ficou vazio ou inválido
@@ -620,7 +654,7 @@ const syncContacts = async (req, res) => {
                     continue;
                 }
 
-                // 📊 LOG: Mostra o que está sendo processado
+                // 📊 LOG
                 console.log(`   💾 [Sync] ${chatData.name || 'sem nome'} | rawId: ${rawId} | phone: ${cleanPhone}`);
 
                 // Determina se um nome é "fallback" (vazio ou gerado automaticamente)
@@ -699,7 +733,7 @@ const syncContacts = async (req, res) => {
                 );
                 imported++;
             } catch (err) {
-                console.error(`❌ [Sync] Erro ao salvar contato. rawId: "${chatData.phone}", nome: "${chatData.name}"`);
+                console.error(`❌ [Sync] Erro ao salvar contato. rawId: "${chatData.rawId}", nome: "${chatData.name}"`);
                 console.error(`   Detalhes: ${err.message}`);
                 if (err.code === 11000) {
                     console.error(`   ⚠️ Erro de chave duplicada (11000). Verifique o índice unique de phone/whatsappId.`);
