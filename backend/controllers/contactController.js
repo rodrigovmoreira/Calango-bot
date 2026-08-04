@@ -622,6 +622,7 @@ const syncContacts = async (req, res) => {
         }
 
         let imported = 0;
+        const isBusinessAccount = !!client.info?.isBusiness;
 
         for (const chatData of rawChats) {
             try {
@@ -702,8 +703,8 @@ const syncContacts = async (req, res) => {
                 // Salva/atualiza o contato com upsert
                 const updateData = {
                     $set: {
-                        phone: cleanPhone,
-                        whatsappId: rawId, // Salva o ID original ex: 5511999999999@c.us
+                        phone: cleanPhone,                    // 📱 Formato nacional para UI
+                        whatsappId: rawId,                    // 🔑 ID técnico original para backend/etiquetas
                         name: displayName,
                         pushname: chatData.pushname,
                         isGroup: false,
@@ -715,32 +716,28 @@ const syncContacts = async (req, res) => {
                         dealValue: 0,
                         funnelStage: 'new',
                         profilePicUrl: null,
-                        tags: [], // Inicializa array vazio se for insert
                     }
                 };
                 
-                // 🔖 Adiciona etiquetas do WhatsApp, se existirem
-                if (chatData._labels && Array.isArray(chatData._labels) && chatData._labels.length > 0) {
+                // 🔖 Adiciona etiquetas se for conta Business e houver mapeamento
+                if (isBusinessAccount && chatData._labels && Array.isArray(chatData._labels) && chatData._labels.length > 0) {
                     updateData.$addToSet = { tags: { $each: chatData._labels } };
                     console.log(`   🏷️ [Sync] ${chatData._labels.length} etiqueta(s): ${chatData._labels.join(', ')}`);
                     
-                    // 🔧 CORREÇÃO CRÍTICA: Remove 'tags' do $setOnInsert para não dar Conflito no MongoDB
+                    // Remove 'tags' do $setOnInsert para não dar Conflito no MongoDB
                     if (updateData.$setOnInsert && updateData.$setOnInsert.tags !== undefined) {
                         delete updateData.$setOnInsert.tags;
                     }
-                }
-                
-                // Se não tem etiquetas do WhatsApp, garante que tags não seja sobrescrito
-                if (!updateData.$addToSet) {
-                    delete updateData.$setOnInsert.tags;
+                } else {
+                    updateData.$setOnInsert.tags = [];
                 }
 
                 await Contact.findOneAndUpdate(
                     {
                         businessId,
                         $or: [
-                            { phone: cleanPhone },
-                            { whatsappId: rawId }
+                            { whatsappId: rawId },    // 🥇 Prioridade: ID técnico original
+                            { phone: cleanPhone }      // 🥈 Fallback: formato nacional
                         ]
                     },
                     updateData,
