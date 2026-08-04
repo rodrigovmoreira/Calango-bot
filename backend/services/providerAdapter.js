@@ -72,7 +72,8 @@ const adaptWWebJSMessage = async (msg) => {
     }
 
     return {
-        from: normalizePhone(realPhone), // Passa pela função que decide se limpa ou mantém @lid
+        from: normalizePhone(realPhone), // Normalizado para queries no banco
+        rawFrom: msg.from,              // ✅ ORIGINAL (ex: 5511989207636@c.us) — fonte da verdade
         body: msg.body || '',
         name: name,
         type: type,

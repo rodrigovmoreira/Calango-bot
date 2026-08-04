@@ -580,40 +580,45 @@ const syncContacts = async (req, res) => {
 
         console.log(`✅ Recebidos e filtrados ${rawChats.length} chats recentes de forma segura.`);
 
-        // 🔖 Busca etiquetas (labels) do WhatsApp APENAS para os contatos que serão importados (max 500)
-        // Isso evita 13K+ chamadas à API do WhatsApp
+        // 🔖 Busca etiquetas (labels) do WhatsApp (Otimizado via Mapa em Memória)
         if (rawChats.length > 0) {
-            console.log(`   🏷️ Buscando etiquetas para ${rawChats.length} contatos...`);
+            console.log(`   🏷️ Buscando etiquetas de forma otimizada para ${rawChats.length} contatos...`);
             let labelsFound = 0;
-            const LABEL_BATCH = 15; // Lotes de 15 para não sobrecarregar
-            
-            for (let i = 0; i < rawChats.length; i += LABEL_BATCH) {
-                const batch = rawChats.slice(i, i + LABEL_BATCH);
-                const labelPromises = batch.map(async (c) => {
-                    try {
-                        const rawId = c.rawId; // rawId = ID do chat (ex: 5511999999999@c.us)
-                        if (!rawId || !rawId.includes('@c.us')) return;
-                        const waLabels = await client.getChatLabels(rawId);
-                        if (waLabels && waLabels.length > 0) {
-                            c._labels = waLabels.map(l => l.name || l).filter(Boolean);
-                            labelsFound += c._labels.length;
-                        }
-                    } catch (e) {
-                        // Loga apenas a primeira falha para diagnóstico
-                        if (!labelPromises._firstErrorLogged) {
-                            labelPromises._firstErrorLogged = true;
-                            console.warn(`   ⚠️ [Labels] Erro ao buscar etiquetas (ex: ${e.message?.slice(0, 80)})`);
+
+            try {
+                const waLabels = await client.getLabels();
+                const labelMap = {};
+
+                if (waLabels && waLabels.length > 0) {
+                    // Cria um dicionário de rawId -> array de labels
+                    for (const label of waLabels) {
+                        if (!label.id || !label.name) continue;
+                        try {
+                            const chatsWithThisLabel = await client.getChatsByLabelId(label.id);
+                            for (const chat of chatsWithThisLabel) {
+                                const chatRawId = typeof chat.id === 'string' ? chat.id : chat.id?._serialized || '';
+                                if (chatRawId) {
+                                    if (!labelMap[chatRawId]) labelMap[chatRawId] = [];
+                                    labelMap[chatRawId].push(label.name);
+                                }
+                            }
+                        } catch (lblErr) {
+                            // Ignora falha de uma label específica e continua
                         }
                     }
-                });
-                await Promise.all(labelPromises);
-                
-                // Log de progresso a cada 5 lotes
-                if ((i / LABEL_BATCH) % 5 === 0) {
-                    console.log(`   🏷️ Progresso: ${Math.min(i + LABEL_BATCH, rawChats.length)}/${rawChats.length} contatos verificados...`);
+
+                    // Aplica o mapa aos contatos do sync
+                    for (const c of rawChats) {
+                        if (c.rawId && labelMap[c.rawId]) {
+                            c._labels = labelMap[c.rawId];
+                            labelsFound += c._labels.length;
+                        }
+                    }
                 }
+                console.log(`   🏷️ ${labelsFound} etiquetas vinculadas em memória.`);
+            } catch (e) {
+                console.warn(`   ⚠️ [Labels] Erro geral ao mapear etiquetas: ${e.message}`);
             }
-            console.log(`   🏷️ ${labelsFound} etiquetas encontradas.`);
         }
 
         let imported = 0;
@@ -718,11 +723,15 @@ const syncContacts = async (req, res) => {
                 if (chatData._labels && Array.isArray(chatData._labels) && chatData._labels.length > 0) {
                     updateData.$addToSet = { tags: { $each: chatData._labels } };
                     console.log(`   🏷️ [Sync] ${chatData._labels.length} etiqueta(s): ${chatData._labels.join(', ')}`);
+                    
+                    // 🔧 CORREÇÃO CRÍTICA: Remove 'tags' do $setOnInsert para não dar Conflito no MongoDB
+                    if (updateData.$setOnInsert && updateData.$setOnInsert.tags !== undefined) {
+                        delete updateData.$setOnInsert.tags;
+                    }
                 }
                 
-                // Se não tem etiquetas do WhatsApp mas já tem tags no $setOnInsert, remove o $addToSet
+                // Se não tem etiquetas do WhatsApp, garante que tags não seja sobrescrito
                 if (!updateData.$addToSet) {
-                    // Garante que tags não seja sobrescrito se já existir
                     delete updateData.$setOnInsert.tags;
                 }
 

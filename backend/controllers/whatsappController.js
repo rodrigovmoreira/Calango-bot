@@ -68,12 +68,33 @@ const importLabels = async (req, res) => {
             for (const chat of chats) {
                 chatsProcessed++;
                 
-                // 🔧 CORREÇÃO: usa chat.id._serialized (telefone REAL em @c.us),
-                // NÃO chat.id.user (Alias ID interno falso de contas Business)
-                const rawId = typeof chat.id === 'string' 
+                // Extrai o ID real do chat (fonte da verdade: _serialized, não .user)
+                let rawId = typeof chat.id === 'string' 
                     ? chat.id 
                     : chat.id?._serialized || '';
                 if (!rawId) continue;
+
+                // 🛡️ FILTRO: Pula grupos, broadcasts e newsletters silenciosamente
+                const VALID_CONTACT_ID = /^\d+@c\.us$/;
+                if (!rawId.includes('@lid') && !VALID_CONTACT_ID.test(rawId)) {
+                    continue;
+                }
+
+                // 🔓 Desmascara IDs de privacidade (@lid)
+                if (rawId.includes('@lid')) {
+                    try {
+                        const lidMap = await client.getContactLidAndPhone([rawId]);
+                        if (lidMap && lidMap[0] && lidMap[0].pn) {
+                            rawId = lidMap[0].pn;
+                        } else {
+                            console.warn(`⚠️ [importLabels] Falha ao desmascarar @lid: ${rawId}`);
+                            continue;
+                        }
+                    } catch (lidErr) {
+                        console.warn(`⚠️ [importLabels] Erro wwebjs no @lid ${rawId}:`, lidErr.message);
+                        continue;
+                    }
+                }
                 
                 const cleanPhone = normalizePhone(rawId);
 

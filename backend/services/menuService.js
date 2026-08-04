@@ -19,7 +19,7 @@ export function checkHumanPause(uniqueKey) {
     return false;
 }
 
-export async function processQuickReplies({ userMessage, businessConfig, activeBusinessId, from, provider, uniqueKey, channel, cleanFromForDb, resolve }) {
+export async function processQuickReplies({ userMessage, businessConfig, activeBusinessId, from, rawFrom, provider, uniqueKey, channel, cleanFromForDb, resolve }) {
     if (businessConfig.menuOptions && businessConfig.menuOptions.length > 0) {
         const lowerMsg = userMessage.toLowerCase();
         const matchedOption = businessConfig.menuOptions.find(opt => {
@@ -55,7 +55,7 @@ Cliente: ${userMessage}`;
             } else {
                 await sendUnifiedMessage(from, finalResponse, provider, businessConfig._id);
             }
-            await saveMessage(cleanFromForDb, 'bot', finalResponse, 'text', null, activeBusinessId, channel, null, from);
+            await saveMessage(cleanFromForDb, 'bot', finalResponse, 'text', null, activeBusinessId, channel, null, rawFrom || from);
             return true;
         }
     }

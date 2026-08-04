@@ -44,7 +44,7 @@ async function processBufferedMessages(uniqueKey) {
 
     messageBuffer.delete(uniqueKey);
 
-    const { messages, from, name, activeBusinessId, provider, channel, resolve } = bufferData;
+    const { messages, from, rawFrom, name, activeBusinessId, provider, channel, resolve } = bufferData;
 
     try {
         if (!activeBusinessId) {
@@ -67,11 +67,13 @@ async function processBufferedMessages(uniqueKey) {
             contactQuery.sessionId = from;
         } else {
             cleanFromForDb = normalizePhone(from);
-            // 🔧 CORREÇÃO: Busca por phone (formato novo) OU whatsappId (formato original do WA)
-            // Evita criar contato duplicado se o formato do phone mudou na migração
+            
+            // 🔧 PRIORIDADE: Busca primeiro por whatsappId (formato @c.us original)
+            // Este é o identificador mais confiável — o phone pode ter sido extraído
+            // de um Alias ID falso em contas Business
             contactQuery.$or = [
-                { phone: cleanFromForDb },
-                { whatsappId: from }
+                { whatsappId: rawFrom },           // 🥇 Prioridade 1: ID original do WhatsApp
+                { phone: cleanFromForDb },         // 🥈 Prioridade 2: formato nacional
             ];
         }
 
@@ -108,7 +110,7 @@ async function processBufferedMessages(uniqueKey) {
                         return;
                     }
                 }
-                await saveMessage(cleanFromForDb, 'bot', awayMsg, 'text', null, activeBusinessId, channel, null, from);
+                await saveMessage(cleanFromForDb, 'bot', awayMsg, 'text', null, activeBusinessId, channel, null, rawFrom);
                 if (resolve) {
                     resolve({ text: awayMsg });
                 } else {
@@ -119,13 +121,14 @@ async function processBufferedMessages(uniqueKey) {
         }
 
         const userMessage = await parseMediaToText(messages, shouldProcessMedia, businessConfig);
-        await saveMessage(cleanFromForDb, 'user', userMessage, 'text', null, activeBusinessId, channel, name, from);
+        await saveMessage(cleanFromForDb, 'user', userMessage, 'text', null, activeBusinessId, channel, name, rawFrom);
 
         const isMenuHandled = await processQuickReplies({
             userMessage,
             businessConfig,
             activeBusinessId,
             from,
+            rawFrom,  // ✅ ID original do WhatsApp para lookup preciso
             provider,
             uniqueKey,
             channel,
@@ -172,7 +175,7 @@ async function processBufferedMessages(uniqueKey) {
 
         if (resolve) resolve({ text: finalResponseText });
 
-        await saveMessage(cleanFromForDb, 'bot', finalResponseText, 'text', null, activeBusinessId, channel, null, from);
+        await saveMessage(cleanFromForDb, 'bot', finalResponseText, 'text', null, activeBusinessId, channel, null, rawFrom);
 
         if (contact && !contact.isHandover) {
             await Contact.updateOne(
@@ -197,7 +200,7 @@ async function processBufferedMessages(uniqueKey) {
 // 🚀 HANDLER PRINCIPAL (AGORA COM BUFFER)
 // ==========================================
 async function handleIncomingMessage(normalizedMsg, activeBusinessId) {
-    const { from, body, name, type, mediaData, provider, channel = 'whatsapp' } = normalizedMsg;
+    const { from, rawFrom, body, name, type, mediaData, provider, channel = 'whatsapp' } = normalizedMsg;
 
     if (from && channel !== 'web') {
         const isInvalidSource =
@@ -246,6 +249,7 @@ async function handleIncomingMessage(normalizedMsg, activeBusinessId) {
         buffer = {
             messages: [msgItem],
             from,
+            rawFrom: rawFrom || from,  // ✅ WhatsApp ID original (@c.us) para lookup preciso
             name,
             activeBusinessId,
             provider,

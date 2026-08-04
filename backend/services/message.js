@@ -15,17 +15,14 @@ async function saveMessage(identifier, role, content, messageType = 'text', visi
     if (channel === 'web') {
         query.sessionId = identifier;
     } else {
-        // 🔧 CORREÇÃO: Normaliza o identificador (pode vir em formato internacional 5511999999999
-        // ou já normalizado 11999999999) e busca por phone (formato nacional) OU whatsappId
         const normalizedIdentifier = normalizePhone(identifier);
         
+        // 🔧 PRIORIDADE: whatsappId (formato @c.us) é a fonte da verdade.
+        // Evita match com Alias ID falso de contas Business.
         query.$or = [
-            { phone: normalizedIdentifier },
-            { phone: identifier }, // fallback: busca também pelo formato original
-        ];
-        if (whatsappId) {
-            query.$or.push({ whatsappId: whatsappId });
-        }
+            { whatsappId: whatsappId },       // 🥇 Prioridade 1: ID original do WhatsApp
+            { phone: normalizedIdentifier },   // 🥈 Prioridade 2: formato nacional
+        ].filter(Boolean); // Remove entradas null/undefined
         
         // Atualiza o identifier para o formato normalizado (será usado na criação)
         identifier = normalizedIdentifier;
