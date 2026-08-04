@@ -49,8 +49,7 @@ import {
   startSession,
   getSessionStatus,
   getSessionQR,
-  closeAllSessions,
-  startGlobalHealthCheck
+  closeAllSessions
 } from './services/wwebjsService.js';
 
 // --- IMPORTAÇÃO DOS NOVOS PLUGINS (ROTAS) ---
@@ -79,15 +78,35 @@ const envOrigins = process.env.CORS_ALLOWED_ORIGINS
   ? process.env.CORS_ALLOWED_ORIGINS.split(',').map(o => o.trim()) 
   : [];
 
-const allowedOrigins = [
+// Origens padrão que sempre são permitidas (não dependem do .env)
+const DEFAULT_ALLOWED_ORIGINS = [
   "http://localhost:3000",
-  ...envOrigins
+  "http://localhost:3001",
+  "https://bot.calangoapp.com.br",
+  "https://api-bot.calangoapp.com.br",
 ];
 
-console.log('🔓 CORS Allowed Origins:', allowedOrigins);
+const allowedOrigins = [...new Set([...DEFAULT_ALLOWED_ORIGINS, ...envOrigins])];
+
+// Função dinâmica de CORS para maior robustez
+const corsOriginDelegate = (origin, callback) => {
+  // Permite requests sem origin (server-to-server, Postman, celular)
+  if (!origin) return callback(null, true);
+  
+  // Verifica na lista estática
+  if (allowedOrigins.includes(origin)) return callback(null, true);
+  
+  // Permite qualquer subdomínio calangoapp.com.br (fallback de segurança)
+  if (origin.endsWith('.calangoapp.com.br') || origin === 'https://calangoapp.com.br') {
+    return callback(null, true);
+  }
+  
+  console.warn(`⚠️ CORS bloqueado para origin: ${origin}`);
+  callback(null, false); // false = usa o erro padrão do cors, não quebra o app
+};
 
 const io = new Server(server, {
-  cors: { origin: allowedOrigins, methods: ["GET", "POST"], credentials: true }
+  cors: { origin: corsOriginDelegate, methods: ["GET", "POST"], credentials: true }
 });
 
 // Middlewares Globais
@@ -110,7 +129,7 @@ app.use(helmet({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-app.use(cors({ origin: allowedOrigins, credentials: true, methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'] }));
+app.use(cors({ origin: corsOriginDelegate, credentials: true, methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'] }));
 app.use(passport.initialize());
 
 // Middleware para injetar IO nas rotas
@@ -244,40 +263,9 @@ const restoreActiveSessions = async () => {
       });
 
       if (sessionFile) {
-        console.log(`▶️ [${index + 1}/${configs.length}] Restaurando ${config.businessName}...`);
+        console.log(`▶️ [${index + 1}/${configs.length}] Iniciando ${config.businessName}...`);
         startSession(businessId);
-        
-        // Aguarda a sessão ficar pronta OU falhar, com timeout de 45 segundos
-        const RESTORE_TIMEOUT = 45000;
-        const startTime = Date.now();
-        let sessionReady = false;
-        
-        while (Date.now() - startTime < RESTORE_TIMEOUT) {
-          const status = getSessionStatus(businessId);
-          
-          if (status === 'ready') {
-            sessionReady = true;
-            console.log(`   ✅ [${config.businessName}] Sessão restaurada com sucesso!`);
-            break;
-          }
-          
-          if (status === 'error' || status === 'disconnected') {
-            console.warn(`   ⚠️ [${config.businessName}] Sessão falhou ao restaurar (status: ${status}).`);
-            break;
-          }
-          
-          // Aguarda 2 segundos antes de verificar novamente
-          await new Promise(resolve => setTimeout(resolve, 2000));
-        }
-        
-        if (!sessionReady) {
-          const finalStatus = getSessionStatus(businessId);
-          console.warn(`   ⚠️ [${config.businessName}] Timeout ao restaurar sessão (status final: ${finalStatus}).`);
-          console.warn(`   💡 Dica: O celular pode estar desconectado. A sessão será limpa.`);
-        }
-        
-        // Delay entre restaurações para não sobrecarregar
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        await new Promise(resolve => setTimeout(resolve, 5000));
       }
     }
     console.log('🏁 [Auto-Start] Finalizado.');
@@ -303,17 +291,14 @@ async function start() {
 
     // Passamos o IO para o serviço WWebJS poder emitir eventos
     initializeWWebJS(io);
-    
-    // 🩺 Inicia o health check global de sessões (detecta zumbis)
-    startGlobalHealthCheck();
 
     // 👇 CHAMA A FUNÇÃO DE RESSURREIÇÃO AQUI 👇
     if (process.env.NODE_ENV !== 'test') {
       restoreActiveSessions();
     }
 
-    server.listen(BACKEND_PORT, '0.0.0.0', () => {
-      console.log(`\n🚀 SERVIDOR SAAS ONLINE NA PORTA ${BACKEND_PORT}`);
+    server.listen(BACKEND_PORT, '127.0.0.1', () => {
+      console.log(`\n🚀 SERVIDOR SAAS ONLINE NA PORTA ${BACKEND_PORT} (localhost apenas)`);
     });
   } catch (error) {
     console.error('💥 Erro fatal:', error);

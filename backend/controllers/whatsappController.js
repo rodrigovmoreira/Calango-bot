@@ -24,6 +24,7 @@ const importLabels = async (req, res) => {
     let labels = [];
     try {
         labels = await client.getLabels();
+        console.log(`🏷️ [importLabels] ${labels.length} etiquetas encontradas no WhatsApp.`);
     } catch (error) {
         console.error('Erro ao buscar labels do WhatsApp:', error);
         return res.status(500).json({ message: 'Erro ao buscar etiquetas do WhatsApp. Certifique-se que é uma conta Business.' });
@@ -35,15 +36,17 @@ const importLabels = async (req, res) => {
 
     let tagsCreated = 0;
     let contactsUpdated = 0;
+    let chatsProcessed = 0;
+    let contactsNotFound = 0;
 
     // Step A: Sync Definitions (Tags)
     for (const label of labels) {
         if (!label.name) continue;
 
-        // Upsert Tag
         const update = {
             name: label.name,
-            color: label.hexColor || '#808080' // Default gray if missing
+            color: label.hexColor || '#808080',
+            whatsappId: label.id  // Salva o ID do WhatsApp para referência
         };
 
         await Tag.findOneAndUpdate(
@@ -54,24 +57,42 @@ const importLabels = async (req, res) => {
         tagsCreated++;
     }
 
-    // Step B: Sync Contacts
+    // Step B: Sync Contacts — vincula etiquetas aos contatos
     for (const label of labels) {
         if (!label.id || !label.name) continue;
 
         try {
             const chats = await client.getChatsByLabelId(label.id);
+            console.log(`   🏷️ [importLabels] Label "${label.name}": ${chats.length} chats encontrados.`);
 
             for (const chat of chats) {
-                const rawPhone = chat.id.user; // e.g. "5511999999999"
-                const phone = normalizePhone(rawPhone); // Converte para formato nacional (ex: "11999999999")
+                chatsProcessed++;
+                
+                // 🔧 CORREÇÃO: usa chat.id._serialized (telefone REAL em @c.us),
+                // NÃO chat.id.user (Alias ID interno falso de contas Business)
+                const rawId = typeof chat.id === 'string' 
+                    ? chat.id 
+                    : chat.id?._serialized || '';
+                if (!rawId) continue;
+                
+                const cleanPhone = normalizePhone(rawId);
 
-                // Update Contact
+                // Busca alinhada com o formato de salvamento dos contatos
                 const result = await Contact.updateOne(
-                    { businessId, phone },
+                    { 
+                        businessId,
+                        $or: [
+                            { phone: cleanPhone },
+                            { whatsappId: rawId }
+                        ]
+                    },
                     { $addToSet: { tags: label.name } }
                 );
 
-                if (result.modifiedCount > 0) {
+                if (result.matchedCount === 0) {
+                    contactsNotFound++;
+                    console.warn(`   ⚠️ [importLabels] Contato não encontrado para ${rawId} (label: ${label.name}).`);
+                } else if (result.modifiedCount > 0) {
                     contactsUpdated++;
                 }
             }
@@ -80,10 +101,14 @@ const importLabels = async (req, res) => {
         }
     }
 
+    console.log(`🏷️ [importLabels] Resumo: ${tagsCreated} tags, ${chatsProcessed} chats, ${contactsUpdated} vinculações, ${contactsNotFound} não encontrados.`);
+
     res.json({
         message: 'Importação concluída com sucesso!',
-        tagsCreated, // Total processed
-        contactsUpdated
+        tagsCreated,
+        contactsUpdated,
+        chatsProcessed,
+        contactsNotFound
     });
 
   } catch (error) {

@@ -598,7 +598,13 @@ const syncContacts = async (req, res) => {
                             c._labels = waLabels.map(l => l.name || l).filter(Boolean);
                             labelsFound += c._labels.length;
                         }
-                    } catch (e) { /* ignora erro ao buscar labels */ }
+                    } catch (e) {
+                        // Loga apenas a primeira falha para diagnóstico
+                        if (!labelPromises._firstErrorLogged) {
+                            labelPromises._firstErrorLogged = true;
+                            console.warn(`   ⚠️ [Labels] Erro ao buscar etiquetas (ex: ${e.message?.slice(0, 80)})`);
+                        }
+                    }
                 });
                 await Promise.all(labelPromises);
                 
