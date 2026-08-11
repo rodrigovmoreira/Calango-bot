@@ -580,55 +580,18 @@ const syncContacts = async (req, res) => {
 
         console.log(`✅ Recebidos e filtrados ${rawChats.length} chats recentes de forma segura.`);
 
-        // 🔖 Busca etiquetas (labels) do WhatsApp (Otimizado via Mapa em Memória)
-        if (rawChats.length > 0) {
-            console.log(`   🏷️ Buscando etiquetas de forma otimizada para ${rawChats.length} contatos...`);
-            let labelsFound = 0;
-
-            try {
-                const waLabels = await client.getLabels();
-                const labelMap = {};
-
-                if (waLabels && waLabels.length > 0) {
-                    // Cria um dicionário de rawId -> array de labels
-                    for (const label of waLabels) {
-                        if (!label.id || !label.name) continue;
-                        try {
-                            const chatsWithThisLabel = await client.getChatsByLabelId(label.id);
-                            for (const chat of chatsWithThisLabel) {
-                                const chatRawId = typeof chat.id === 'string' ? chat.id : chat.id?._serialized || '';
-                                if (chatRawId) {
-                                    if (!labelMap[chatRawId]) labelMap[chatRawId] = [];
-                                    labelMap[chatRawId].push(label.name);
-                                }
-                            }
-                        } catch (lblErr) {
-                            // Ignora falha de uma label específica e continua
-                        }
-                    }
-
-                    // Aplica o mapa aos contatos do sync
-                    for (const c of rawChats) {
-                        if (c.rawId && labelMap[c.rawId]) {
-                            c._labels = labelMap[c.rawId];
-                            labelsFound += c._labels.length;
-                        }
-                    }
-                }
-                console.log(`   🏷️ ${labelsFound} etiquetas vinculadas em memória.`);
-            } catch (e) {
-                console.warn(`   ⚠️ [Labels] Erro geral ao mapear etiquetas: ${e.message}`);
-            }
-        }
-
         let imported = 0;
         const isBusinessAccount = !!client.info?.isBusiness;
 
         for (const chatData of rawChats) {
             try {
-                // 🔧 rawId é a fonte real do telefone (ex: 5511989207636@c.us).
-                // c.number (realNumber) é um Alias/ID interno falso do WhatsApp (ex: 77825025536062).
-                let rawId = chatData.rawId;
+                // 🔧 rawId é a fonte da verdade do WhatsApp (ex: 5511989207636@c.us ou 12345@lid).
+                // NÃO substituímos o @lid pelo número: o @lid é a chave técnica que as MENSAGENS
+                // usam no msg.from e o getChatById() precisa dela. Preservamos o original no
+                // campo whatsappId e usamos o número desmascarado APENAS para o phone (UI).
+                let rawId = chatData.rawId;       // ID original preservado (pode ser @lid)
+                let whatsappId = rawId;           // Chave técnica para mensageria/etiquetas
+                let phoneSource = rawId;          // Base para extrair o número de exibição
 
                 // 🛡️ PROTEÇÃO: Pula entradas sem ID válido
                 if (!rawId || rawId.trim() === '') {
@@ -636,14 +599,15 @@ const syncContacts = async (req, res) => {
                     continue;
                 }
 
-                // Desmascarar @lid via método nativo wwebjs
-                if (rawId && rawId.includes('@lid')) {
+                // 🔓 Desmascara @lid APENAS para extrair o número de exibição (phone).
+                // O whatsappId CONTINUA com o @lid original para casar com msg.from.
+                if (rawId.includes('@lid')) {
                     if (client) {
                         try {
                             const lidMap = await client.getContactLidAndPhone([rawId]);
                             if (lidMap && lidMap[0] && lidMap[0].pn) {
-                                console.log(`   🔓 [Sync] @lid desmascarado: ${rawId} → ${lidMap[0].pn}`);
-                                rawId = lidMap[0].pn;  // Atualiza com o telefone real
+                                console.log(`   🔓 [Sync] @lid ${rawId} → telefone real ${lidMap[0].pn}`);
+                                phoneSource = lidMap[0].pn; // só para o phone (UI)
                             } else {
                                 console.warn(`⚠️ [Sync] Não foi possível desmascarar @lid para ${rawId}, ignorando.`);
                                 continue;
@@ -657,17 +621,33 @@ const syncContacts = async (req, res) => {
                     }
                 }
 
-                // Extrai o telefone limpo do rawId (remove @c.us e código do país)
-                const cleanPhone = normalizePhone(rawId);
+                // Extrai o telefone limpo (remove @c.us/@lid e código do país) para exibição
+                const cleanPhone = normalizePhone(phoneSource);
                 
                 // 🛡️ PROTEÇÃO: Pula se o telefone normalizado ficou vazio ou inválido
                 if (!cleanPhone || cleanPhone.length < 8) {
-                    console.warn(`⚠️ [Sync] Telefone inválido após normalização: "${rawId}" → "${cleanPhone}" — ignorado.`);
+                    console.warn(`⚠️ [Sync] Telefone inválido após normalização: "${phoneSource}" → "${cleanPhone}" — ignorado.`);
                     continue;
                 }
 
+                // 🏷️ BUSCA DIRETA DE ETIQUETAS: usa o ID ORIGINAL (whatsappId, preserva @lid)
+                let contactTags = [];
+                if (isBusinessAccount) {
+                    try {
+                        const chatObj = await client.getChatById(whatsappId); // ← @lid preservado!
+                        if (chatObj && typeof chatObj.getLabels === 'function') {
+                            const nativeLabels = await chatObj.getLabels();
+                            if (nativeLabels && nativeLabels.length > 0) {
+                                contactTags = nativeLabels.map(l => l.name).filter(Boolean);
+                            }
+                        }
+                    } catch (labelErr) {
+                        // Silencia erros caso o chat não suporte labels ou não seja encontrado
+                    }
+                }
+
                 // 📊 LOG
-                console.log(`   💾 [Sync] ${chatData.name || 'sem nome'} | rawId: ${rawId} | phone: ${cleanPhone}`);
+                console.log(`   💾 [Sync] ${chatData.name || 'sem nome'} | rawId: ${rawId} | whatsappId: ${whatsappId} | phone: ${cleanPhone}`);
 
                 // Determina se um nome é "fallback" (vazio ou gerado automaticamente)
                 const isFallbackName = (name) => !name || /^Cliente \d{4}$/.test(name);
@@ -686,8 +666,8 @@ const syncContacts = async (req, res) => {
                     const existingContact = await Contact.findOne({
                         businessId,
                         $or: [
-                            { phone: cleanPhone },
-                            { whatsappId: rawId }
+                            { whatsappId: whatsappId },
+                            { phone: cleanPhone }
                         ]
                     });
 
@@ -704,7 +684,7 @@ const syncContacts = async (req, res) => {
                 const updateData = {
                     $set: {
                         phone: cleanPhone,                    // 📱 Formato nacional para UI
-                        whatsappId: rawId,                    // 🔑 ID técnico original para backend/etiquetas
+                        whatsappId: whatsappId,               // 🔑 ID ORIGINAL (preserva @lid)
                         name: displayName,
                         pushname: chatData.pushname,
                         isGroup: false,
@@ -719,10 +699,10 @@ const syncContacts = async (req, res) => {
                     }
                 };
                 
-                // 🔖 Adiciona etiquetas se for conta Business e houver mapeamento
-                if (isBusinessAccount && chatData._labels && Array.isArray(chatData._labels) && chatData._labels.length > 0) {
-                    updateData.$addToSet = { tags: { $each: chatData._labels } };
-                    console.log(`   🏷️ [Sync] ${chatData._labels.length} etiqueta(s): ${chatData._labels.join(', ')}`);
+                // 🔖 Adiciona etiquetas se for conta Business e houver tags no chat
+                if (contactTags.length > 0) {
+                    updateData.$addToSet = { tags: { $each: contactTags } };
+                    console.log(`   🏷️ [Sync] ${contactTags.length} etiqueta(s): ${contactTags.join(', ')}`);
                     
                     // Remove 'tags' do $setOnInsert para não dar Conflito no MongoDB
                     if (updateData.$setOnInsert && updateData.$setOnInsert.tags !== undefined) {
@@ -736,8 +716,8 @@ const syncContacts = async (req, res) => {
                     {
                         businessId,
                         $or: [
-                            { whatsappId: rawId },    // 🥇 Prioridade: ID técnico original
-                            { phone: cleanPhone }      // 🥈 Fallback: formato nacional
+                            { whatsappId: whatsappId },  // 🥇 ID ORIGINAL (caso @lid também)
+                            { phone: cleanPhone }         // 🥈 Fallback: formato nacional
                         ]
                     },
                     updateData,
@@ -891,6 +871,42 @@ const bulkAddTags = async (req, res) => {
     }
 };
 
+const debugWhatsAppTags = async (req, res) => {
+    try {
+        const businessId = req.user.activeBusinessId;
+        const client = wwebjsService.getClientSession(businessId);
+
+        if (!client || !client.info) {
+            return res.status(400).json({ error: 'WhatsApp desconectado' });
+        }
+
+        const labels = await client.getLabels();
+        const debugPayload = [];
+
+        for (const label of labels) {
+            const chats = await client.getChatsByLabelId(label.id);
+            
+            debugPayload.push({
+                labelId: label.id,
+                labelName: label.name,
+                chatsAttached: chats.map(chat => ({
+                    rawId: chat.id?._serialized || chat.id,
+                    name: chat.name || chat.pushname,
+                    isGroup: chat.isGroup
+                }))
+            });
+        }
+
+        res.json({
+            businessInfo: client.info,
+            labelsData: debugPayload
+        });
+
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 export {
     deleteContact,
     bulkDeleteContacts,
@@ -900,5 +916,7 @@ export {
     createContact,
     updateContact,
     importContacts,
-    syncContacts
+    syncContacts,
+    debugWhatsAppTags
 };
+

@@ -51,6 +51,8 @@ router.get('/tags', authenticateToken, async (req, res) => {
     }
 });
 
+router.get('/debug-wa-tags', authenticateToken, contactController.debugWhatsAppTags);
+
 // Sync Contacts from WhatsApp (New Feature - Stage 2)
 router.post('/sync', authenticateToken, contactController.syncContacts);
 
