@@ -3,7 +3,7 @@ import Contact from '../models/Contact.js';
 import Message from '../models/Message.js';
 import { normalizePhone } from '../utils/phoneUtils.js';
 
-async function saveMessage(identifier, role, content, messageType = 'text', visionResult = null, businessId, channel = 'whatsapp', pushName = null, whatsappId = null, contactIdOverride = null) {
+async function saveMessage(identifier, role, content, messageType = 'text', visionResult = null, businessId, channel = 'whatsapp', pushName = null, whatsappId = null, contactIdOverride = null, waMessageId = null) {
   try {
     if (!businessId) {
       console.error("❌ ERRO GRAVE: Tentativa de salvar mensagem sem businessId!");
@@ -126,6 +126,16 @@ async function saveMessage(identifier, role, content, messageType = 'text', visi
         msgData.sessionId = identifier;
     } else {
         msgData.phone = identifier;
+    }
+
+    // 🔧 Dedup: se temos o ID original do WhatsApp, verifica se já foi salva
+    if (waMessageId) {
+      msgData.waMessageId = waMessageId;
+      const alreadySaved = await Message.findOne({ waMessageId }).lean();
+      if (alreadySaved) {
+        console.log(`🔁 [saveMessage] Mensagem ${waMessageId} já salva — ignorando duplicata.`);
+        return;
+      }
     }
 
     if (visionResult) {

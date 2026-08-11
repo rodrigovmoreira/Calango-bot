@@ -4,6 +4,7 @@ import { sendUnifiedMessage } from './services/responseService.js';
 import * as wwebjsService from './services/wwebjsService.js';
 import BusinessConfig from './models/BusinessConfig.js';
 import Contact from './models/Contact.js';
+import Message from './models/Message.js';
 import { processConversation } from './services/aiService.js';
 import { evaluateMessageFilters, handleBlockedMessage } from './services/messageFilterService.js';
 import { processQuickReplies, checkHumanPause } from './services/menuService.js';
@@ -44,7 +45,7 @@ async function processBufferedMessages(uniqueKey) {
 
     messageBuffer.delete(uniqueKey);
 
-    const { messages, from, rawFrom, name, activeBusinessId, provider, channel, resolve } = bufferData;
+    const { messages, from, rawFrom, waMessageId, name, activeBusinessId, provider, channel, resolve } = bufferData;
 
     try {
         if (!activeBusinessId) {
@@ -110,7 +111,7 @@ async function processBufferedMessages(uniqueKey) {
                         return;
                     }
                 }
-                await saveMessage(cleanFromForDb, 'bot', awayMsg, 'text', null, activeBusinessId, channel, null, rawFrom);
+                await saveMessage(cleanFromForDb, 'bot', awayMsg, 'text', null, activeBusinessId, channel, null, rawFrom, null, waMessageId);
                 if (resolve) {
                     resolve({ text: awayMsg });
                 } else {
@@ -121,7 +122,7 @@ async function processBufferedMessages(uniqueKey) {
         }
 
         const userMessage = await parseMediaToText(messages, shouldProcessMedia, businessConfig);
-        await saveMessage(cleanFromForDb, 'user', userMessage, 'text', null, activeBusinessId, channel, name, rawFrom);
+        await saveMessage(cleanFromForDb, 'user', userMessage, 'text', null, activeBusinessId, channel, name, rawFrom, null, waMessageId);
 
         const isMenuHandled = await processQuickReplies({
             userMessage,
@@ -175,7 +176,7 @@ async function processBufferedMessages(uniqueKey) {
 
         if (resolve) resolve({ text: finalResponseText });
 
-        await saveMessage(cleanFromForDb, 'bot', finalResponseText, 'text', null, activeBusinessId, channel, null, rawFrom);
+        await saveMessage(cleanFromForDb, 'bot', finalResponseText, 'text', null, activeBusinessId, channel, null, rawFrom, null, waMessageId);
 
         if (contact && !contact.isHandover) {
             await Contact.updateOne(
@@ -201,6 +202,10 @@ async function processBufferedMessages(uniqueKey) {
 // ==========================================
 async function handleIncomingMessage(normalizedMsg, activeBusinessId) {
     const { from, rawFrom, body, name, type, mediaData, provider, channel = 'whatsapp' } = normalizedMsg;
+    
+    // 🔧 Extrai o ID original da mensagem no WhatsApp (dedup)
+    const originalMsg = normalizedMsg.originalEvent || normalizedMsg.msgInstance || null;
+    const waMessageId = originalMsg?.id?._serialized || originalMsg?.id?.id || null;
 
     if (from && channel !== 'web') {
         const isInvalidSource =
@@ -250,6 +255,7 @@ async function handleIncomingMessage(normalizedMsg, activeBusinessId) {
             messages: [msgItem],
             from,
             rawFrom: rawFrom || from,  // ✅ WhatsApp ID original (@c.us) para lookup preciso
+            waMessageId,               // 🔧 ID original da msg (dedup)
             name,
             activeBusinessId,
             provider,
@@ -278,4 +284,76 @@ async function handleIncomingMessage(normalizedMsg, activeBusinessId) {
     }
 }
 
-export { handleIncomingMessage, processBufferedMessages };
+// ==========================================
+// 📤 HANDLER DE MENSAGENS ENVIADAS (fromMe / message_create)
+// ==========================================
+// Captura mensagens enviadas PELO WhatsApp conectado (celular/telefone).
+// Sem isso, envios feitos fora do CRM nunca aparecem no histórico.
+async function handleOutgoingMessage(msg, targetId, activeBusinessId) {
+    try {
+        if (!activeBusinessId) return;
+
+        // 🔓 Desmascara @lid se necessário (o contato destino pode ter ID de privacidade)
+        let waId = targetId;
+        let phoneSource = targetId;
+        if (targetId.includes('@lid')) {
+            try {
+                const client = wwebjsService.getClientSession(activeBusinessId);
+                const lidMap = await client.getContactLidAndPhone([targetId]);
+                if (lidMap && lidMap[0] && lidMap[0].pn) {
+                    phoneSource = lidMap[0].pn;
+                }
+            } catch (e) { /* silencia */ }
+        }
+
+        const cleanPhone = normalizePhone(phoneSource);
+        const waMessageId = msg.id?._serialized || msg.id?.id || null;
+        const body = (msg.body || '').trim();
+        if (!body) return;
+
+        // 1. Busca ou cria o contato (pela chave técnica whatssappId)
+        let contact = await Contact.findOne({
+            businessId: activeBusinessId,
+            $or: [
+                { whatsappId: waId },
+                { phone: cleanPhone },
+            ].filter(Boolean)
+        });
+
+        if (!contact) {
+            contact = await Contact.create({
+                businessId: activeBusinessId,
+                phone: cleanPhone,
+                whatsappId: waId,
+                name: 'Contato',
+                channel: 'whatsapp',
+                totalMessages: 0,
+                followUpStage: 0,
+                followUpActive: false,
+                lastInteraction: new Date(),
+            });
+        }
+
+        // 2. Dedup extra: evita duplicar quando o CRM/API ou o bot já salvou a mesma
+        // mensagem nos últimos 30s (message_create dispara também para envios via API)
+        const recentSame = await Message.findOne({
+            contactId: contact._id,
+            content: body,
+            timestamp: { $gte: new Date(Date.now() - 30000) }
+        }).sort({ timestamp: -1 }).lean();
+
+        if (recentSame) {
+            console.log(`🔁 [Outgoing] Mensagem "${body.slice(0, 30)}..." já salva recentemente — ignorando duplicata.`);
+            return;
+        }
+
+        // 3. Salva a mensagem como 'agent' (enviada pelo negócio) com dedup por waMessageId
+        await saveMessage(cleanPhone, 'agent', body, 'text', null, activeBusinessId, 'whatsapp', null, waId, contact._id, waMessageId);
+
+        console.log(`📤 [Outgoing] ${contact.name || cleanPhone} | msg: ${body.slice(0, 40)} | waId: ${waMessageId}`);
+    } catch (error) {
+        console.error('Erro handleOutgoingMessage:', error);
+    }
+}
+
+export { handleIncomingMessage, processBufferedMessages, handleOutgoingMessage };

@@ -319,6 +319,30 @@ const startSession = async (businessIdRaw) => {
     }
   });
 
+  // 🔧 message_create: captura TODAS as mensagens criadas, incluindo as ENVIADAS
+  // pelo WhatsApp conectado (fromMe). Sem isso, mensagens enviadas direto pelo
+  // telefone/celular nunca aparecem no CRM.
+  client.on('message_create', async (msg) => {
+    // Só processa mensagens ENVIADAS pelo WhatsApp conectado (fromMe)
+    if (!msg.fromMe) return;
+
+    const targetId = msg.to; // O contato destino (ex: 5511970162004@c.us ou @lid)
+    if (!targetId) return;
+
+    // 🛡️ IRON GATE: apenas contatos pessoais
+    if (targetId.includes('@g.us') || targetId.includes('@broadcast') || targetId.includes('@newsletter')) return;
+    const targetNumeric = targetId.replace(/\D/g, '');
+    if (targetNumeric.length > 15) return;
+    if (msg.type === 'e2e_notification' || msg.type === 'notification_template') return;
+
+    try {
+      const { handleOutgoingMessage } = await import('../messageHandler.js');
+      await handleOutgoingMessage(msg, targetId, config._id);
+    } catch (error) {
+      console.error(`Erro message_create:`, error);
+    }
+  });
+
   client.on('disconnected', async (reason) => {
     console.warn(`🔌 [User ${businessId}] WhatsApp Web desconectado. Motivo: ${reason || 'não especificado'}`);
     await stopSession(businessId);
