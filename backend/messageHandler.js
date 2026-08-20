@@ -68,14 +68,36 @@ async function processBufferedMessages(uniqueKey) {
             contactQuery.sessionId = from;
         } else {
             cleanFromForDb = normalizePhone(from);
-            
-            // 🔧 PRIORIDADE: Busca primeiro por whatsappId (formato @c.us original)
-            // Este é o identificador mais confiável — o phone pode ter sido extraído
-            // de um Alias ID falso em contas Business
-            contactQuery.$or = [
-                { whatsappId: rawFrom },           // 🥇 Prioridade 1: ID original do WhatsApp
-                { phone: cleanFromForDb },         // 🥈 Prioridade 2: formato nacional
-            ];
+
+            // 🔧 CORREÇÃO: casa por whatsappId (ID original, pode ser @lid) OU phone.
+            // Usa os DOIS dados (um ou outro) sem descartar nenhum. Se rawFrom for @lid,
+            // desmascara para obter o telefone REAL e incluir como candidato — assim casa
+            // também com contatos criados via @c.us (mesma pessoa, representações diferentes).
+            const phoneCandidates = [];
+            if (cleanFromForDb && !cleanFromForDb.includes('@')) {
+                phoneCandidates.push(cleanFromForDb);
+            }
+
+            if (rawFrom && rawFrom.includes('@lid')) {
+                try {
+                    const client = wwebjsService.getClientSession(activeBusinessId);
+                    const lidMap = await client.getContactLidAndPhone([rawFrom]);
+                    const pn = lidMap?.[0]?.pn;
+                    if (pn) {
+                        const cleanLidPhone = normalizePhone(pn);
+                        if (cleanLidPhone && !cleanLidPhone.includes('@') && !phoneCandidates.includes(cleanLidPhone)) {
+                            phoneCandidates.push(cleanLidPhone);
+                        }
+                    }
+                } catch (e) { /* falha ao desmascarar @lid */ }
+            }
+
+            const orConditions = [];
+            if (rawFrom) orConditions.push({ whatsappId: rawFrom });
+            for (const p of phoneCandidates) {
+                if (p) orConditions.push({ phone: p });
+            }
+            contactQuery.$or = orConditions;
         }
 
         let contact = await Contact.findOne(contactQuery);
@@ -87,6 +109,12 @@ async function processBufferedMessages(uniqueKey) {
         const filterResult = evaluateMessageFilters(contact, businessConfig, channel);
         const shouldProcessMedia = filterResult.shouldProcess;
         const blockReason = filterResult.blockReason;
+
+        // 🔧 SEMPRE registra a mensagem recebida no chat ao vivo — inclusive em modo
+        // observador (AI desligada), handover, horário comercial ou filtro de audiência.
+        // O filtro abaixo só decide se o BOT responde; NÃO se a conversa é gravada.
+        const userMessage = await parseMediaToText(messages, shouldProcessMedia, businessConfig);
+        await saveMessage(cleanFromForDb, 'user', userMessage, 'text', null, activeBusinessId, channel, name, rawFrom, contact?._id || null, waMessageId);
 
         if (!shouldProcessMedia) {
             await handleBlockedMessage(blockReason, contact, businessConfig);
@@ -111,7 +139,7 @@ async function processBufferedMessages(uniqueKey) {
                         return;
                     }
                 }
-                await saveMessage(cleanFromForDb, 'bot', awayMsg, 'text', null, activeBusinessId, channel, null, rawFrom, null, waMessageId);
+                await saveMessage(cleanFromForDb, 'bot', awayMsg, 'text', null, activeBusinessId, channel, null, rawFrom, contact?._id || null, waMessageId);
                 if (resolve) {
                     resolve({ text: awayMsg });
                 } else {
@@ -120,9 +148,6 @@ async function processBufferedMessages(uniqueKey) {
             }
             return;
         }
-
-        const userMessage = await parseMediaToText(messages, shouldProcessMedia, businessConfig);
-        await saveMessage(cleanFromForDb, 'user', userMessage, 'text', null, activeBusinessId, channel, name, rawFrom, null, waMessageId);
 
         const isMenuHandled = await processQuickReplies({
             userMessage,
@@ -134,7 +159,8 @@ async function processBufferedMessages(uniqueKey) {
             uniqueKey,
             channel,
             cleanFromForDb,
-            resolve
+            resolve,
+            contactId: contact?._id || null
         });
 
         if (isMenuHandled) return;
@@ -176,7 +202,7 @@ async function processBufferedMessages(uniqueKey) {
 
         if (resolve) resolve({ text: finalResponseText });
 
-        await saveMessage(cleanFromForDb, 'bot', finalResponseText, 'text', null, activeBusinessId, channel, null, rawFrom, null, waMessageId);
+        await saveMessage(cleanFromForDb, 'bot', finalResponseText, 'text', null, activeBusinessId, channel, null, rawFrom, contact?._id || null, waMessageId);
 
         if (contact && !contact.isHandover) {
             await Contact.updateOne(

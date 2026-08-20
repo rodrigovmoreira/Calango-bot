@@ -28,10 +28,11 @@ const adaptWWebJSMessage = async (msg) => {
         const contact = await msg.getContact();
         name = contact.pushname || contact.name || 'Cliente';
         
-        // ✨ TENTATIVA DE DESMASCARAR: 
-        // Se o contato tiver a propriedade 'number', pegamos o telefone real (ex: 5511962903775)
-        // Isso resolve o problema visual no Chat ao Vivo.
-        if (contact.number) {
+        // 🔧 FIX: `contact.number` é um ALIAS FALSO em contas Business.
+        // A fonte da verdade é `contact.id._serialized` (ex.: 5511989207636@c.us).
+        if (contact.id && contact.id._serialized) {
+            realPhone = contact.id._serialized;
+        } else if (contact.number) {
             realPhone = contact.number;
         }
     } catch (e) { 
