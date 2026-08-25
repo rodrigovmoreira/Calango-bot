@@ -470,11 +470,13 @@ router.post('/conversations/:contactId/messages', authenticateToken, async (req,
     }
 
     // 3. Salvar no Banco (Como Agente)
-    // identifier, role, content, messageType, visionResult, businessId, channel
+    // identifier, role, content, messageType, visionResult, businessId, channel, pushName, whatsappId, contactIdOverride
     const identifier = contact.channel === 'web' ? contact.sessionId : contact.phone;
 
     // Usamos 'agent' como role para diferenciar de 'bot' e 'user'
-    await messageService.saveMessage(identifier, 'agent', message, 'text', null, config._id, contact.channel);
+    // 🔧 contactIdOverride = contact._id garante que a mensagem fique no MESMO contato selecionado,
+    // evitando que seja salva em um contato duplicado e "suma" da tela do Chat ao Vivo.
+    await messageService.saveMessage(identifier, 'agent', message, 'text', null, config._id, contact.channel, null, null, contact._id);
 
     res.json({ success: true, message: 'Mensagem enviada.' });
 

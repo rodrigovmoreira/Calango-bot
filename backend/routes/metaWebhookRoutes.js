@@ -3,6 +3,7 @@ import axios from 'axios';
 import Contact from '../models/Contact.js';
 import Tag from '../models/Tag.js';
 import BusinessConfig from '../models/BusinessConfig.js';
+import { normalizePhone, toWhatsAppId } from '../utils/phoneUtils.js';
 
 const router = express.Router();
 
@@ -69,8 +70,8 @@ router.post('/webhook', async (req, res) => {
                             continue;
                         }
 
-                        // 3. Limpar o número (manter apenas números para compatibilidade com o wwebjs)
-                        const cleanPhone = leadPhone.replace(/\D/g, '');
+                        // 3. Limpar e normalizar o número (formato nacional, sem código do país)
+                        const cleanPhone = normalizePhone(leadPhone);
 
                         // 4. Identificar a Empresa (Como temos Multi-Tenant, usamos a primeira como fallback)
                         let businessConfig = await BusinessConfig.findOne();
@@ -86,12 +87,14 @@ router.post('/webhook', async (req, res) => {
                         }
 
                         // 6. Guardar ou Atualizar o Contato no CRM
+                        const whatsappId = toWhatsAppId(cleanPhone);
                         const novoContato = await Contact.findOneAndUpdate(
-                            { businessId, phone: cleanPhone }, // Procura pelo telemóvel dentro da mesma empresa
+                            { businessId, phone: cleanPhone }, // Procura pelo telefone normalizado
                             {
                                 name: leadName,
                                 email: leadEmail,
-                                $addToSet: { tags: tagMeta._id } // Adiciona a etiqueta sem duplicar
+                                whatsappId: whatsappId,
+                                $addToSet: { tags: tagMeta.name } // Adiciona o NOME da etiqueta (string), não o ObjectId
                             },
                             { upsert: true, new: true } // Cria se não existir, atualiza se existir
                         );

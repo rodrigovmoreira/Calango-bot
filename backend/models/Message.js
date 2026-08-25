@@ -22,6 +22,9 @@ const messageSchema = new mongoose.Schema({
   role: { type: String, enum: ['user', 'bot', 'agent'], required: true },
   content: { type: String, required: true },
 
+  // 🔧 ID original da mensagem no WhatsApp (dedup: evita duplicar mensagens)
+  waMessageId: { type: String },
+
   messageType: {
     type: String,
     enum: ['text', 'image', 'audio', 'document', 'video'],
@@ -41,6 +44,9 @@ const messageSchema = new mongoose.Schema({
 
 // Optimization: Index for frequent history lookups (AI Context) and Chat UI (Chronological)
 messageSchema.index({ contactId: 1, timestamp: -1 });
+
+// Índice único esparso para dedup de mensagens via ID original do WhatsApp
+messageSchema.index({ waMessageId: 1 }, { unique: true, sparse: true });
 
 // Use 'ChatMessage' to maintain backward compatibility with existing collection
 const Message = mongoose.models.ChatMessage || mongoose.model('ChatMessage', messageSchema);

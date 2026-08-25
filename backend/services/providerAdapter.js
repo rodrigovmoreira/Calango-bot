@@ -1,18 +1,4 @@
-// --- HELPER: Normalização de Telefone ---
-const normalizePhone = (phone) => {
-    if (!phone) return '';
-    
-    // 🛡️ PROTEÇÃO MULTI-CANAL:
-    // Se a Meta ocultou o número real e mandou o LID de privacidade (@lid),
-    // ou se a mensagem veio de um Grupo (@g.us), NÓS PRESERVAMOS a string intacta.
-    // Sem o domínio, o bot não consegue devolver a mensagem e dá erro de "No LID".
-    if (phone.includes('@lid') || phone.includes('@g.us')) {
-        return phone;
-    }
-    
-    // Caso seja um número normal (@c.us), limpa para o padrão numérico do CRM
-    return phone.replace(/\D/g, '');
-};
+import { normalizePhone } from '../utils/phoneUtils.js';
 
 // --- TRADUTOR DO TWILIO (Mantido para compatibilidade) ---
 const adaptTwilioMessage = (twilioBody) => {
@@ -42,10 +28,11 @@ const adaptWWebJSMessage = async (msg) => {
         const contact = await msg.getContact();
         name = contact.pushname || contact.name || 'Cliente';
         
-        // ✨ TENTATIVA DE DESMASCARAR: 
-        // Se o contato tiver a propriedade 'number', pegamos o telefone real (ex: 5511962903775)
-        // Isso resolve o problema visual no Chat ao Vivo.
-        if (contact.number) {
+        // 🔧 FIX: `contact.number` é um ALIAS FALSO em contas Business.
+        // A fonte da verdade é `contact.id._serialized` (ex.: 5511989207636@c.us).
+        if (contact.id && contact.id._serialized) {
+            realPhone = contact.id._serialized;
+        } else if (contact.number) {
             realPhone = contact.number;
         }
     } catch (e) { 
@@ -86,7 +73,8 @@ const adaptWWebJSMessage = async (msg) => {
     }
 
     return {
-        from: normalizePhone(realPhone), // Passa pela função que decide se limpa ou mantém @lid
+        from: normalizePhone(realPhone), // Normalizado para queries no banco
+        rawFrom: msg.from,              // ✅ ORIGINAL (ex: 5511989207636@c.us) — fonte da verdade
         body: msg.body || '',
         name: name,
         type: type,

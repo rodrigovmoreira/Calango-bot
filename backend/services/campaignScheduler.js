@@ -9,6 +9,7 @@ import { callDeepSeek } from './aiService.js';
 import { sendUnifiedMessage } from './responseService.js';
 import { sendImage } from './wwebjsService.js';
 import { getLastMessages } from './message.js';
+import { normalizePhone } from '../utils/phoneUtils.js';
 
 // Runs every minute to check for triggers
 const CRON_EXPRESSION = '* * * * *';
@@ -199,8 +200,17 @@ async function processEventCampaign(campaign) {
   console.log(`📅 Found ${appointments.length} appointments for EVENT campaign: ${campaign.name}`);
 
   for (const appt of appointments) {
-    // Find or create temp contact wrapper
-    let contact = await Contact.findOne({ businessId: config._id, phone: appt.clientPhone });
+    // 🔧 CORREÇÃO: Normaliza o telefone do appointment (formato internacional → nacional)
+    // para bater com o formato usado na collection contacts
+    const normalizedPhone = normalizePhone(appt.clientPhone);
+    
+    let contact = await Contact.findOne({ 
+      businessId: config._id, 
+      $or: [
+        { phone: normalizedPhone },
+        { whatsappId: appt.clientPhone } // fallback: formato antigo/internacional
+      ]
+    });
 
     if (contact && contact.isHandover) continue;
 
@@ -214,7 +224,7 @@ async function processEventCampaign(campaign) {
 
     const targetContact = contact || {
       _id: null,
-      phone: appt.clientPhone,
+      phone: normalizedPhone, // 🔧 Usa formato nacional consistente
       name: appt.clientName,
       businessId: config._id
     };

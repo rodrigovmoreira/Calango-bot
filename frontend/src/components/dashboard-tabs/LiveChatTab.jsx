@@ -271,8 +271,21 @@ const LiveChatTab = () => {
         const { data } = await businessAPI.getMessages(selectedContact._id);
         setMessages(data || []);
       } catch (error) {
+        // 🔧 CORREÇÃO: Contato pode ter sido excluído/reimportado (ID obsoleto).
+        // Em vez de spammar erros, atualiza a lista de conversas e descarta o contato.
         console.error("Erro ao carregar mensagens:", error);
-        setMessages([]); // On error or no messages, empty
+        setMessages([]);
+        try {
+          const { data: freshConversations } = await businessAPI.getConversations();
+          const stillExists = freshConversations.some(c => c._id === selectedContact._id);
+          if (!stillExists) {
+            // Contato não existe mais → limpa a seleção
+            setSelectedContact(null);
+            setShowMobileChat(false);
+          }
+        } catch (e) {
+          // Falha ao atualizar conversas — ignora silenciosamente
+        }
       }
     };
 

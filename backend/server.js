@@ -78,15 +78,35 @@ const envOrigins = process.env.CORS_ALLOWED_ORIGINS
   ? process.env.CORS_ALLOWED_ORIGINS.split(',').map(o => o.trim()) 
   : [];
 
-const allowedOrigins = [
+// Origens padrão que sempre são permitidas (não dependem do .env)
+const DEFAULT_ALLOWED_ORIGINS = [
   "http://localhost:3000",
-  ...envOrigins
+  "http://localhost:3001",
+  "https://bot.calangoapp.com.br",
+  "https://api-bot.calangoapp.com.br",
 ];
 
-console.log('🔓 CORS Allowed Origins:', allowedOrigins);
+const allowedOrigins = [...new Set([...DEFAULT_ALLOWED_ORIGINS, ...envOrigins])];
+
+// Função dinâmica de CORS para maior robustez
+const corsOriginDelegate = (origin, callback) => {
+  // Permite requests sem origin (server-to-server, Postman, celular)
+  if (!origin) return callback(null, true);
+  
+  // Verifica na lista estática
+  if (allowedOrigins.includes(origin)) return callback(null, true);
+  
+  // Permite qualquer subdomínio calangoapp.com.br (fallback de segurança)
+  if (origin.endsWith('.calangoapp.com.br') || origin === 'https://calangoapp.com.br') {
+    return callback(null, true);
+  }
+  
+  console.warn(`⚠️ CORS bloqueado para origin: ${origin}`);
+  callback(null, false); // false = usa o erro padrão do cors, não quebra o app
+};
 
 const io = new Server(server, {
-  cors: { origin: allowedOrigins, methods: ["GET", "POST"], credentials: true }
+  cors: { origin: corsOriginDelegate, methods: ["GET", "POST"], credentials: true }
 });
 
 // Middlewares Globais
@@ -109,7 +129,7 @@ app.use(helmet({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-app.use(cors({ origin: allowedOrigins, credentials: true, methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'] }));
+app.use(cors({ origin: corsOriginDelegate, credentials: true, methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'] }));
 app.use(passport.initialize());
 
 // Middleware para injetar IO nas rotas
@@ -277,8 +297,8 @@ async function start() {
       restoreActiveSessions();
     }
 
-    server.listen(BACKEND_PORT, '0.0.0.0', () => {
-      console.log(`\n🚀 SERVIDOR SAAS ONLINE NA PORTA ${BACKEND_PORT}`);
+    server.listen(BACKEND_PORT, '127.0.0.1', () => {
+      console.log(`\n🚀 SERVIDOR SAAS ONLINE NA PORTA ${BACKEND_PORT} (localhost apenas)`);
     });
   } catch (error) {
     console.error('💥 Erro fatal:', error);

@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { execSync } from 'child_process';
 import pkg from 'whatsapp-web.js';
 const { Client, RemoteAuth, MessageMedia } = pkg;
 import mongoose from 'mongoose';
@@ -13,11 +14,99 @@ const sessions = new Map();
 const qrCodes = new Map();
 const statuses = new Map();
 const timeouts = new Map();
+const healthIntervals = new Map(); // Intervalos de health check por businessId
 
 let ioInstance;
+let globalHealthCheckInterval = null;
 
 const initializeWWebJS = async (io) => {
   ioInstance = io;
+};
+
+// --- UTILITÁRIO: Mata processos Chrome órfãos (Windows + Linux) ---
+const killOrphanedBrowser = (businessId) => {
+  const bId = businessId.toString();
+  const userDataDir = `RemoteAuth-${bId}`;
+  
+  try {
+    if (process.platform === 'win32') {
+      // Windows: usa taskkill para matar processos Chrome que estejam usando o userDataDir
+      // Busca o PID via wmic e mata
+      try {
+        const cmd = `wmic process where "commandline like '%${userDataDir}%' and name='chrome.exe'" get processid /value`;
+        const output = execSync(cmd, { timeout: 5000, encoding: 'utf8' });
+        const pids = output.match(/ProcessId=(\d+)/g);
+        if (pids) {
+          pids.forEach(match => {
+            const pid = match.split('=')[1];
+            try {
+              execSync(`taskkill /F /PID ${pid}`, { timeout: 3000 });
+              console.log(`   -> 💀 Chrome órfão (PID ${pid}) morto no Windows.`);
+            } catch (e) { /* processo já morto ou sem permissão */ }
+          });
+        }
+      } catch (e) { /* wmic pode não estar disponível */ }
+      
+      // Fallback: taskkill por nome de janela (menos preciso, mas funciona)
+      try {
+        execSync(`taskkill /F /FI "WINDOWTITLE eq *${userDataDir}*" /IM chrome.exe 2>nul`, { timeout: 3000 });
+      } catch (e) { /* ignora */ }
+    } else {
+      // Linux/Mac: usa pkill
+      try {
+        execSync(`pkill -f "${userDataDir}"`, { timeout: 3000 });
+        console.log(`   -> 💀 Chrome órfão morto no Linux.`);
+      } catch (e) { /* processo já morto */ }
+    }
+  } catch (e) { /* ignora */ }
+};
+
+// --- UTILITÁRIO: Limpeza de pastas temporárias (com retry para Windows) ---
+const cleanupTempFolders = (businessId) => {
+  const bId = businessId.toString();
+  
+  // PRIMEIRO: mata qualquer Chrome órfão que esteja segurando os arquivos
+  killOrphanedBrowser(bId);
+  
+  // Aguarda 1s para o SO liberar os handles
+  const waitAndClean = () => {
+    const foldersToClean = [
+      `./.wwebjs_auth/RemoteAuth-${bId}`,
+      `./.wwebjs_cache/RemoteAuth-${bId}`,
+    ];
+  
+    for (const folder of foldersToClean) {
+      try {
+        if (fs.existsSync(folder)) {
+          fs.rmSync(folder, { recursive: true, force: true });
+          console.log(`   -> 🗑️ Pasta ${folder} deletada.`);
+        }
+      } catch (e) {
+        console.warn(`   ⚠️ Erro ao limpar ${folder}: ${e.message}`);
+      }
+    }
+  
+    // Também limpa o ZIP na raiz (fallback do RemoteAuth)
+    try {
+      const zipFile = `./${bId}.zip`;
+      if (fs.existsSync(zipFile)) {
+        fs.unlinkSync(zipFile);
+      }
+    } catch (e) { /* ignora */ }
+  };
+  
+  // Tenta imediatamente
+  waitAndClean();
+  
+  // Se ainda existir após 2s, tenta de novo (Windows pode demorar para liberar)
+  setTimeout(() => {
+    const stillExists = fs.existsSync(`./.wwebjs_auth/RemoteAuth-${bId}`);
+    if (stillExists) {
+      console.log(`   -> 🔄 Retentativa de limpeza da pasta (Windows EPERM)...`);
+      killOrphanedBrowser(bId);
+      setTimeout(waitAndClean, 1000);
+    }
+  }, 2000);
 };
 
 const startSession = async (businessIdRaw) => {
@@ -42,6 +131,10 @@ const startSession = async (businessIdRaw) => {
   // 3. A TRAVA DE SEGURANÇA
   updateStatus(businessId, 'initializing');
   console.log(`▶️ Iniciando sessão BLINDADA para: ${businessId}`);
+
+  // 🔧 PRE-START CHECK: Mata qualquer Chrome órfão que possa estar segurando o userDataDir
+  // Isso evita o erro "The browser is already running" no Windows
+  killOrphanedBrowser(businessId);
 
   // --- RESTO DO CÓDIGO (SEGUE IGUAL) ---
 
@@ -152,6 +245,25 @@ const startSession = async (businessIdRaw) => {
     }
     updateStatus(businessId, 'ready');
     qrCodes.delete(businessId);
+    
+    // 🔧 CORREÇÃO: Health check em SEGUNDO PLANO (não bloqueia o ready)
+    // O WhatsApp Web pode ainda estar carregando recursos após o evento ready,
+    // então verificamos após um delay e NÃO destruímos a sessão se falhar —
+    // deixamos o health check periódico (60s) cuidar disso.
+    setTimeout(async () => {
+      console.log(`🔍 [User ${businessId}] Verificando saúde da sessão (pós-ready)...`);
+      const isHealthy = await verifySessionHealth(client, businessId, 3000); // timeout reduzido: 3s
+      
+      if (!isHealthy) {
+        console.warn(`⚠️ [User ${businessId}] Health check inicial falhou, mas sessão NÃO será destruída.`);
+        console.warn(`   O health check periódico (60s) monitorará e destruirá se necessário.`);
+      } else {
+        console.log(`✅ [User ${businessId}] Sessão saudável.`);
+      }
+    }, 5000); // Aguarda 5s após o ready antes de verificar
+    
+    // Inicia health check periódico imediatamente (primeira execução em 60s)
+    startSessionHealthCheck(businessId);
   });
 
   client.on('authenticated', () => {
@@ -163,9 +275,17 @@ const startSession = async (businessIdRaw) => {
     qrCodes.delete(businessId);
   });
 
-  client.on('auth_failure', () => {
-    console.error(`❌ Falha de autenticação para: ${config.businessName}`);
+  client.on('auth_failure', async () => {
+    console.error(`❌ Falha de autenticação para: ${config.businessName}. Celular pode ter sido desconectado.`);
     updateStatus(businessId, 'disconnected');
+    // 🔧 CORREÇÃO: Limpa a sessão completamente (GridFS, pastas, etc.)
+    // para evitar que ela seja restaurada como zumbi na próxima reinicialização
+    await stopSession(businessId);
+    if (ioInstance) {
+      ioInstance.to(businessId).emit('session_error', { 
+        message: 'Falha de autenticação. O WhatsApp foi desconectado do celular. Escaneie o QR code novamente.' 
+      });
+    }
   });
 
   client.on('message', async (msg) => {
@@ -199,7 +319,32 @@ const startSession = async (businessIdRaw) => {
     }
   });
 
+  // 🔧 message_create: captura TODAS as mensagens criadas, incluindo as ENVIADAS
+  // pelo WhatsApp conectado (fromMe). Sem isso, mensagens enviadas direto pelo
+  // telefone/celular nunca aparecem no CRM.
+  client.on('message_create', async (msg) => {
+    // Só processa mensagens ENVIADAS pelo WhatsApp conectado (fromMe)
+    if (!msg.fromMe) return;
+
+    const targetId = msg.to; // O contato destino (ex: 5511970162004@c.us ou @lid)
+    if (!targetId) return;
+
+    // 🛡️ IRON GATE: apenas contatos pessoais
+    if (targetId.includes('@g.us') || targetId.includes('@broadcast') || targetId.includes('@newsletter')) return;
+    const targetNumeric = targetId.replace(/\D/g, '');
+    if (targetNumeric.length > 15) return;
+    if (msg.type === 'e2e_notification' || msg.type === 'notification_template') return;
+
+    try {
+      const { handleOutgoingMessage } = await import('../messageHandler.js');
+      await handleOutgoingMessage(msg, targetId, config._id);
+    } catch (error) {
+      console.error(`Erro message_create:`, error);
+    }
+  });
+
   client.on('disconnected', async (reason) => {
+    console.warn(`🔌 [User ${businessId}] WhatsApp Web desconectado. Motivo: ${reason || 'não especificado'}`);
     await stopSession(businessId);
   });
 
@@ -207,8 +352,24 @@ const startSession = async (businessIdRaw) => {
     await client.initialize();
   } catch (e) {
     console.error(`Erro fatal ao iniciar cliente ${businessId}:`, e.message);
+    
+    // 🔧 CORREÇÃO: Se falhou por "browser is already running", mata o processo órfão
+    if (e.message?.includes('already running') || e.message?.includes('Execution context was destroyed')) {
+      console.log(`   -> 🔄 Detectado Chrome órfão. Matando processo...`);
+      killOrphanedBrowser(businessId);
+      // Aguarda o SO liberar os arquivos
+      await new Promise(r => setTimeout(r, 2000));
+    }
+    
     sessions.delete(businessId);
     updateStatus(businessId, 'error');
+    
+    // Emite erro para o frontend
+    if (ioInstance) {
+      ioInstance.to(businessId).emit('session_error', {
+        message: 'Falha ao iniciar WhatsApp. Tente novamente.'
+      });
+    }
   }
 };
 
@@ -232,11 +393,29 @@ const stopSession = async (businessId) => {
     }
 
     // 2. HARD KILL (Tiro de Misericórdia no Processo do Chrome)
+    // 🔧 CORREÇÃO: SIGKILL não funciona no Windows. Usa taskkill (Win) ou SIGKILL (Linux).
     try {
-      if (client.pupBrowser && client.pupBrowser.process()) {
-        const pid = client.pupBrowser.process().pid;
-        console.log(`   -> 💀 Aplicando SIGKILL no processo Chrome (PID: ${pid})...`);
-        client.pupBrowser.process().kill('SIGKILL');
+      if (client.pupBrowser) {
+        try {
+          const proc = client.pupBrowser.process();
+          if (proc && !proc.killed) {
+            const pid = proc.pid;
+            console.log(`   -> 💀 Matando processo Chrome (PID: ${pid})...`);
+            if (process.platform === 'win32') {
+              // Windows: taskkill
+              try {
+                execSync(`taskkill /F /PID ${pid} /T`, { timeout: 5000 });
+              } catch (e) { /* processo já pode estar morto */ }
+            } else {
+              // Linux/Mac
+              proc.kill('SIGKILL');
+            }
+          }
+        } catch (e) {
+          // Se não conseguir acessar o processo, tenta matar pelo userDataDir
+          console.warn(`   ⚠️ Acesso ao processo falhou, tentando matar por userDataDir...`);
+          killOrphanedBrowser(bId);
+        }
       }
     } catch (e) {
       console.warn(`   ⚠️ Erro ao forçar kill do Chrome: ${e.message}`);
@@ -257,12 +436,8 @@ const stopSession = async (businessId) => {
   try {
     console.log(`   -> 🧹 Limpando resquícios de autenticação no disco e MongoDB...`);
 
-    // PASSO 1: Limpeza da pasta local PRIMEIRO (Evita que o bot leia o lixo antes de apagar o banco)
-    const authFolder = `./.wwebjs_auth/RemoteAuth-${bId}`;
-    if (fs.existsSync(authFolder)) {
-      fs.rmSync(authFolder, { recursive: true, force: true });
-      console.log(`   -> 🗑️ Pasta local de cache deletada com sucesso.`);
-    }
+    // PASSO 1: Limpeza das pastas locais (.wwebjs_auth E .wwebjs_cache)
+    cleanupTempFolders(bId);
 
     // PASSO 2: Força bruta no GridFS do MongoDB (Buscando por filename)
     if (mongoose.connection && mongoose.connection.db) {
@@ -293,14 +468,212 @@ const stopSession = async (businessId) => {
 };
 
 const cleanupSession = (businessId) => {
+  // Limpa o timeout de QR
   if (timeouts.has(businessId)) {
     clearTimeout(timeouts.get(businessId));
     timeouts.delete(businessId);
+  }
+  // Limpa o health check interval
+  if (healthIntervals.has(businessId)) {
+    clearInterval(healthIntervals.get(businessId));
+    healthIntervals.delete(businessId);
   }
   sessions.delete(businessId);
   qrCodes.delete(businessId);
   statuses.delete(businessId);
   updateStatus(businessId, 'disconnected');
+};
+
+// ==========================================
+// 🔍 HEALTH CHECK: Verificação de sessões zumbis
+// ==========================================
+
+/**
+ * Verifica se uma sessão do WhatsApp Web está realmente saudável.
+ * 
+ * Checa:
+ * 1. Se o processo Chrome ainda está rodando
+ * 2. Se a página do Puppeteer não foi fechada
+ * 3. Se o WhatsApp Web está respondendo (tenta operação leve)
+ * 
+ * @param {Client} client - Instância do cliente WWebJS
+ * @param {string} businessId - ID do negócio (para logs)
+ * @returns {Promise<boolean>} - true se saudável, false se zumbi
+ */
+const verifySessionHealth = async (client, businessId, timeoutMs = 3000) => {
+  try {
+    // 1. Verifica se o client existe
+    if (!client) {
+      console.warn(`⚠️ [HealthCheck ${businessId}] Client é null/undefined.`);
+      return false;
+    }
+    
+    // 2. Verifica se o Chrome ainda está rodando
+    if (!client.pupBrowser) {
+      console.warn(`⚠️ [HealthCheck ${businessId}] pupBrowser é null — Chrome provavelmente morreu.`);
+      return false;
+    }
+    
+    try {
+      const process = client.pupBrowser.process();
+      if (!process || process.killed) {
+        console.warn(`⚠️ [HealthCheck ${businessId}] Processo Chrome está morto (killed).`);
+        return false;
+      }
+    } catch (e) {
+      console.warn(`⚠️ [HealthCheck ${businessId}] Não foi possível acessar o processo Chrome: ${e.message}`);
+      return false;
+    }
+    
+    // 3. Verifica se a página está fechada
+    if (!client.pupPage || client.pupPage.isClosed()) {
+      console.warn(`⚠️ [HealthCheck ${businessId}] pupPage está fechada.`);
+      return false;
+    }
+    
+    // 4. Verifica se o client tem info (autenticado)
+    if (!client.info) {
+      console.warn(`⚠️ [HealthCheck ${businessId}] Client sem info — não está autenticado.`);
+      return false;
+    }
+    
+    // 5. Tenta uma operação leve para verificar se o WA Web responde
+    try {
+      await Promise.race([
+        client.pupPage.evaluate(() => document.readyState),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), timeoutMs))
+      ]);
+    } catch (e) {
+      console.warn(`⚠️ [HealthCheck ${businessId}] WA Web não está responsivo: ${e.message}`);
+      return false;
+    }
+    
+    return true;
+  } catch (e) {
+    console.warn(`⚠️ [HealthCheck ${businessId}] Erro na verificação: ${e.message}`);
+    return false;
+  }
+};
+
+/**
+ * Inicia um health check periódico para uma sessão específica.
+ * Se a sessão falhar, ela é automaticamente destruída.
+ */
+const startSessionHealthCheck = (businessId) => {
+  const bId = businessId.toString();
+  
+  // Remove intervalo antigo se existir
+  if (healthIntervals.has(bId)) {
+    clearInterval(healthIntervals.get(bId));
+  }
+  
+  const interval = setInterval(async () => {
+    const client = sessions.get(bId);
+    const status = statuses.get(bId);
+    
+    // Só verifica sessões que estão "ready"
+    if (status !== 'ready') return;
+    
+    if (!client) {
+      console.warn(`⚠️ [HealthCheck ${bId}] Sessão no mapa mas client é null — limpando.`);
+      cleanupSession(bId);
+      return;
+    }
+    
+    const isHealthy = await verifySessionHealth(client, bId);
+    
+    if (!isHealthy) {
+      console.error(`💀 [HealthCheck ${bId}] Sessão ZUMBI detectada! Estado: ${status}. Auto-destruindo...`);
+      
+      // Emite alerta para o frontend
+      if (ioInstance) {
+        ioInstance.to(bId).emit('session_zombie_detected', {
+          message: 'Sessão do WhatsApp foi detectada como inativa. Por favor, reconecte.',
+          businessId: bId
+        });
+        ioInstance.to(bId).emit('wwebjs_status', 'disconnected');
+      }
+      
+      // Destrói a sessão zumbi (sem logout — o processo já pode estar morto)
+      try {
+        if (client.pupBrowser) {
+          try {
+            const proc = client.pupBrowser.process();
+            if (proc && !proc.killed) {
+              if (process.platform === 'win32') {
+                execSync(`taskkill /F /PID ${proc.pid} /T`, { timeout: 3000 });
+              } else {
+                proc.kill('SIGKILL');
+              }
+            }
+          } catch (e) { /* ignora */ }
+        }
+      } catch (e) { /* ignora */ }
+      
+      try {
+        await Promise.race([
+          client.destroy(),
+          new Promise(r => setTimeout(r, 2000))
+        ]);
+      } catch (e) { /* ignora */ }
+      
+      cleanupSession(bId);
+    }
+  }, 60000); // Verifica a cada 60 segundos
+  
+  healthIntervals.set(bId, interval);
+  console.log(`🩺 [HealthCheck ${bId}] Monitoramento de saúde iniciado (intervalo: 60s).`);
+};
+
+/**
+ * Inicia o health check GLOBAL que monitora TODAS as sessões.
+ * Complementa os health checks individuais como rede de segurança.
+ */
+const startGlobalHealthCheck = () => {
+  if (globalHealthCheckInterval) {
+    clearInterval(globalHealthCheckInterval);
+  }
+  
+  globalHealthCheckInterval = setInterval(async () => {
+    const entries = Array.from(sessions.entries());
+    
+    for (const [bId, client] of entries) {
+      const status = statuses.get(bId);
+      
+      // Só verifica sessões marcadas como "ready"
+      if (status !== 'ready') continue;
+      
+      // Pula se já tem health check individual (evita duplicação)
+      if (healthIntervals.has(bId)) continue;
+      
+      try {
+        // Verifica se o processo Chrome ainda está rodando (checagem rápida)
+        if (!client || !client.pupBrowser) {
+          console.warn(`⚠️ [GlobalHealthCheck ${bId}] Sessão órfã detectada — client sem pupBrowser.`);
+          cleanupSession(bId);
+          continue;
+        }
+        
+        let processAlive = false;
+        try {
+          const proc = client.pupBrowser.process();
+          processAlive = proc && !proc.killed;
+        } catch (e) { /* processo inacessível */ }
+        
+        if (!processAlive) {
+          console.warn(`💀 [GlobalHealthCheck ${bId}] Processo Chrome morto detectado globalmente.`);
+          if (ioInstance) {
+            ioInstance.to(bId).emit('wwebjs_status', 'disconnected');
+          }
+          cleanupSession(bId);
+        }
+      } catch (e) {
+        console.warn(`⚠️ [GlobalHealthCheck ${bId}] Erro: ${e.message}`);
+      }
+    }
+  }, 90000); // Verificação global a cada 90 segundos
+  
+  console.log('🩺 [GlobalHealthCheck] Monitoramento global de sessões iniciado (intervalo: 90s).');
 };
 
 const sendWWebJSMessage = async (businessId, to, message) => {
@@ -317,8 +690,20 @@ const sendWWebJSMessage = async (businessId, to, message) => {
   }
 
   try {
-    let formattedNumber = to.replace(/\D/g, '');
-    if (!formattedNumber.includes('@c.us')) formattedNumber = `${formattedNumber}@c.us`;
+    let formattedNumber = to.trim();
+    
+    // Se já está no formato WhatsApp ID (@c.us), usa como está
+    if (!formattedNumber.includes('@c.us')) {
+      // Número nacional (ex: 11999999999) → adiciona código do país (55) + @c.us
+      const digits = formattedNumber.replace(/\D/g, '');
+      if (digits.length <= 12) {
+        // Número nacional (sem código de país) → adiciona 55 (Brasil)
+        formattedNumber = `55${digits}@c.us`;
+      } else {
+        // Já tem código de país → só adiciona @c.us
+        formattedNumber = `${digits}@c.us`;
+      }
+    }
 
     // FIX: Pass { sendSeen: false } to prevent crash on 'markedUnread'
     await client.sendMessage(formattedNumber, message, { sendSeen: false });
@@ -339,9 +724,16 @@ const sendImage = async (businessId, to, imageUrl, caption) => {
   }
 
   try {
-    // Formata o número
-    let formattedNumber = to.replace(/\D/g, '');
-    if (!formattedNumber.includes('@c.us')) formattedNumber = `${formattedNumber}@c.us`;
+    // Formata o número: suporta tanto formato nacional (11999999999) quanto internacional (5511999999999@c.us)
+    let formattedNumber = to.trim();
+    if (!formattedNumber.includes('@c.us')) {
+      const digits = formattedNumber.replace(/\D/g, '');
+      if (digits.length <= 12) {
+        formattedNumber = `55${digits}@c.us`;
+      } else {
+        formattedNumber = `${digits}@c.us`;
+      }
+    }
 
     console.log(`⬇️ [WWebJS] Baixando imagem da URL...`);
 
@@ -403,8 +795,16 @@ const sendStateTyping = async (businessId, to) => {
   }
 
   try {
-    let formattedNumber = to.replace(/\D/g, '');
-    if (!formattedNumber.includes('@c.us')) formattedNumber = `${formattedNumber}@c.us`;
+    // Suporta tanto formato nacional (11999999999) quanto internacional (5511999999999@c.us)
+    let formattedNumber = to.trim();
+    if (!formattedNumber.includes('@c.us')) {
+      const digits = formattedNumber.replace(/\D/g, '');
+      if (digits.length <= 12) {
+        formattedNumber = `55${digits}@c.us`;
+      } else {
+        formattedNumber = `${digits}@c.us`;
+      }
+    }
 
     const chat = await client.getChatById(formattedNumber);
 
@@ -508,16 +908,31 @@ const getChatLabels = async (businessId, chatId) => {
 };
 
 const closeAllSessions = async () => {
-  for (const [businessId, client] of sessions.entries()) {
+  // Limpa o health check global
+  if (globalHealthCheckInterval) {
+    clearInterval(globalHealthCheckInterval);
+    globalHealthCheckInterval = null;
+  }
+  
+  console.log(`🛑 Encerrando ${sessions.size} sessão(ões) ativa(s)...`);
+  
+  for (const [businessId] of sessions.entries()) {
     try {
-      // No shutdown do servidor, usamos destroy() em vez de logout()
-      // para não perder a conexão (QR Code) na próxima reinicialização
-      await client.destroy();
+      // 🔧 CORREÇÃO: Usa stopSession para limpeza COMPLETA (logout + kill + GridFS + pastas)
+      await stopSession(businessId);
     } catch (e) {
-      console.error(`-> Erro ao fechar ${businessId}:`, e.message);
+      console.error(`   -> Erro ao encerrar sessão ${businessId}:`, e.message);
     }
   }
+  
+  // Garante que todos os maps estejam limpos (stopSession já faz cleanupSession, mas é seguro)
   sessions.clear();
+  qrCodes.clear();
+  statuses.clear();
+  timeouts.clear();
+  healthIntervals.clear();
+  
+  console.log('✅ Todas as sessões encerradas e limpas.');
 };
 
 const updateStatus = (businessId, status) => {
@@ -533,5 +948,6 @@ const getClientSession = (businessId) => sessions.get(businessId.toString());
 
 export {
   initializeWWebJS, startSession, stopSession, getSessionStatus, getSessionQR, getClientSession, sendWWebJSMessage,
-  sendImage, sendStateTyping, closeAllSessions, getLabels, updateLabel, deleteLabel, setChatLabels, getChatLabels
+  sendImage, sendStateTyping, closeAllSessions, getLabels, updateLabel, deleteLabel, setChatLabels, getChatLabels,
+  verifySessionHealth, startGlobalHealthCheck, cleanupTempFolders
 };

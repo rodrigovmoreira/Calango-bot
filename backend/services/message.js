@@ -1,8 +1,9 @@
 import mongoose from 'mongoose';
 import Contact from '../models/Contact.js';
 import Message from '../models/Message.js';
+import { normalizePhone } from '../utils/phoneUtils.js';
 
-async function saveMessage(identifier, role, content, messageType = 'text', visionResult = null, businessId, channel = 'whatsapp', pushName = null, whatsappId = null) {
+async function saveMessage(identifier, role, content, messageType = 'text', visionResult = null, businessId, channel = 'whatsapp', pushName = null, whatsappId = null, contactIdOverride = null, waMessageId = null) {
   try {
     if (!businessId) {
       console.error("❌ ERRO GRAVE: Tentativa de salvar mensagem sem businessId!");
@@ -14,10 +15,36 @@ async function saveMessage(identifier, role, content, messageType = 'text', visi
     if (channel === 'web') {
         query.sessionId = identifier;
     } else {
-        query.phone = identifier;
+        const normalizedIdentifier = normalizePhone(identifier);
+        
+        // 🔧 PRIORIDADE: whatsappId (formato @c.us) é a fonte da verdade.
+        // Evita match com Alias ID falso de contas Business.
+        query.$or = [
+            { whatsappId: whatsappId },       // 🥇 Prioridade 1: ID original do WhatsApp
+            { phone: normalizedIdentifier },   // 🥈 Prioridade 2: formato nacional
+        ].filter(Boolean); // Remove entradas null/undefined
+        
+        // Atualiza o identifier para o formato normalizado (será usado na criação)
+        identifier = normalizedIdentifier;
     }
 
-    let contact = await Contact.findOne(query);
+    let contact = null;
+    
+    // 🔧 CORREÇÃO: Se um contactId foi explicitamente fornecido (ex: envio do Agente),
+    // usa ELE diretamente. Isso evita que a re-busca por phone/whatsappId encontre um
+    // contato DUPLICADO diferente e salve a mensagem no lugar errado (fazendo ela
+    // "sumir" da tela do chat ao vivo).
+    if (contactIdOverride) {
+      contact = await Contact.findOne({ _id: contactIdOverride, businessId });
+      if (!contact) {
+        console.warn(`⚠️ [saveMessage] contactIdOverride ${contactIdOverride} não encontrado. Fazendo fallback por query...`);
+      }
+    }
+    
+    // Fallback: busca normal por query (se não veio override ou falhou)
+    if (!contact) {
+      contact = await Contact.findOne(query);
+    }
 
     // AUTO-UPDATE NAME LOGIC
     // Se temos um pushName válido (vindo do WhatsApp) e o nome atual é genérico ou número, atualizamos.
@@ -101,6 +128,16 @@ async function saveMessage(identifier, role, content, messageType = 'text', visi
         msgData.phone = identifier;
     }
 
+    // 🔧 Dedup: se temos o ID original do WhatsApp, verifica se já foi salva
+    if (waMessageId) {
+      msgData.waMessageId = waMessageId;
+      const alreadySaved = await Message.findOne({ waMessageId }).lean();
+      if (alreadySaved) {
+        console.log(`🔁 [saveMessage] Mensagem ${waMessageId} já salva — ignorando duplicata.`);
+        return;
+      }
+    }
+
     if (visionResult) {
       msgData.aiAnalysis = {
         isAnalyzed: true,
@@ -152,6 +189,8 @@ async function getLastMessages(identifier, limit = 15, businessId, channel = 'wh
     if (channel === 'web') {
         query.sessionId = identifier;
     } else {
+        // 🔧 CORREÇÃO: Busca por phone (formato novo) — se não encontrar, busca no Message pelo contactId
+        // Nota: O identifier aqui já vem normalizado do messageHandler
         query.phone = identifier;
     }
 
@@ -189,7 +228,12 @@ async function getMessagesForContact(contactId, businessId) {
   try {
     // 1. Validar propriedade (Segurança)
     const contact = await Contact.findOne({ _id: contactId, businessId });
-    if (!contact) throw new Error('Contato não encontrado ou não pertence a este negócio.');
+    if (!contact) {
+      // 🔧 CORREÇÃO: NÃO lança erro. Retorna [] graciosamente para não spammar 500
+      // quando o contato foi excluído/reimportado (IDs obsoletos no frontend).
+      console.warn(`⚠️ [getMessagesForContact] Contato ${contactId} não encontrado (provável ID obsoleto). Retornando []...`);
+      return [];
+    }
 
     // 2. Buscar histórico
     const messages = await Message.find({ contactId: contact._id })

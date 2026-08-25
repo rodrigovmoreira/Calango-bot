@@ -20,14 +20,32 @@ const formatTime = (isoString) => {
 const formatPhone = (phone) => {
     if (!phone) return '';
     const cleaned = ('' + phone).replace(/\D/g, '');
-    // Verifica se é um número do Brasil (começa com 55)
+    
+    // Formato internacional: 5511999999999 (13 dígitos, começa com 55)
     if (cleaned.startsWith('55') && cleaned.length >= 12 && cleaned.length <= 13) {
         const ddd = cleaned.substring(2, 4);
         const prefix = cleaned.substring(4, cleaned.length - 4);
         const suffix = cleaned.substring(cleaned.length - 4);
         return `+55 (${ddd}) ${prefix}-${suffix}`;
     }
-    // Caso não se enquadre no padrão BR, exibe como está ou aplica uma formatação simples
+    
+    // Novo formato nacional: 11999999999 (11 dígitos, DDD + 9 dígitos)
+    if (cleaned.length === 11 && !cleaned.startsWith('55')) {
+        const ddd = cleaned.substring(0, 2);
+        const prefix = cleaned.substring(2, 7);
+        const suffix = cleaned.substring(7);
+        return `(${ddd}) ${prefix}-${suffix}`;
+    }
+    
+    // Formato nacional 10 dígitos (DDD + 8 dígitos, números antigos)
+    if (cleaned.length === 10 && !cleaned.startsWith('55')) {
+        const ddd = cleaned.substring(0, 2);
+        const prefix = cleaned.substring(2, 6);
+        const suffix = cleaned.substring(6);
+        return `(${ddd}) ${prefix}-${suffix}`;
+    }
+    
+    // Caso não se enquadre, exibe com +
     if (cleaned.length > 0) {
         return `+${cleaned}`;
     }
