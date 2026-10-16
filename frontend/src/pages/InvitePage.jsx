@@ -2,17 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Flex, Heading, Text, Button, VStack,
-  useToast, useColorModeValue, FormControl, FormLabel, Input,
-  Spinner, Center, Card, CardBody, Avatar, Divider, Alert, AlertIcon
+  useColorModeValue, Card, CardBody, Avatar, Divider, Alert, AlertIcon, Spinner, Center
 } from '@chakra-ui/react';
+import { FaShieldAlt } from 'react-icons/fa';
 import { authAPI } from '../services/api';
-import { useApp } from '../context/AppContext';
+
+// URL do Squamata-Login (Identity Provider / SSO).
+const LOGIN_URL = process.env.REACT_APP_LOGIN_URL || 'http://localhost:5174';
+const APP_SLUG = 'calango-bot';
+
+// Guardamos o token do convite para ser aceito após o login SSO (o IdP não
+// propaga parâmetros extras de volta, então persistimos localmente).
+const PENDING_INVITE_KEY = 'pending_invite_token';
 
 const InvitePage = () => {
   const { token } = useParams();
   const navigate = useNavigate();
-  const toast = useToast();
-  const { dispatch } = useApp();
 
   const bg = useColorModeValue('gray.50', 'gray.900');
   const cardBg = useColorModeValue('white', 'gray.800');
@@ -21,18 +26,13 @@ const InvitePage = () => {
   const [invite, setInvite] = useState(null);
   const [error, setError] = useState('');
 
-  // Form State
-  const [isLoginMode, setIsLoginMode] = useState(false); // To handle users that already have an account
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
   useEffect(() => {
     const fetchInvite = async () => {
       try {
         const response = await authAPI.getInvite(token);
         setInvite(response.data.invite);
+        // Persiste o convite para ser aceito no retorno do SSO.
+        localStorage.setItem(PENDING_INVITE_KEY, token);
       } catch (err) {
         setError(err.response?.data?.message || 'Convite inválido ou expirado.');
       } finally {
@@ -43,40 +43,10 @@ const InvitePage = () => {
     fetchInvite();
   }, [token]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-
-    try {
-      if (isLoginMode) {
-        // Handle Login with invite token
-        const { data } = await authAPI.login({ email, password, inviteToken: token });
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        dispatch({ type: 'SET_USER', payload: data.user });
-
-        toast({ title: 'Login e Convite aceitos!', status: 'success' });
-        navigate('/dashboard');
-      } else {
-        // Handle Register with invite token
-        const { data } = await authAPI.register({ name, email, password, inviteToken: token });
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        dispatch({ type: 'SET_USER', payload: data.user });
-
-        toast({ title: 'Conta criada e Convite aceito!', status: 'success' });
-        navigate('/dashboard');
-      }
-    } catch (err) {
-      if (err.response?.data?.code === 'EMAIL_EXISTS_INVITE') {
-        setIsLoginMode(true);
-        toast({ title: 'Email já existe', description: 'Por favor, faça login para aceitar o convite.', status: 'info' });
-      } else {
-        toast({ title: 'Erro', description: err.response?.data?.message || 'Erro ao processar convite.', status: 'error' });
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
+  // Redireciona ao portal central (Squamata-Login). O convite será aceito
+  // automaticamente no AuthCallback após o retorno.
+  const handleAccept = () => {
+    window.location.href = `${LOGIN_URL}/login?appSlug=${APP_SLUG}&tenantId=default`;
   };
 
   if (isLoading) {
@@ -103,57 +73,36 @@ const InvitePage = () => {
     <Flex minH="100vh" align="center" justify="center" bg={bg} p={4}>
       <Card maxW="md" w="full" bg={cardBg} shadow="xl" borderRadius="2xl">
         <CardBody p={8}>
-          <VStack spacing={6} as="form" onSubmit={handleSubmit}>
+          <VStack spacing={6}>
 
             <VStack spacing={2} textAlign="center">
               <Avatar size="xl" name={invite.businessId?.businessName} src={invite.businessId?.avatarUrl} mb={2} />
               <Heading size="lg">Você foi convidado!</Heading>
               <Text color="gray.500">
-                Para fazer parte da equipe de <strong>{invite.businessId?.businessName}</strong> como {invite.role === 'admin' ? 'Administrador' : 'Operador'}.
+                Para fazer parte da equipe de <strong>{invite.businessId?.businessName}</strong> como{' '}
+                {invite.role === 'admin' ? 'Administrador' : 'Operador'}.
               </Text>
             </VStack>
 
             <Divider />
 
-            {isLoginMode && (
-              <Alert status="info" borderRadius="md">
-                <AlertIcon />
-                Faça login para aceitar este convite.
-              </Alert>
-            )}
-
-            {!isLoginMode && (
-              <FormControl isRequired>
-                <FormLabel>Nome Completo</FormLabel>
-                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Seu nome" />
-              </FormControl>
-            )}
-
-            <FormControl isRequired>
-              <FormLabel>Email</FormLabel>
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" />
-            </FormControl>
-
-            <FormControl isRequired>
-              <FormLabel>Senha</FormLabel>
-              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Sua senha" minLength={6} />
-            </FormControl>
+            <Alert status="info" borderRadius="md">
+              <AlertIcon />
+              Faça login com sua conta central para aceitar este convite.
+            </Alert>
 
             <Button
-              type="submit"
               colorScheme="brand"
               size="lg"
               w="full"
-              isLoading={isSubmitting}
+              leftIcon={<FaShieldAlt />}
+              onClick={handleAccept}
             >
-              {isLoginMode ? 'Entrar e Aceitar Convite' : 'Criar Conta e Aceitar Convite'}
+              Entrar e Aceitar Convite
             </Button>
 
-            <Text fontSize="sm" color="gray.500">
-              {isLoginMode ? "Não tem uma conta? " : "Já tem uma conta? "}
-              <Button variant="link" colorScheme="brand" onClick={() => setIsLoginMode(!isLoginMode)}>
-                {isLoginMode ? "Criar conta" : "Fazer Login"}
-              </Button>
+            <Text fontSize="xs" color="gray.400" textAlign="center">
+              Autenticação gerenciada pelo Squamata Identity.
             </Text>
 
           </VStack>

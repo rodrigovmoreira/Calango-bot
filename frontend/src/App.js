@@ -7,7 +7,6 @@ import Login from './pages/Login';
 import AuthCallback from './pages/AuthCallback';
 import Dashboard from './pages/Dashboard';
 import LandingPage from './pages/LandingPage';
-import GoogleCallback from './pages/GoogleCallback';
 import PublicChat from './pages/PublicChat';
 import InvitePage from './pages/InvitePage';
 import PrivacyPolicy from './pages/PrivacyPolicy';
@@ -54,7 +53,6 @@ function App() {
               } />
               {/* Callback SSO: captura o token retornado pelo Squamata-Login */}
               <Route path="/auth/callback" element={<AuthCallback />} />
-              <Route path="/google-callback" element={<GoogleCallback />} />
               <Route path="/chat/:businessId" element={<PublicChat />} />
               <Route path="/invite/:token" element={
                 <PublicOnlyRoute>

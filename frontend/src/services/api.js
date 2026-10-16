@@ -48,6 +48,7 @@ export const authAPI = {
   // Team & Invites (Ponto 2.2 - Roadmap 1)
   createInvite: (data) => api.post('/api/auth/invites', data), // { role }
   getInvite: (token) => api.get(`/api/auth/invites/${token}`), // Validação pública de convite
+  acceptInvite: (inviteToken) => api.post('/api/auth/accept-invite', { inviteToken }), // NOVO (SSO - CP3)
 };
 
 // --- Rotas de Negócio (Dashboard) ---
