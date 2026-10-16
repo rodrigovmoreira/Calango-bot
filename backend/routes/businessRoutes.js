@@ -1,5 +1,4 @@
 import express from 'express';
-import jwt from 'jsonwebtoken';
 const router = express.Router();
 import BusinessConfig from '../models/BusinessConfig.js';
 import IndustryPreset from '../models/IndustryPreset.js';
@@ -50,27 +49,10 @@ router.post('/create', authenticateToken, async (req, res) => {
     // Populamos para retornar com o nome da empresa
     await user.populate('businesses.businessId', 'businessName');
 
-    // 5. Gere um novo token JWT contendo o novo activeBusinessId e a role admin
-    const token = jwt.sign(
-      {
-        userId: user._id,
-        activeBusinessId: user.activeBusinessId,
-        role: 'admin'
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
-    res.cookie('auth_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      sameSite: 'lax'
-    });
-
-    // 6. Retorne o novo token e o documento do usuário atualizado
+    // SSO: NÃO re-assinamos tokens locais. O `activeBusinessId` é resolvido do
+    // banco a cada requisição pelo middleware authenticateToken.
+    // Retorna apenas o estado atualizado do usuário.
     res.status(201).json({
-      token,
       user: {
         id: user._id,
         name: user.name,

@@ -85,8 +85,8 @@ const Dashboard = ({ initialTab = 0 }) => {
     try {
       const { data } = await authAPI.switchBusiness(targetBusinessId);
 
-      // Update local storage
-      localStorage.setItem('token', data.token);
+      // SSO: o token (Squamata) permanece o mesmo; apenas o contexto muda no banco.
+      // Atualizamos somente o objeto do usuário no localStorage.
       localStorage.setItem('user', JSON.stringify(data.user));
 
       toast({ title: 'Trocando de empresa...', status: 'info', duration: 2000 });
@@ -108,8 +108,7 @@ const Dashboard = ({ initialTab = 0 }) => {
       setIsCreatingBusiness(true);
       const { data } = await businessAPI.createBusiness({ businessName: newBusinessName });
 
-      // Update local storage with new context
-      localStorage.setItem('token', data.token);
+      // SSO: o token (Squamata) permanece o mesmo; apenas o contexto muda no banco.
       localStorage.setItem('user', JSON.stringify(data.user));
 
       toast({ title: 'Empresa criada com sucesso!', status: 'success', duration: 2000 });

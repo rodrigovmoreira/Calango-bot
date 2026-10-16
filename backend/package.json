@@ -14,7 +14,6 @@
   },
   "dependencies": {
     "@google/genai": "^1.30.0",
-    "bcryptjs": "^2.4.3",
     "body-parser": "^1.20.2",
     "connect-mongo": "^5.1.0",
     "cookie-parser": "^1.4.7",
@@ -35,9 +34,6 @@
     "multer": "^2.0.2",
     "node-cron": "^4.2.1",
     "nodemailer": "^7.0.12",
-    "passport": "^0.7.0",
-    "passport-google-oauth20": "^2.0.0",
-    "passport-local": "^1.0.0",
     "puppeteer": "^19.11.1",
     "qrcode": "^1.5.4",
     "qrcode-terminal": "^0.12.0",

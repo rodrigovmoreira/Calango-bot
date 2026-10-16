@@ -1,6 +1,5 @@
 import express from 'express';
 const router = express.Router();
-import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import SystemUser from '../models/SystemUser.js';
 import BusinessConfig from '../models/BusinessConfig.js';
@@ -99,25 +98,9 @@ router.post('/switch-business', authenticateToken, async (req, res) => {
     await user.save();
     await user.populate('businesses.businessId', 'businessName');
 
-    const token = jwt.sign(
-      {
-        userId: user._id,
-        activeBusinessId: user.activeBusinessId,
-        role: targetBusiness.role
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
-    res.cookie('auth_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      sameSite: 'lax'
-    });
-
+    // SSO: NÃO re-assinamos tokens locais. O middleware resolve o activeBusinessId
+    // do banco a cada requisição. Retorna apenas o estado atualizado do usuário.
     res.json({
-      token,
       user: {
         id: user._id,
         name: user.name,
@@ -265,27 +248,10 @@ router.post('/accept-invite', authenticateToken, async (req, res) => {
 
     await user.populate('businesses.businessId', 'businessName');
 
-    // Emite novo token no contexto do negócio convidado
-    const token = jwt.sign(
-      {
-        userId: user._id,
-        activeBusinessId: user.activeBusinessId,
-        role: invite.role
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
-    res.cookie('auth_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      sameSite: 'lax'
-    });
-
+    // SSO: NÃO re-assinamos tokens locais. O middleware resolve o activeBusinessId
+    // do banco a cada requisição. Retorna apenas o estado atualizado do usuário.
     res.json({
       message: 'Convite aceito com sucesso!',
-      token,
       user: {
         id: user._id,
         name: user.name,

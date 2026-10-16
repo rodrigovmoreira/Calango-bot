@@ -58,7 +58,7 @@ const AuthCallback = () => {
         if (inviteToken) {
           try {
             const { data } = await authAPI.acceptInvite(inviteToken);
-            localStorage.setItem('token', data.token);
+            // SSO: o token (Squamata) permanece o mesmo; só o contexto do usuário muda.
             localStorage.setItem('user', JSON.stringify(data.user));
             dispatch({ type: 'SET_USER', payload: data.user });
           } catch (inviteErr) {

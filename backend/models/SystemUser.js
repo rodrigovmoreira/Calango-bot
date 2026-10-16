@@ -1,6 +1,4 @@
 import mongoose from 'mongoose';
-import bcrypt from 'bcryptjs';
-
 const systemUserSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -18,9 +16,11 @@ const systemUserSchema = new mongoose.Schema({
     lowercase: true,
     trim: true
   },
+  // Legado: usuários SSO não possuem senha real (placeholder).
+  // Mantido no schema para retrocompatibilidade com registros antigos.
   password: {
     type: String,
-    required: false,  // ← mudado para false (SSO users usam placeholder)
+    required: false,
     minlength: 6,
     select: false
   },
@@ -74,42 +74,13 @@ const systemUserSchema = new mongoose.Schema({
   }
 });
 
-// Hash password antes de salvar
-systemUserSchema.pre('save', async function(next) {
+// Atualiza o timestamp de modificação antes de salvar.
+// As senhas são gerenciadas pelo Squamata-Login (SSO) — não há mais hash local.
+systemUserSchema.pre('save', function(next) {
   if (this.isModified()) {
     this.updatedAt = Date.now();
   }
-  
-  // Pular hash para placeholder de SSO ou se senha não foi modificada
-  if (!this.isModified('password')) return next();
-  
-  // SSO users: placeholder não precisa de hash
-  if (this.password === 'sso_placeholder_do_not_use') {
-    console.log('🔑 SystemUser SSO — pulando hash do placeholder');
-    return next();
-  }
-  
-  try {
-    this.password = await bcrypt.hash(this.password, 12);
-    console.log('✅ Senha hasheada com sucesso para SystemUser:', this.email);
-    next();
-  } catch (error) {
-    console.error('💥 ERRO ao hashear senha do SystemUser:', error);
-    next(error);
-  }
+  next();
 });
-
-// Método para comparar password
-systemUserSchema.methods.correctPassword = async function(candidatePassword) {
-  console.log('🔑 Comparando senhas para SystemUser:', this.email);
-  try {
-    const isMatch = await bcrypt.compare(candidatePassword, this.password);
-    console.log('✅ Comparação de senha do SystemUser:', isMatch ? 'VÁLIDA' : 'INVÁLIDA');
-    return isMatch;
-  } catch (error) {
-    console.error('💥 ERRO ao comparar senhas do SystemUser:', error);
-    return false;
-  }
-};
 
 export default mongoose.model('SystemUser', systemUserSchema);
