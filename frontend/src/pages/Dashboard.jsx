@@ -136,7 +136,10 @@ const Dashboard = ({ initialTab = 0 }) => {
       } finally {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        window.location.href = '/login';
+        localStorage.removeItem('tenantId');
+        // Após o logout, devolve o usuário ao portal central (Squamata-Login).
+        const LOGIN_URL = process.env.REACT_APP_LOGIN_URL || 'http://localhost:5174';
+        window.location.href = `${LOGIN_URL}/login?appSlug=calango-bot`;
       }
     }
   };

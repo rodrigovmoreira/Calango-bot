@@ -4,6 +4,7 @@ import { ChakraProvider } from '@chakra-ui/react';
 import theme from './theme';
 import { AppProvider } from './context/AppContext';
 import Login from './pages/Login';
+import AuthCallback from './pages/AuthCallback';
 import Dashboard from './pages/Dashboard';
 import LandingPage from './pages/LandingPage';
 import GoogleCallback from './pages/GoogleCallback';
@@ -11,9 +12,21 @@ import PublicChat from './pages/PublicChat';
 import InvitePage from './pages/InvitePage';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 
+// URL do Squamata-Login (Identity Provider / SSO).
+const LOGIN_URL = process.env.REACT_APP_LOGIN_URL || 'http://localhost:5174';
+const APP_SLUG = 'calango-bot';
+
 const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem('token');
-  return token ? children : <Navigate to="/login" />;
+
+  // Sem token → devolve o usuário ao portal central de autenticação.
+  React.useEffect(() => {
+    if (!token) {
+      window.location.href = `${LOGIN_URL}/login?appSlug=${APP_SLUG}`;
+    }
+  }, [token]);
+
+  return token ? children : null;
 };
 
 const PublicOnlyRoute = ({ children }) => {
@@ -39,6 +52,8 @@ function App() {
                   <Navigate to="/login" replace />
                 </PublicOnlyRoute>
               } />
+              {/* Callback SSO: captura o token retornado pelo Squamata-Login */}
+              <Route path="/auth/callback" element={<AuthCallback />} />
               <Route path="/google-callback" element={<GoogleCallback />} />
               <Route path="/chat/:businessId" element={<PublicChat />} />
               <Route path="/invite/:token" element={

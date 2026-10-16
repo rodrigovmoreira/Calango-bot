@@ -1,5 +1,9 @@
 import axios from 'axios';
 
+// URL do Squamata-Login (Identity Provider / SSO).
+const LOGIN_URL = process.env.REACT_APP_LOGIN_URL || 'http://localhost:5174';
+const APP_SLUG = 'calango-bot';
+
 // Se estiver rodando localmente, mantém localhost.
 const api = axios.create({
   baseURL: process.env.REACT_APP_API_URL || 'http://localhost:3000',
@@ -14,7 +18,7 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Interceptor: Redireciona se Token expirar (401)
+// Interceptor: Redireciona ao portal central se o Token expirar (401)
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -22,10 +26,11 @@ api.interceptors.response.use(
       // Limpa dados locais
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      
-      // Só redireciona se já não estiver na tela de login para evitar loop
+      localStorage.removeItem('tenantId');
+
+      // Devolve ao Squamata-Login (evita loop se já estiver no /login)
       if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
+        window.location.href = `${LOGIN_URL}/login?appSlug=${APP_SLUG}`;
       }
     }
     return Promise.reject(error);
@@ -37,6 +42,7 @@ export const authAPI = {
   login: (data) => api.post('/api/auth/login', data),
   register: (data) => api.post('/api/auth/register', data),
   logout: () => api.post('/api/auth/logout'),
+  getProfile: () => api.get('/api/auth/profile'), // NOVO (SSO - CP1)
   updateUser: (data) => api.put('/api/auth/update', data),
   switchBusiness: (targetBusinessId) => api.post('/api/auth/switch-business', { targetBusinessId }),
   // Team & Invites (Ponto 2.2 - Roadmap 1)
