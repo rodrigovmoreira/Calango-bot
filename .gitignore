@@ -6,6 +6,8 @@ node_modules/
 
 # Ignore environment variables
 .env
+.env.*
+!.env.example
 
 # Ignore build outputs
 dist/

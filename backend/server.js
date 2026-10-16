@@ -19,6 +19,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // Pré-carrega as variáveis de ambiente antes das outras libs
 import './config/env.js';
+import { validateEnv } from './config/validateEnv.js';
 
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -280,6 +281,11 @@ const restoreActiveSessions = async () => {
 // ==========================================
 async function start() {
   try {
+    // Fail Fast: valida variáveis de ambiente obrigatórias antes de subir (constitution.md)
+    if (process.env.NODE_ENV !== 'test') {
+      validateEnv();
+    }
+
     if (process.env.NODE_ENV !== 'test') {
       await connectDB();
 
