@@ -17,8 +17,10 @@ microsserviço **Squamata-Login** (appSlug `calango-bot`). O Squamata emite um J
 `{ uid, email, appSlug, tenantId }`, validado no backend do Calango-Bot com o `JWT_SECRET_LOGIN`
 compartilhado.
 
-> ⚠️ **O repositório Squamata-login NÃO deve ser alterado** — está em produção atendendo o
-> Calango-food. O redirect SSO para o Calango-Bot **já existe** no Squamata-Login.
+> ⚠️ O repositório Squamata-login estava em produção atendendo o Calango-food e, no início,
+> foi tratado como **somente-leitura**. Durante a validação (ver seção dedicada abaixo),
+> constatou-se que o redirect SSO para o Calango-Bot **NÃO existia** — o ajuste foi
+> autorizado e aplicado na branch isolada `implementacao-login-calango-bot`.
 
 ### Estado do código no início da implementação
 
@@ -90,6 +92,35 @@ Executar **um checkpoint por vez**, validar e commitar antes de avançar. Rollba
   O `activeBusinessId` é resolvido do banco a cada requisição pelo middleware.
 - Frontend (`Dashboard.jsx`, `AuthCallback.jsx`): deixaram de salvar `data.token`
   nesses fluxos (o token SSO permanece fixo na sessão).
+
+### ✅ Validação + Ajustes no repositório Squamata-Login — commit `298c2ee`
+Auditoria solicitada para confirmar se chaves/parâmetros do IdP estavam corretos para o Bot.
+
+**Diagnóstico (o que já existia):**
+- `JWT_SECRET_LOGIN` presente no `.env` (mesmo nome compartilhado com o Bot). ✅
+- `VITE_CALANGO_BOT_URL` presente no `.env`. ✅
+- Modelo `User` com `access: [{ appSlug, tenantId, active }]` (multi-app). ✅
+- Fluxo SSO genérico via `?returnUrl=` (usado pelo Food). ✅
+
+**Problemas encontrados (bloqueantes para o Bot):**
+1. **Não havia redirect dedicado para `calango-bot`** no `Login.jsx`. Como o Bot entra com
+   `?appSlug=calango-bot&tenantId=default` (sem `returnUrl`), o usuário **não retornava** ao Bot.
+2. **`VITE_CALANGO_BOT_URL` não chegava ao bundle**: ausente como `ARG` no `Dockerfile` e
+   nos `build.args` do `docker-compose.yml`.
+
+**Correções aplicadas (branch `implementacao-login-calango-bot` do Squamata-login):**
+- `Login.jsx`: novo mapa `APP_REDIRECTS` + helper `resolveCallbackUrl(slug)`, com redirect
+  por app em **ambos os fluxos** (Google `useEffect` e e-mail `handleAuth`). Fallback
+  genérico via `sso_return_url` preservado (não regride o Calango-Food).
+- `Login.jsx`: o objeto `user` do fluxo Google agora inclui `tenantId`; no fluxo e-mail o
+  `user` é enriquecido com `appSlug`/`tenantId` antes do redirect.
+- `packages/frontend/Dockerfile`: `ARG`/`ENV VITE_CALANGO_BOT_URL`.
+- `docker-compose.yml`: build arg `VITE_CALANGO_BOT_URL=http://calango-inc-appserver:3004`.
+
+**Validação:**
+- Build do Vite (`npm run build`) **OK** e a string `calango-inc-appserver:3004`
+  confirmada **inlinada** no bundle final (prova de que o arg chega ao runtime).
+- Porta confirmada contra o `PORT_MAPPING`: frontend do Bot = host `3004`. ✅
 
 ### Decisões de arquitetura relevantes
 1. **Token SSO imutável na sessão:** só o Squamata-Login assina tokens. O Calango-Bot
