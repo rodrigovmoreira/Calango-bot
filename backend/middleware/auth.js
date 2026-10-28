@@ -47,9 +47,12 @@ export const authenticateToken = async (req, res, next) => {
       }
     } else {
       // Primeiro acesso: cria um BusinessConfig padrão e vincula como admin.
+      // NÃO definir phoneNumber aqui: o índice é unique e o número só existe
+      // quando o usuário conecta um WhatsApp de verdade. Um placeholder fixo
+      // ('5511999999999') fazia o 2º usuário SSO falhar com E11000, derrubando
+      // toda requisição autenticada.
       const businessConfig = await BusinessConfig.create({
         businessName: `Empresa de ${decoded.email}`,
-        phoneNumber: '5511999999999',
         prompts: { chatSystem: 'Você é um assistente virtual.', visionSystem: '' }
       });
       user.businesses.push({ businessId: businessConfig._id, role: 'admin' });

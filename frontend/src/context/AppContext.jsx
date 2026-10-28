@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { io } from "socket.io-client";
-import { businessAPI } from '../services/api';
+import { businessAPI, authAPI } from '../services/api';
 
 const AppContext = createContext();
 
@@ -59,15 +59,30 @@ function appReducer(state, action) {
 export const AppProvider = ({ children }) => {
   const [state, dispatch] = useReducer(appReducer, initialState);
 
-  // 1. Carregar dados iniciais (User + Token + Config)
+  // 1. Carregar dados iniciais (User + Token) e hidratar o perfil no backend
   useEffect(() => {
     const loadInitialData = async () => {
       const token = localStorage.getItem('token');
       const userStr = localStorage.getItem('user');
-      
-      if (token && userStr) {
-        const userObj = JSON.parse(userStr);
-        dispatch({ type: 'SET_USER', payload: userObj });
+
+      if (!token || !userStr) return;
+
+      const cachedUser = JSON.parse(userStr);
+      // Pinta a UI rápido com o que veio do SSO...
+      dispatch({ type: 'SET_USER', payload: cachedUser });
+
+      // ...mas o SSO só devolve { id, name, email, access }. Empresas e
+      // activeBusinessId são domínio deste app: a fonte de verdade é o /profile.
+      try {
+        const { data: profile } = await authAPI.getProfile();
+        const hydrated = { ...cachedUser, ...profile };
+        localStorage.setItem('user', JSON.stringify(hydrated));
+        dispatch({ type: 'SET_USER', payload: hydrated });
+      } catch (error) {
+        console.warn(
+          '[AppContext] Não foi possível hidratar o perfil:',
+          error?.response?.status || error.message
+        );
       }
     };
     loadInitialData();

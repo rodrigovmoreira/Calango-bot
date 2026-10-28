@@ -37,10 +37,29 @@ const TeamTab = () => {
       }
     };
 
-    if (state.user?.activeBusinessId) {
-      fetchTeam();
+    if (!state.user?.activeBusinessId) {
+      // Sem negócio ativo não há equipe para buscar. Sem isso o spinner ficava
+      // girando para sempre (isLoading iniciava true e nunca era liberado).
+      setIsLoading(false);
+      return;
     }
+
+    fetchTeam();
   }, [state.user?.activeBusinessId, toast]);
+
+  if (!state.user?.activeBusinessId) {
+    return (
+      <Center p={10}>
+        <VStack spacing={2}>
+          <Text fontWeight="bold">Nenhum negócio ativo</Text>
+          <Text fontSize="sm" color="gray.500" textAlign="center">
+            Sua conta não está vinculada a um negócio. Saia e entre novamente;
+            se o problema persistir, verifique se a autenticação está respondendo.
+          </Text>
+        </VStack>
+      </Center>
+    );
+  }
 
   const handleGenerateLink = async () => {
     setIsGenerating(true);

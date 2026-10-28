@@ -70,6 +70,17 @@ const AuthCallback = () => {
           }
         }
 
+        // Hidrata o perfil no backend: o payload do SSO não traz empresas
+        // nem activeBusinessId (isso é domínio deste app).
+        try {
+          const { data: profile } = await authAPI.getProfile();
+          const hydrated = { ...user, ...profile };
+          localStorage.setItem('user', JSON.stringify(hydrated));
+          dispatch({ type: 'SET_USER', payload: hydrated });
+        } catch (profileErr) {
+          console.warn('[AuthCallback] Perfil não hidratado:', profileErr?.response?.status || profileErr.message);
+        }
+
         // Redirecionamento seguro para a dashboard (limpa o token da URL).
         navigate('/dashboard', { replace: true });
       } catch (err) {
