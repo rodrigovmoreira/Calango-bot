@@ -13,7 +13,7 @@ export async function uploadFileToFirebase(file, type = 'product') {
     }
 
     // 1. Pede URL assinada direto para o Squamata-upload
-    const response = await fetch(`${uploadApiUrl}/generate-upload-url`, {
+    const response = await fetch(`${uploadApiUrl}/api/v1/upload/generate-upload-url`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

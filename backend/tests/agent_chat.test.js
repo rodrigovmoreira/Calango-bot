@@ -49,7 +49,7 @@ describe('Agent Chat API', () => {
 
   test('POST /api/business/conversations/:contactId/messages sends message', async () => {
     const res = await request(app)
-      .post(`/api/business/conversations/${contact._id}/messages`)
+      .post(`/api/v1/business/conversations/${contact._id}/messages`)
       .send({ message: 'Hello from Agent' });
 
     if (res.statusCode !== 200) {

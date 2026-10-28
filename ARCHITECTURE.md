@@ -21,7 +21,8 @@ The backend follows a **Service-Oriented MVC (Model-View-Controller)** pattern.
 
 * **`/routes` (The Doorman)**
     * **Role:** Defines API endpoints. Receives HTTP requests and forwards them to the appropriate Controller.
-    * *Example:* `whatsappRoutes.js` defines `POST /api/whatsapp/message`.
+    * *Example:* `whatsappRoutes.js` defines `POST /api/v1/whatsapp/message`.
+    * **Versionamento:** cada router é montado em **um único caminho** — `/api/v1/<recurso>` — em [`server.js`](./backend/server.js). Não há alias legado. Ver [ADR 002](../Calango-docs/docs/ADRs/002-versionamento-de-api.md). Rotas de webhook de terceiros (`/api/webhook`, `/api/meta/webhook`) ficam fora do versionamento porque a URL é cadastrada no provedor.
 * **`/controllers` (The Manager)**
     * **Role:** Handles request validation, extracts data from `req.body`, checks permissions, and delegates the heavy lifting to Services. Returns HTTP responses (`200 OK`, `500 Error`).
     * *Example:* `whatsappController.js` ensures the user is logged in before asking the Service to send a message.
@@ -47,7 +48,7 @@ The backend follows a **Service-Oriented MVC (Model-View-Controller)** pattern.
 5.  **Persistence:** The message and the reply are saved to MongoDB via `Message` model.
 
 #### Flow B: Outbound Action (User creates a Tag)
-1.  **Request:** Frontend sends `POST /api/tags`.
+1.  **Request:** Frontend sends `POST /api/v1/tags` (caminho versionado declarado em [`api.js`](./frontend/src/services/api.js)).
 2.  **Route:** `tagRoutes.js` -> `tagController.createTag`.
 3.  **Service:** `tagService.js` validates the name and saves it to MongoDB using `Tag` model.
 4.  **Response:** Controller returns the new Tag object to the Frontend.

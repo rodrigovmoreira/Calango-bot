@@ -43,7 +43,7 @@ const CampaignTab = () => {
   const loadCampaigns = useCallback(async () => {
       try {
           const token = localStorage.getItem('token');
-          const { data } = await axios.get(`${API_URL}/api/campaigns`, {
+          const { data } = await axios.get(`${API_URL}/api/v1/campaigns`, {
               headers: { Authorization: `Bearer ${token}` }
           });
           console.log('Campaigns fetched:', data);
@@ -75,12 +75,12 @@ const CampaignTab = () => {
       };
 
       if (currentCampaign._id) {
-        await axios.put(`${API_URL}/api/campaigns/${currentCampaign._id}`, payload, {
+        await axios.put(`${API_URL}/api/v1/campaigns/${currentCampaign._id}`, payload, {
           headers: { Authorization: `Bearer ${token}` }
         });
         toast({ title: 'Campanha atualizada!', status: 'success' });
       } else {
-        await axios.post(`${API_URL}/api/campaigns`, payload, {
+        await axios.post(`${API_URL}/api/v1/campaigns`, payload, {
           headers: { Authorization: `Bearer ${token}` }
         });
         toast({ title: 'Campanha criada!', status: 'success' });
@@ -100,7 +100,7 @@ const CampaignTab = () => {
     if (!window.confirm('Excluir campanha?')) return;
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`${API_URL}/api/campaigns/${id}`, {
+      await axios.delete(`${API_URL}/api/v1/campaigns/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       loadCampaigns();
@@ -127,7 +127,7 @@ const CampaignTab = () => {
     try {
       toast({ title: 'Iniciando disparo...', status: 'info', duration: 2000 });
       const token = localStorage.getItem('token');
-      const { data } = await axios.post(`${API_URL}/api/campaigns/${id}/send`, {}, {
+      const { data } = await axios.post(`${API_URL}/api/v1/campaigns/${id}/send`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       

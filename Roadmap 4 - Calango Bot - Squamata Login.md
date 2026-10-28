@@ -888,7 +888,7 @@ Execute esta bateria completa após todos os checkpoints.
 
 5. **Rollback seguro**: Se o CP2 ou CP3 quebrar, o login antigo funciona como fallback até o CP3. Após o CP3, o rollback requer reverter as rotas desativadas.
 
-6. **Squamata-Login**: Se o Squamata-Login cair, **nenhum** sistema Calango permite login. Monitore o healthcheck (`/api/v1/auth/health`).
+6. **Squamata-Login**: Se o Squamata-Login cair, **nenhum** sistema Calango permite login. Monitore o healthcheck (`/api/v1/health`).
 
 7. **Variáveis de ambiente**: Consulte o [Apêndice A](#-apêndice-a-mapeamento-de-portas-docker-servidor-de-aplicação) para as portas corretas do servidor.
 

@@ -26,7 +26,7 @@ describe('CRM & Tags Flow', () => {
 
     // 1. Register a user (and implicitly create BusinessConfig)
     const registerRes = await request(app)
-      .post('/api/auth/register')
+      .post('/api/v1/auth/register')
       .send({
         name: 'Test User',
         email: 'test@example.com',
@@ -72,7 +72,7 @@ describe('CRM & Tags Flow', () => {
     // 3. Call PUT /api/contacts/:id to add tags
     const tagsToAdd = ['Hot Lead', 'Investor'];
     const updateRes = await request(app)
-      .put(`/api/contacts/${contact._id}`)
+      .put(`/api/v1/contacts/${contact._id}`)
       .set('Authorization', `Bearer ${token}`)
       .send({
         tags: tagsToAdd
@@ -109,7 +109,7 @@ describe('CRM & Tags Flow', () => {
     await Tag.create({ businessId, name: 'Lead', color: '#000' });
 
     const res = await request(app)
-      .get('/api/contacts/tags')
+      .get('/api/v1/contacts/tags')
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);

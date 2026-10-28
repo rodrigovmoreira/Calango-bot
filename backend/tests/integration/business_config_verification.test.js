@@ -44,7 +44,7 @@ jest.mock('../../config/upload', () => ({
   }
 }));
 
-app.use('/api/business', businessRoutes);
+app.use('/api/v1/business', businessRoutes);
 
 describe('Business Config Persistence (Integration)', () => {
   beforeEach(async () => {
@@ -78,7 +78,7 @@ describe('Business Config Persistence (Integration)', () => {
 
     // 3. Send PUT request
     const res = await request(app)
-      .put('/api/business/config')
+      .put('/api/v1/business/config')
       .send(payload)
       .expect(200);
 

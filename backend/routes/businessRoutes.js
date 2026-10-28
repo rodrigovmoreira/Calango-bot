@@ -366,7 +366,7 @@ router.post('/request-upload-url', authenticateToken, async (req, res) => {
 
     // Chama Squamata para gerar URL assinada (para PUT)
     const response = await axios.post(
-      `${squamataUrl}/generate-upload-url`,
+      `${squamataUrl}/api/v1/upload/generate-upload-url`,
       { fileName, contentType },
       { headers: { 'Authorization': squamataKey } }
     );

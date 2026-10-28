@@ -24,7 +24,7 @@ describe('Contact Import Feature', () => {
 
     // 1. Register a user
     const registerRes = await request(app)
-      .post('/api/auth/register')
+      .post('/api/v1/auth/register')
       .send({
         name: 'Import User',
         email: 'import@test.com',
@@ -64,7 +64,7 @@ describe('Contact Import Feature', () => {
     const buffer = Buffer.from(csvContent, 'utf-8');
 
     const res = await request(app)
-      .post('/api/contacts/import')
+      .post('/api/v1/contacts/import')
       .set('Authorization', `Bearer ${token}`)
       .attach('file', buffer, 'contacts.csv');
 
@@ -97,7 +97,7 @@ describe('Contact Import Feature', () => {
       const buffer = Buffer.from(csvContent, 'utf-8');
 
       const res = await request(app)
-        .post('/api/contacts/import')
+        .post('/api/v1/contacts/import')
         .set('Authorization', `Bearer ${token}`)
         .attach('file', buffer, 'update.csv');
 

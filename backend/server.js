@@ -136,38 +136,45 @@ app.use((req, res, next) => {
   next();
 });
 
+// Healthcheck do serviço — contrato padrão do ecossistema
+app.get('/api/v1/health', (req, res) => {
+  res.json({ status: 'UP', service: 'calango-bot', timestamp: new Date().toISOString() });
+});
+
 // 🔌 CONEXÃO DOS PLUGINS (ROTAS)
+// Caminho canônico único: /api/v1/<recurso>. Ver ADR 002 em Calango-docs/docs/ADRs.
+
 // 1. Chat Público (Web)
-app.use('/api/chat', publicChatRoutes);
+app.use('/api/v1/chat', publicChatRoutes);
 
 // 2. Autenticação (Login, Register, Logout)
-app.use('/api/auth', authRoutes);
+app.use('/api/v1/auth', authRoutes);
 
 // 3. Negócio (Config, Presets, Custom Prompts)
-app.use('/api/business', businessRoutes);
+app.use('/api/v1/business', businessRoutes);
 
 // 4. WhatsApp (Status, Start, Stop)
-app.use('/api/whatsapp', whatsappRoutes);
+app.use('/api/v1/whatsapp', whatsappRoutes);
 
 // 5. Agendamentos (Calendário)
-app.use('/api/appointments', appointmentRoutes);
+app.use('/api/v1/appointments', appointmentRoutes);
 
 // 6. Campanhas (Active CRM)
-app.use('/api/campaigns', campaignRoutes);
+app.use('/api/v1/campaigns', campaignRoutes);
 
 // 7. Contatos (Active CRM)
-app.use('/api/contacts', contactRoutes);
+app.use('/api/v1/contacts', contactRoutes);
 
 // 8. Dashboard (Visão Geral)
-app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/v1/dashboard', dashboardRoutes);
 
 // 9. Tags (Unified System)
-app.use('/api/tags', tagRoutes);
+app.use('/api/v1/tags', tagRoutes);
 
-// 10. Webhook (Meta)
+// 10. Webhook (Meta) — URL cadastrada no app da Meta: fora do versionamento
 app.use('/api/meta', metaWebhookRoutes);
 
-// 11. Webhook (Mantido aqui por ser externo)
+// 11. Webhook (Twilio) — URL cadastrada no provedor: fora do versionamento
 app.post('/api/webhook', async (req, res) => {
   try {
     res.status(200).send('<Response></Response>');

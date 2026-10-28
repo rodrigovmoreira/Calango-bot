@@ -15,7 +15,7 @@ const CampaignAudienceModal = ({ campaign, isOpen, onClose }) => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get(`${API_URL}/api/campaigns/${campaign._id}/audience`, {
+      const res = await axios.get(`${API_URL}/api/v1/campaigns/${campaign._id}/audience`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setData(res.data);

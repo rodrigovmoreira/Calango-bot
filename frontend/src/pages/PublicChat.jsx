@@ -6,12 +6,13 @@ import { FaPaperPlane } from 'react-icons/fa';
 import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
 import { io } from 'socket.io-client';
+import { normalizeApiBase } from '../services/apiBase';
 
 // Create a standalone axios instance to avoid auth interceptors
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 const publicApi = axios.create({
-  baseURL: API_URL,
+  baseURL: normalizeApiBase(API_URL),
 });
 
 const PublicChat = () => {
@@ -65,7 +66,7 @@ const PublicChat = () => {
     // History Hydration
     const fetchHistory = async () => {
         try {
-            const res = await publicApi.get(`/api/chat/history/${visitorId}`);
+            const res = await publicApi.get(`/api/v1/chat/history/${visitorId}`);
             if (res.data && Array.isArray(res.data)) {
                 setMessages(res.data);
             }
@@ -78,7 +79,7 @@ const PublicChat = () => {
     // Fetch Business Config
     const fetchConfig = async () => {
       try {
-        const res = await publicApi.get(`/api/chat/config/${businessId}`);
+        const res = await publicApi.get(`/api/v1/chat/config/${businessId}`);
         if (res.data && res.data.businessName) {
           setBusinessName(res.data.businessName);
         }
@@ -131,7 +132,7 @@ const PublicChat = () => {
       // The response will come back, but we also listen to the socket 'bot_message'.
       // To avoid duplicates or rely on the "multi-tab" logic, we should probably
       // NOT add the bot response here, and let the socket handler do it.
-      await publicApi.post('/api/chat/send', payload);
+      await publicApi.post('/api/v1/chat/send', payload);
 
       // Note: We deliberately ignore the response here for UI updates
       // because the 'bot_message' socket event will handle it for all tabs.
