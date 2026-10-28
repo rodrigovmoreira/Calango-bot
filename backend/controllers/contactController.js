@@ -3,6 +3,7 @@ import BusinessConfig from '../models/BusinessConfig.js';
 import Tag from '../models/Tag.js'; // Kept if needed for future expansions
 import * as wwebjsService from '../services/wwebjsService.js';
 import { normalizePhone, toWhatsAppId } from '../utils/phoneUtils.js';
+import { isActiveMembership } from '../utils/membership.js';
 import xlsx from 'xlsx';
 import csv from 'csv-parser';
 import { Readable } from 'stream';
@@ -21,7 +22,9 @@ const getContacts = async (req, res) => {
         // === ROLE-BASED FILTERING (Ponto 3: Assignment) ===
         // Check user role to determine which contacts to return
         const user = await Contact.collection.conn.model('SystemUser').findById(userId).select('businesses activeBusinessId');
-        const userBusiness = user?.businesses?.find(b => b.businessId.toString() === businessId.toString());
+        const userBusiness = user?.businesses?.find(b =>
+            b.businessId.toString() === businessId.toString() && isActiveMembership(b)
+        );
         const userRole = userBusiness?.role || 'operator'; // Default to operator if role not found
 
         let filter = { businessId };

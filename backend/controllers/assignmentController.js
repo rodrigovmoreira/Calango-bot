@@ -1,6 +1,7 @@
 import Contact from '../models/Contact.js';
 import Appointment from '../models/Appointment.js';
 import SystemUser from '../models/SystemUser.js';
+import { isActiveMembership } from '../utils/membership.js';
 
 /**
  * Assign or reassign a contact to a user (admin only)
@@ -39,7 +40,7 @@ const assignContact = async (req, res) => {
 
             // Check if target user belongs to the same business
             const targetUserBusiness = targetUser.businesses.find(
-                b => b.businessId.toString() === businessId.toString()
+                b => b.businessId.toString() === businessId.toString() && isActiveMembership(b)
             );
             if (!targetUserBusiness) {
                 return res.status(400).json({ message: 'Target user does not belong to this business' });
@@ -118,7 +119,7 @@ const assignAppointment = async (req, res) => {
 
             // Check if target user belongs to the same business
             const targetUserBusiness = targetUser.businesses.find(
-                b => b.businessId.toString() === businessId.toString()
+                b => b.businessId.toString() === businessId.toString() && isActiveMembership(b)
             );
             if (!targetUserBusiness) {
                 return res.status(400).json({ message: 'Target user does not belong to this business' });

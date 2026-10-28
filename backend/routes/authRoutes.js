@@ -6,6 +6,7 @@ import BusinessConfig from '../models/BusinessConfig.js';
 import Invite from '../models/Invite.js';
 import { authenticateToken, requireAdmin } from '../middleware/auth.js';
 import { stopSession } from '../services/wwebjsService.js';
+import { formatBusinesses, isActiveMembership, MEMBERSHIP_STATUS } from '../utils/membership.js';
 
 // URL do Squamata-Login (portal central de autenticação / Identity Provider).
 const LOGIN_URL = process.env.FRONTEND_LOGIN_URL || 'http://localhost:5174';
@@ -15,21 +16,14 @@ const APP_SLUG = 'calango-bot';
 // Helpers
 // ============================================================================
 
-// Formata a lista de negócios do usuário para o payload de resposta.
-const formatBusinesses = (user) =>
-  user.businesses.map((b) => ({
-    businessId: {
-      _id: b.businessId?._id ? b.businessId._id.toString() : b.businessId?.toString(),
-      businessName: b.businessId?.businessName || 'Empresa'
-    },
-    role: b.role || 'operator'
-  }));
+// Descobre o role do usuário no negócio ativo (ignora vínculos inativos).
 
 // Descobre o role do usuário no negócio ativo.
 const resolveActiveRole = (user) => {
   let role = 'operator';
   if (user.activeBusinessId && user.businesses) {
     const info = user.businesses.find((b) => {
+      if (!isActiveMembership(b)) return false;
       const bId = b.businessId?._id ? b.businessId._id.toString() : b.businessId?.toString();
       return bId === user.activeBusinessId.toString();
     });
@@ -88,8 +82,10 @@ router.post('/switch-business', authenticateToken, async (req, res) => {
     const user = await SystemUser.findById(userId);
     if (!user) return res.status(404).json({ message: 'Usuário não encontrado' });
 
-    // Verifica se o negócio alvo pertence ao usuário (isolamento multi-tenant)
-    const targetBusiness = user.businesses.find((b) => b.businessId.toString() === targetBusinessId);
+    // Verifica se o negócio alvo pertence ao usuário E está ativo (isolamento multi-tenant)
+    const targetBusiness = user.businesses.find(
+      (b) => b.businessId.toString() === targetBusinessId && isActiveMembership(b)
+    );
     if (!targetBusiness) {
       return res.status(403).json({ message: 'Acesso negado a esta empresa' });
     }
@@ -107,7 +103,7 @@ router.post('/switch-business', authenticateToken, async (req, res) => {
         email: user.email,
         avatarUrl: user.avatarUrl,
         activeBusinessId: user.activeBusinessId,
-        businesses: formatBusinesses(user)
+        businesses: formatBusinesses(user.businesses)
       }
     });
   } catch (error) {
@@ -232,12 +228,20 @@ router.post('/accept-invite', authenticateToken, async (req, res) => {
     if (!user) return res.status(404).json({ message: 'Usuário não encontrado' });
 
     // Idempotência: se o usuário já pertence ao negócio, apenas ativa o contexto.
-    const alreadyInBusiness = user.businesses.some(
+    // Se o vínculo existe mas está inativo, o convite o REATIVA (novo convite é
+    // decisão explícita do admin, então restaura o acesso).
+    const existingMembership = user.businesses.find(
       (b) => b.businessId.toString() === invite.businessId.toString()
     );
 
-    if (!alreadyInBusiness) {
+    if (!existingMembership) {
       user.businesses.push({ businessId: invite.businessId, role: invite.role });
+    } else if (!isActiveMembership(existingMembership)) {
+      existingMembership.status = MEMBERSHIP_STATUS.ACTIVE;
+      existingMembership.role = invite.role;
+      existingMembership.deactivatedAt = undefined;
+      existingMembership.deactivatedBy = undefined;
+      console.log(`♻️ [invite] Vínculo reativado: ${user.email} -> ${invite.businessId}`);
     }
     user.activeBusinessId = invite.businessId;
     await user.save();
@@ -258,7 +262,7 @@ router.post('/accept-invite', authenticateToken, async (req, res) => {
         email: user.email,
         avatarUrl: user.avatarUrl,
         activeBusinessId: user.activeBusinessId,
-        businesses: formatBusinesses(user)
+        businesses: formatBusinesses(user.businesses)
       }
     });
   } catch (error) {
@@ -281,7 +285,7 @@ router.get('/profile', authenticateToken, async (req, res) => {
       email: user.email,
       avatarUrl: user.avatarUrl,
       activeBusinessId: user.activeBusinessId,
-      businesses: user.businesses,
+      businesses: formatBusinesses(user.businesses),
       role: req.user.role
     });
   } catch (error) {

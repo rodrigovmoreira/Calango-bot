@@ -6,7 +6,8 @@ import CustomPrompt from '../models/CustomPrompt.js';
 import Contact from '../models/Contact.js';
 import Tag from '../models/Tag.js';
 import SystemUser from '../models/SystemUser.js';
-import authenticateToken from '../middleware/auth.js';
+import authenticateToken, { requireAdmin } from '../middleware/auth.js';
+import { formatBusinesses, activeMembershipQuery, isActiveMembership, MEMBERSHIP_STATUS } from '../utils/membership.js';
 import * as messageService from '../services/message.js';
 import { sendWWebJSMessage } from '../services/wwebjsService.js';
 import axios from 'axios';
@@ -59,7 +60,7 @@ router.post('/create', authenticateToken, async (req, res) => {
         email: user.email,
         avatarUrl: user.avatarUrl,
         activeBusinessId: user.activeBusinessId,
-        businesses: user.businesses
+        businesses: formatBusinesses(user.businesses)
       }
     });
 
@@ -98,12 +99,16 @@ router.get('/team', authenticateToken, async (req, res) => {
     const userBusiness = currentUser.businesses.find(b => b.businessId.toString() === businessId.toString());
     const isRequesterAdmin = userBusiness && userBusiness.role === 'admin';
 
-    // Busca todos os usuários que têm esta empresa no array de businesses
-    const allMembers = await SystemUser.find({ 'businesses.businessId': businessId }).select('name email avatarUrl businesses isVerified');
+    // Só vínculos ATIVOS entram na equipe. Inativados permanecem no banco
+    // (histórico) mas não aparecem como membros.
+    const allMembers = await SystemUser.find(activeMembershipQuery(businessId))
+      .select('name email avatarUrl businesses isVerified');
 
     // Mapeia e formata os dados
     const formattedMembers = allMembers.map(member => {
-      const bData = member.businesses.find(b => b.businessId.toString() === businessId.toString());
+      const bData = member.businesses.find(
+        (b) => b.businessId.toString() === businessId.toString() && isActiveMembership(b)
+      );
       return {
         id: member._id,
         name: member.name,
@@ -126,6 +131,90 @@ router.get('/team', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Erro GET /team:', error);
     res.status(500).json({ message: 'Erro ao buscar equipe' });
+  }
+});
+
+// ============================================================================
+// PATCH /api/business/team/:userId/deactivate — offboarding (Ponto 6.1)
+// ----------------------------------------------------------------------------
+// Inativa o VÍNCULO do usuário com a empresa ativa. Regras (ADR 004):
+//  - não apaga nada: marca status='inactive' + deactivatedAt/deactivatedBy;
+//  - não mexe em `isActive` do usuário (é global e o deixaria fora do próprio negócio);
+//  - não permite inativar a si mesmo nem o último admin ativo (evita lockout);
+//  - transfere os leads do inativado para o admin que executou a ação.
+// ============================================================================
+router.patch('/team/:userId/deactivate', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const businessId = req.user.activeBusinessId;
+    const adminId = req.user.userId;
+
+    if (String(userId) === String(adminId)) {
+      return res.status(400).json({ message: 'Você não pode inativar o seu próprio acesso.' });
+    }
+
+    const target = await SystemUser.findById(userId);
+    if (!target) return res.status(404).json({ message: 'Usuário não encontrado.' });
+
+    const membership = target.businesses.find(
+      (b) => b.businessId.toString() === businessId.toString()
+    );
+
+    if (!membership) {
+      return res.status(404).json({ message: 'Este usuário não é membro da empresa ativa.' });
+    }
+    if (!isActiveMembership(membership)) {
+      return res.status(409).json({ message: 'Este usuário já está inativo nesta empresa.' });
+    }
+
+    // Guarda do último admin: sem admin, ninguém consegue convidar/remover/configurar.
+    if (membership.role === 'admin') {
+      const adminsAtivos = await SystemUser.countDocuments(
+        activeMembershipQuery(businessId, { role: 'admin' })
+      );
+      if (adminsAtivos <= 1) {
+        return res.status(409).json({
+          code: 'LAST_ADMIN',
+          message: 'Não é possível inativar o último administrador desta empresa.'
+        });
+      }
+    }
+
+    // Soft delete do vínculo.
+    membership.status = MEMBERSHIP_STATUS.INACTIVE;
+    membership.deactivatedAt = new Date();
+    membership.deactivatedBy = adminId;
+
+    // Se o contexto do usuário era esta empresa, move para outro vínculo ativo.
+    if (String(target.activeBusinessId) === String(businessId)) {
+      const outroVinculo = target.businesses.find(
+        (b) => isActiveMembership(b) && String(b.businessId) !== String(businessId)
+      );
+      target.activeBusinessId = outroVinculo ? outroVinculo.businessId : undefined;
+    }
+
+    await target.save();
+
+    // Herança dos leads: tudo que estava com o inativado passa para quem inativou.
+    const transferencia = await Contact.updateMany(
+      { businessId, assignedTo: target._id },
+      { $set: { assignedTo: adminId, assignedAt: new Date() } }
+    );
+
+    console.log(
+      `🚪 [offboarding] ${target.email} inativado em ${businessId} por ${adminId} · ${transferencia.modifiedCount} lead(s) transferido(s)`
+    );
+
+    res.json({
+      message: 'Acesso inativado e leads transferidos.',
+      userId: target._id,
+      businessId,
+      deactivatedAt: membership.deactivatedAt,
+      transferredLeads: transferencia.modifiedCount
+    });
+  } catch (error) {
+    console.error('Erro no offboarding:', error);
+    res.status(500).json({ message: 'Erro ao inativar acesso.' });
   }
 });
 

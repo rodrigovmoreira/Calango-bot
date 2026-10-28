@@ -39,6 +39,19 @@ const systemUserSchema = new mongoose.Schema({
       enum: ['admin', 'operator', 'campaign_manager'],
       required: true,
       default: 'operator'
+    },
+    // Offboarding: o vínculo é inativado, nunca removido do documento, para
+    // preservar o histórico de empresas por onde a pessoa passou (ADR 004).
+    // Documentos antigos não têm este campo — ausência significa ativo.
+    status: {
+      type: String,
+      enum: ['active', 'inactive'],
+      default: 'active'
+    },
+    deactivatedAt: { type: Date },
+    deactivatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'SystemUser'
     }
   }],
   isActive: {

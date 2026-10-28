@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import SystemUser from '../models/SystemUser.js';
 import BusinessConfig from '../models/BusinessConfig.js';
+import { activeMemberships } from '../utils/membership.js';
 
 // Slug desta aplicação no ecossistema (usado para validar o token SSO).
 const APP_SLUG = 'calango-bot';
@@ -11,7 +12,7 @@ const APP_SLUG = 'calango-bot';
 // Usuários novos (primeiro acesso via SSO) são provisionados automaticamente.
 // ============================================================================
 export const authenticateToken = async (req, res, next) => {
-  const token = req.cookies.auth_token || req.headers['authorization']?.split(' ')[1];
+  const token = req.cookies?.auth_token || req.headers['authorization']?.split(' ')[1];
 
   if (!token) return res.status(401).json({ message: 'Token necessário' });
 
@@ -27,6 +28,7 @@ export const authenticateToken = async (req, res, next) => {
 
     // UPSERT: encontra ou provisiona o SystemUser local a partir do SSO.
     let user = await SystemUser.findOne({ email: decoded.email });
+    const isFirstLogin = !user;
 
     if (!user) {
       user = await SystemUser.create({
@@ -39,13 +41,23 @@ export const authenticateToken = async (req, res, next) => {
       console.log(`🆕 [auth] SystemUser criado via SSO: ${decoded.email} (appSlug=${decoded.appSlug})`);
     }
 
-    // Resolve o negócio ativo do usuário.
-    if (user.businesses && user.businesses.length > 0) {
-      if (!user.activeBusinessId) {
-        user.activeBusinessId = user.businesses[0].businessId;
-        await user.save();
+    // === Resolução do negócio ativo ===
+    // Só vínculos ATIVOS contam: inativar o vínculo (offboarding) tira o acesso
+    // sem apagar o histórico (ADR 004).
+    const vinculosAtivos = activeMemberships(user);
+
+    if (vinculosAtivos.length === 0) {
+      // Provisiona um negócio APENAS no primeiro acesso (onboarding SSO).
+      // Usuário que já existia e ficou sem vínculo ativo foi removido por
+      // offboarding: recriar aqui desfaria a revogação de acesso.
+      if (!isFirstLogin) {
+        console.warn(`⛔ [auth] ${decoded.email} sem vínculo ativo — acesso negado`);
+        return res.status(403).json({
+          code: 'NO_ACTIVE_BUSINESS',
+          message: 'Sua conta não está vinculada a nenhum negócio. Contate o administrador.'
+        });
       }
-    } else {
+
       // Primeiro acesso: cria um BusinessConfig padrão e vincula como admin.
       // NÃO definir phoneNumber aqui: o índice é unique e o número só existe
       // quando o usuário conecta um WhatsApp de verdade. Um placeholder fixo
@@ -58,16 +70,32 @@ export const authenticateToken = async (req, res, next) => {
       user.businesses.push({ businessId: businessConfig._id, role: 'admin' });
       user.activeBusinessId = businessConfig._id;
       await user.save();
+      vinculosAtivos.push(user.businesses[user.businesses.length - 1]);
       console.log(`🏢 [auth] BusinessConfig criado via SSO para: ${decoded.email}`);
     }
 
-    if (!user.activeBusinessId) {
-      return res.status(400).json({ message: 'Nenhum negócio configurado. Contate o suporte.' });
+    // === 6.2 — contexto revogado ===
+    // O activeBusinessId precisa pertencer a um vínculo ATIVO. Se não pertencer
+    // (o vínculo foi inativado), não deixamos a requisição seguir com o contexto
+    // antigo: trocamos para o primeiro vínculo válido. Isso corta o acesso sem
+    // trancar o usuário fora do sistema (o 403 puro impediria até o switch).
+    const activeId = user.activeBusinessId ? String(user.activeBusinessId) : null;
+    const activePertence = activeId
+      ? vinculosAtivos.some((b) => String(b.businessId) === activeId)
+      : false;
+
+    if (!activePertence) {
+      const novoContexto = vinculosAtivos[0].businessId;
+      console.warn(
+        `⚠️ [auth] ${decoded.email}: contexto ${activeId ?? '(vazio)'} sem vínculo ativo → trocado para ${novoContexto}`
+      );
+      user.activeBusinessId = novoContexto;
+      await user.save();
     }
 
     // Determina o role do usuário no negócio ativo.
     let role = 'operator';
-    const businessInfo = user.businesses.find(
+    const businessInfo = vinculosAtivos.find(
       (b) => b.businessId.toString() === user.activeBusinessId.toString()
     );
     if (businessInfo) role = businessInfo.role;
