@@ -308,7 +308,7 @@ Como o **`Session` deixa de existir no Mongo** (passa a viver no SQLite do servi
 | Fase | Entrega | Critério de aceite |
 | :--- | :--- | :--- |
 | **F0 — Spike** | Binário Go pareado com um número de teste; recebe e ecoa mensagem | Mensagem real vai e volta sem Chromium |
-| **F1 — Esqueleto** | Repo, `/api/v1/health`, `sqlstore` em SQLite + volume, auth interna, `/sessions` CRUD | `docker compose up` sobe, responde health e uma sessão criada sobrevive ao restart |
+| **F1 — Esqueleto** | Repo, `/api/v1/health`, `sqlstore` em SQLite + volume, auth interna, `/sessions` CRUD | Dev: `go run` sobe nativo (sem Docker) e responde health. Produção: `docker compose up` no servidor sobe e uma sessão criada sobrevive ao restart |
 | **F2 — Pareamento** | QR + **pairing code**; state machine; reconexão automática | Reiniciar o container mantém a sessão (chaves persistidas) |
 | **F3 — Entrada** | Webhook assinado + idempotência no bot | Reenvio do mesmo `messageId` não duplica |
 | **F4 — Saída** | Texto, mídia (via `squamata-upload`), presença | Chat do painel envia e recebe pelo serviço novo |
@@ -360,12 +360,12 @@ Como o **`Session` deixa de existir no Mongo** (passa a viver no SQLite do servi
 | 2 | Banco das sessões | **SQLite embarcado** (arquivo em volume) via `sqlstore`. MongoDB descartado com evidência (ADR 005); Postgres descartado porque a sessão é pinada ao processo, então multi-réplica não agrega |
 | 3 | Sessões: profissionais ou setores? | **Ambos** — `OwnerUserID` opcional (§4) |
 | 4 | Existe número real em produção? | **Não.** Sem repareamento e sem dupla execução; virada direta na F8 |
+| 5 | Driver SQLite e dialeto | **`modernc.org/sqlite`** (Go puro, `CGO_ENABLED=0`) com `sqlstore.NewWithDB(db, "sqlite3")` + `Container.Upgrade` explícito. Validado em Windows sem `gcc` (`go test ./internal/store`); piso do Go = **1.26**, exigido pelo `whatsmeow`. Ver [ADR 005](../Calango-docs/docs/ADRs/005-armazenamento-sessoes-whatsapp.md) |
 
 ### Ainda em aberto (não bloqueiam a F1)
 
 1. **Chip de teste para a F0.** O spike precisa de um número dedicado — não usar número de cliente.
-2. **Driver SQLite:** `modernc.org/sqlite` (puro Go, imagem sem CGO) ou `mattn/go-sqlite3` (CGO)? Validar na F0 qual identificador de dialeto o `sqlstore` aceita.
-3. **Quem opera o primeiro pareamento** de cada empresa quando isso for ao ar.
+2. **Quem opera o primeiro pareamento** de cada empresa quando isso for ao ar.
 
 ---
 
