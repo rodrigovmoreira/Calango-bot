@@ -1,10 +1,11 @@
 📱 Roadmap Calango Bot Múltiplos WhatsApps (Multi-Profissionais / Setores)
 
-> **Status verificado no código em 2026-10-29 — 4/17 itens realmente feitos.**
+> **Status verificado no código em 2026-10-29 — 3/17 itens realmente feitos.**
 >
 > ⚠️ **Correção importante:** os itens 2.1–2.4 estavam marcados como concluídos, mas a verificação encontrou:
-> - **2.1 está INCORRETO.** `backend/models/Session.js` usa sintaxe ESM (`export { ... }`) mas começa com `require('mongoose')` — em um pacote `"type": "module"` isso lança `require is not defined` no primeiro import. Além disso **nenhum arquivo importa esse model**, então é código morto. Pior: `getOrCreateSession(phone)` não define `businessId`, que é `required` — a criação falharia na validação.
-> - **2.2 / 2.3 / 2.4 estão corretos no schema**, mas os campos `whatsappSessionId` nunca são preenchidos por nenhum writer (messageHandler, aiTools, controllers). São campos órfãos hoje.
+> - **2.1 estava INCORRETO e o arquivo foi REMOVIDO do repositório em 2026-10-29.** `backend/models/Session.js` usava `require('mongoose')` dentro de um pacote `"type": "module"` — lançaria `require is not defined` no primeiro import. Verificação de uso: **nenhum arquivo do backend, frontend ou scripts o importava**; `getOrCreateSession` e `setSessionState` não tinham nenhum chamador; e nenhum `populate('whatsappSessionId')` existia. Era código morto confirmado. Além disso `getOrCreateSession(phone)` não definia `businessId`, que é `required` — a criação falharia na validação.
+>   - **Para refazer quando o Ponto 1 começar:** o model precisa ser ESM (`import mongoose from 'mongoose'`), `businessId` obrigatório no `getOrCreateSession`, e `phone` deve ser único **por empresa** (o índice `{businessId:1, phone:1}` já está correto no desenho original).
+> - **2.2 / 2.3 / 2.4 estão corretos no schema**, mas os campos `whatsappSessionId` nunca são preenchidos por nenhum writer (messageHandler, aiTools, controllers) e **não há model `Session` registrado** para o `ref: 'Session'`. São campos órfãos hoje: nenhum `populate` os usa, então não quebram — mas também não servem para nada até o Ponto 1 existir.
 >
 > **Consequência:** o Ponto 1 (base de sessões) é pré-requisito real de todo o resto e ainda não existe. `wwebjsService` mantém `sessions` como `Map` indexado por **`businessId`** (`getClientSession(businessId)`), não por `sessionId`.
 >
