@@ -62,6 +62,7 @@ import contactRoutes from './routes/contactRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import tagRoutes from './routes/tagRoutes.js';
 import metaWebhookRoutes from './routes/metaWebhookRoutes.js';
+import { auditContextMiddleware } from './utils/auditContext.js';
 
 // Carregar Models (Garantia de registro)
 import './models/SystemUser.js';
@@ -135,6 +136,11 @@ app.use((req, res, next) => {
   req.io = io;
   next();
 });
+
+// Contexto de auditoria (Roadmap 1, Ponto 5): abre um escopo por requisição que
+// o `authenticateToken` preenche com o usuário logado. Escritas sem usuário
+// (messageHandler, aiTools, scheduler) ficam marcadas como `origin: 'system'`.
+app.use(auditContextMiddleware);
 
 // Healthcheck do serviço — contrato padrão do ecossistema
 app.get('/api/v1/health', (req, res) => {

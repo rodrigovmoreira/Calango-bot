@@ -1,8 +1,8 @@
 📋 Roadmap Calango Bot Multi-Usuários (MVP)
 
-> **Status verificado no código em 2026-10-28.**
-> **Feito:** Pontos 1 e 2 (5/5 e 6/6), Ponto 3 (10/10), Ponto 4 (3/4 — 4.4 parcial).
-> **Pendente:** 4.4 (parte final), Ponto 5 (0/3), Ponto 6 (0/4).
+> **Status verificado no código em 2026-10-29.**
+> **Feito:** Pontos 1 (5/5), 2 (6/6), 3 (10/10), 4 (4/4), 5 (3/3) e 6 (4/4) — **32/32 itens**.
+> **Pendente:** nada. Roadmap concluído.
 > **Nota de nomenclatura:** este documento foi escrito antes do [ADR 002](../Calango-docs/docs/ADRs/002-versionamento-de-api.md). Onde se lê `/api/...`, o caminho real hoje é **`/api/v1/...`** (caminho único, sem alias).
 > **Nota de arquitetura:** o login passou a ser SSO via Squamata-Login. Onde o texto fala em "assinar novo token JWT", a implementação real **não re-assina token** — o `activeBusinessId` vive no banco e o middleware resolve a cada requisição. Ver Ponto 3.1.
 
@@ -96,7 +96,7 @@ Objetivo: Organizar quem atende quem e evitar colisões no funil de vendas.
 🕵️‍♂️ Ponto 5: Rastreabilidade Básica (Log Versão Lite)
 Objetivo: Saber quem fez o que no sistema em caso de erros ou auditorias rápidas.
 
-> **Status: 0/3 implementado.** Busca por `createdBy`/`lastUpdatedBy` no backend não retorna nada.
+> **Status: 3/3 implementado.**
 >
 > **Análise de viabilidade (resumo):** ✅ **Viável e seguro.**
 > - 5.1 é **puramente aditivo** (campos opcionais). Documentos antigos ficam com `null` — nada quebra, nenhum índice muda.
@@ -104,16 +104,33 @@ Objetivo: Saber quem fez o que no sistema em caso de erros ou auditorias rápida
 > - **Não conflita com o Ponto 1:** acrescentar `lastUpdatedBy` ao `$set` existente não afeta o `$inc: { __v: 1 }`.
 > - 5.3 depende de `populate('createdBy lastUpdatedBy', 'name')` nos GETs — mudança de payload só aditiva.
 
-[ ] 5.1 Campos de Log (MongoDB): Adicionar createdBy e lastUpdatedBy (Refs de SystemUser) nos Schemas principais (Contact.js, Appointment.js, BusinessConfig.js).
+[x] 5.1 Campos de Log (MongoDB): Adicionar createdBy e lastUpdatedBy (Refs de SystemUser) nos Schemas principais (Contact.js, Appointment.js, BusinessConfig.js).
+   - **Implementado em 2026-10-29** via `backend/utils/auditPlugin.js` (plugin do Mongoose).
+   - Campos: `createdBy`, `lastUpdatedBy`, `lastUpdatedAt` e `lastUpdatedOrigin` (`'user' | 'system'`).
+   - `lastUpdatedAt` foi adicionado além do pedido: `Contact`/`Appointment` não tinham `updatedAt`, e sem data o rodapé do 5.3 mostraria autor sem quando.
+   - **Efeito colateral positivo:** `BusinessConfig.updatedAt` era declarado mas **nunca atualizado**; o plugin passou a mantê-lo coerente com a última alteração.
 
-[ ] 5.2 Injeção Automática (Node.js): Nos controllers, interceptar as requisições de criação (POST) e atualização (PUT/PATCH) para injetar automaticamente o ID do usuário autenticado (req.user.id) nesses campos antes do save().
+[x] 5.2 Injeção Automática (Node.js): Nos controllers, interceptar as requisições de criação (POST) e atualização (PUT/PATCH) para injetar automaticamente o ID do usuário autenticado (req.user.id) nesses campos antes do save().
+   - **Implementado em 2026-10-29 com uma decisão de arquitetura:** em vez de editar os 7 controllers (e todo controller futuro), o autor é propagado por `AsyncLocalStorage` (`backend/utils/auditContext.js`) e gravado pelo plugin no nível do schema.
+     - `auditContextMiddleware` abre um escopo por requisição em `server.js`;
+     - `authenticateToken` chama `setAuditActor(user._id)` depois de resolver o `req.user`;
+     - o plugin cobre `save`, `insertMany`, `findOneAndUpdate`, `findOneAndReplace`, `updateOne`, `updateMany` e `replaceOne`.
+   - **Escritas automáticas** (`messageHandler`, `aiTools`, scheduler, scripts) não têm usuário → gravam `lastUpdatedBy: null` + `lastUpdatedOrigin: 'system'`. O campo nunca atribui a autoria a quem não agiu.
+   - Upsert (caminho do `importContacts`) grava `createdBy` em `$setOnInsert` — não sobrescreve a autoria original em reimportações.
+   - Coberto por `backend/tests/integration/audit.test.js` (6 cenários: create com/sem ator, findOneAndUpdate, updateMany, upsert, Appointment + BusinessConfig). **Concorrência otimista (`__v`) preservada.**
 
-[ ] 5.3 Visibilidade Simplificada (React/Chakra UI): Adicionar um rodapé sutil nos modais de edição de itens no frontend: "Criado por [Nome] em [Data] - Última alteração por [Nome]".
+[x] 5.3 Visibilidade Simplificada (React/Chakra UI): Adicionar um rodapé sutil nos modais de edição de itens no frontend: "Criado por [Nome] em [Data] - Última alteração por [Nome]".
+   - **Implementado em 2026-10-29** como componente reutilizável `frontend/src/components/AuditTrail.jsx`.
+   - Formato: `Criado por X em 29/10 14:32 · Última alteração por Y em 29/10 15:10`; quando a última escrita foi automática, mostra `Última alteração automática em ...`.
+   - Sem informação de autoria (documentos anteriores ao Ponto 5) o componente **não renderiza nada** — nada de rodapé vazio ou "— em Invalid Date".
+   - Lugares: ficha do cliente no chat (`CrmSidebar`) e modal de agendamento (`ScheduleTab`).
+   - Backend: `populate('createdBy lastUpdatedBy', 'name email')` em `getContacts`, `getContact`, `getConversations` e `GET /appointments`.
+   - **Bug pré-existente encontrado e corrigido:** `getConversations` não populava `assignedTo` — `selectedContact.assignedTo?.name` no cabeçalho do chat sempre foi `undefined`. Agora popula.
 
 🚪 Ponto 6: O Offboarding (Revogação de Acesso e "Herança" de Leads)
 Objetivo: Remover usuários sem quebrar a rastreabilidade e redistribuir os clientes órfãos.
 
-> **Status: 2/4 implementado** (6.1 e 6.2). Não existe ainda `bulk-transfer` nem a UI de demissão; o `TeamTab` só tem "Convidar".
+> **Status: 4/4 implementado** (6.1, 6.2, 6.3 e 6.4).
 >
 > **Análise de viabilidade (resumo):** ⚠️ **Viável, mas é o ponto de maior risco do roadmap** — mexe em controle de acesso.
 > - **6.2 hoje é um buraco real:** `authenticateToken` calcula `role` a partir de `user.businesses`, mas **não valida** se `activeBusinessId` ainda pertence ao usuário. Removido de uma empresa, ele continua com `activeBusinessId` apontando para lá e cai no default `operator` — **mantendo acesso**. O 403 do item 6.2 é correção de segurança, não melhoria.
@@ -139,16 +156,25 @@ Objetivo: Remover usuários sem quebrar a rastreabilidade e redistribuir os clie
    - Verificado com Mongo em memória carregando o middleware real: primeiro acesso provisiona · contexto válido intacto · contexto revogado troca e persiste · sem vínculo retorna 403 · offboarding não é desfeito.
    - Verificado na stack real: `/api/v1/auth/profile` continua 200 para todos os usuários do banco (nenhum bloqueado).
 
-[ ] 6.3 Transferência em Lote (Node.js): Criar rota POST /api/contacts/bulk-transfer no contactRoutes.js que busca todos os contatos associados ao "Usuário A" e altera o assignedTo para o "Usuário B".
+[x] 6.3 Transferência em Lote (Node.js): Criar rota POST /api/contacts/bulk-transfer no contactRoutes.js que busca todos os contatos associados ao "Usuário A" e altera o assignedTo para o "Usuário B".
+   - **Implementado em 2026-10-29:** `POST /api/v1/contacts/bulk-transfer` (`authenticateToken` + `requireAdmin`) → `{ fromUserId, toUserId }`.
+   - Valida que o **destino tem vínculo ativo** na empresa (`INVALID_TRANSFER_TARGET`) — transferir para quem foi desligado recriaria o problema.
+   - Recusa origem = destino. Retorna `{ transferred, fromUserId, toUserId }`.
+   - Cobre 3 casos de teste: transferência efetiva, operador bloqueado (403), destino sem vínculo (400).
 
-[ ] 6.4 Fluxo de Demissão na UI (React/Chakra UI): Na tela de equipe, ao clicar em "Remover Usuário", abrir um Modal de aviso. Adicionar um select opcional: "Este usuário possui X leads em aberto. Deseja transferi-los para:", listando a equipe restante.
+[x] 6.4 Fluxo de Demissão na UI (React/Chakra UI): Na tela de equipe, ao clicar em "Remover Usuário", abrir um Modal de aviso. Adicionar um select opcional: "Este usuário possui X leads em aberto. Deseja transferi-los para:", listando a equipe restante.
+   - **Implementado em 2026-10-29** em `TeamTab.jsx`: botão "Remover" por linha (admin-only, oculto na própria linha) abrindo o modal de desligamento.
+   - O modal busca a contagem real via novo `GET /api/v1/business/team/:userId/lead-count` (admin-only) e só mostra o select de destino quando há leads.
+   - Select lista a equipe restante + opção "Manter comigo (você)".
+   - **Extensão necessária no 6.1:** `PATCH /team/:userId/deactivate` passou a aceitar `transferTo` opcional (validado como membro ativo). Sem isso o destino era sempre quem executou; o modal pede escolha.
+   - Aviso explícito de que o histórico é preservado (soft delete do vínculo, ADR 004).
 
 
 ---
 
-📈 Plano de Execução (verificado em 2026-10-28)
+📈 Plano de Execução (verificado em 2026-10-29)
 
-Resumo: **27 de 32 itens concluídos (84%)**. Restam 5 itens (Ponto 5 e 6.3/6.4).
+Resumo: **32 de 32 itens concluídos (100%)**. Roadmap 1 encerrado.
 
 | Ponto | Feito | Pendente | Situação |
 | :--- | :--- | :--- | :--- |
@@ -156,16 +182,16 @@ Resumo: **27 de 32 itens concluídos (84%)**. Restam 5 itens (Ponto 5 e 6.3/6.4)
 | 2. Convites / hierarquia | 6/6 | — | ✅ concluído (adaptado ao SSO) |
 | 3. Gestão de empresas | 10/10 | — | ✅ concluído |
 | 4. Responsável pelo lead | 4/4 | — | ✅ concluído |
-| 5. Rastreabilidade | 0/3 | 5.1, 5.2, 5.3 | ⬜ pendente |
-| 6. Offboarding | 2/4 | 6.3, 6.4 | 🟡 em andamento |
+| 5. Rastreabilidade | 3/3 | — | ✅ concluído |
+| 6. Offboarding | 4/4 | — | ✅ concluído |
 
-### Ordem recomendada
+### Ordem recomendada (histórico de execução)
 
 1. ~~**6.2 (contexto revogado)**~~ — ✅ **concluído**.
 2. ~~**6.1 (endpoint de revogação)**~~ — ✅ **concluído** com soft delete, herança de leads e proteção de lockout ([ADR 004](../Calango-docs/docs/ADRs/004-vinculo-usuario-empresa.md)).
-3. ~~**4.4 (fechar a atribuição)**~~ — ✅ **concluído** em 2026-10-28. Botão "Passar a bola" no cabeçalho da conversa, admin-only, `AssignmentModal` integrado.
-4. **5.1 → 5.2 → 5.3 (rastreabilidade)** — aditivo e independente. Escopo: **Contact, Appointment e BusinessConfig**. Faz sentido emendar antes do 6.4: o offboarding hoje só registra `deactivatedBy`; o Ponto 5 dá o rastro completo.
-5. **6.3 + 6.4 (transferência em lote + UI)** — a rota de inativação já transfere os leads do inativado; falta o `bulk-transfer` avulso e o modal de demissão com a contagem de leads.
+3. ~~**4.4 (fechar a atribuição)**~~ — ✅ **concluído** em 2026-10-28.
+4. ~~**5.1 → 5.2 → 5.3 (rastreabilidade)**~~ — ✅ **concluído** em 2026-10-29 com plugin de auditoria + `AsyncLocalStorage`.
+5. ~~**6.3 + 6.4 (transferência em lote + UI)**~~ — ✅ **concluído** em 2026-10-29; o `deactivate` ganhou `transferTo` para o modal escolher o herdeiro.
 
 ### Dependências que não são óbvias
 
@@ -182,4 +208,14 @@ Resumo: **27 de 32 itens concluídos (84%)**. Restam 5 itens (Ponto 5 e 6.3/6.4)
 - `/api/v1/auth/switch-business` e `/api/v1/business/create` registrados; `Menu` com `isDisabled` na empresa ativa e `MenuDivider` + "Criar nova empresa".
 - Socket: `join_session` no connect e `leave_session` no cleanup, com `activeBusinessId` nas dependências.
 - `assignedTo` em `Contact` e `Appointment`; filtro por papel em `contactController`.
-- Ausência confirmada de `createdBy`/`lastUpdatedBy`, de rota de remoção de membro e de `bulk-transfer`.
+- `auditPlugin` aplicado a Contact/Appointment/BusinessConfig; `auditContextMiddleware` no `server.js`; `setAuditActor` no `authenticateToken`.
+- `POST /api/v1/contacts/bulk-transfer` e `PATCH /api/v1/business/team/:userId/deactivate` registrados com `requireAdmin`.
+- `GET /api/v1/business/team/:userId/lead-count` consumido pelo `TeamTab`.
+- Testes: `tests/integration/audit.test.js` (6) e `tests/integration/membership_offboarding.test.js` (8) — 14/14 verdes.
+- Frontend: `npm run build` concluído sem erros.
+
+### Pendências conhecidas (fora do escopo deste roadmap)
+
+- **UI não lista membros inativos.** `/business/team` filtra apenas vínculos ativos, então o histórico de offboarding só é visível no banco. Se for necessário auditar "quem já passou por aqui" pela tela, é preciso um endpoint separado (`?includeInactive=true`) — não feito para não misturar membros atuais com histórico.
+- **Agendamentos não são herdados no offboarding** (só contatos). Decisão consciente: agendamento tem dono operacional (`assignedTo`) mas transferi-lo automaticamente poderia jogar uma agenda cheia em alguém indisponível.
+- **Divergência de índice em `BusinessConfig.phoneNumber`** (schema `partialFilterExpression` × banco `sparse`). Funcionalmente equivalente; alinhar com drop+create explícito quando implementar "desconectar WhatsApp". **Nunca** rodar `syncIndexes()`, que removeria o índice órfão `userId_1`.

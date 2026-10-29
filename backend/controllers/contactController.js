@@ -1,9 +1,10 @@
 import Contact from '../models/Contact.js';
 import BusinessConfig from '../models/BusinessConfig.js';
+import SystemUser from '../models/SystemUser.js';
 import Tag from '../models/Tag.js'; // Kept if needed for future expansions
 import * as wwebjsService from '../services/wwebjsService.js';
 import { normalizePhone, toWhatsAppId } from '../utils/phoneUtils.js';
-import { isActiveMembership } from '../utils/membership.js';
+import { isActiveMembership, activeMembershipQuery } from '../utils/membership.js';
 import xlsx from 'xlsx';
 import csv from 'csv-parser';
 import { Readable } from 'stream';
@@ -38,7 +39,10 @@ const getContacts = async (req, res) => {
         }
         // Admins see all contacts (no additional filter)
 
-        const contacts = await Contact.find(filter).sort({ lastInteraction: -1 }).populate('assignedTo', 'name email avatarUrl');
+        const contacts = await Contact.find(filter)
+            .sort({ lastInteraction: -1 })
+            .populate('assignedTo', 'name email avatarUrl')
+            .populate('createdBy lastUpdatedBy', 'name email');
         res.json(contacts);
     } catch (error) {
         console.error('Error fetching contacts:', error);
@@ -55,7 +59,9 @@ const getContact = async (req, res) => {
             return res.status(404).json({ message: 'Business configuration not found' });
         }
 
-        const contact = await Contact.findOne({ _id: id, businessId }).populate('assignedTo', 'name email avatarUrl');
+        const contact = await Contact.findOne({ _id: id, businessId })
+            .populate('assignedTo', 'name email avatarUrl')
+            .populate('createdBy lastUpdatedBy', 'name email');
         if (!contact) {
             return res.status(404).json({ message: 'Contact not found' });
         }
@@ -863,6 +869,55 @@ const createContact = async (req, res) => {
 };
 
 
+// --- 3. TRANSFERÊNCIA EM LOTE DE LEADS (Roadmap 1, Ponto 6.3) ---
+// Passa todos os contatos de um responsável para outro. O destino precisa ter
+// vínculo ATIVO com a empresa — transferir para quem foi desligado recriaria o
+// problema que o offboarding resolve.
+const bulkTransferContacts = async (req, res) => {
+    try {
+        const businessId = req.user.activeBusinessId;
+        if (!businessId) {
+            return res.status(404).json({ message: 'Business configuration not found' });
+        }
+
+        const { fromUserId, toUserId } = req.body || {};
+
+        if (!fromUserId || !toUserId) {
+            return res.status(400).json({ message: 'Informe fromUserId e toUserId.' });
+        }
+        if (String(fromUserId) === String(toUserId)) {
+            return res.status(400).json({ message: 'Origem e destino da transferência não podem ser o mesmo usuário.' });
+        }
+
+        const destino = await SystemUser.findOne({
+            _id: toUserId,
+            ...activeMembershipQuery(businessId)
+        }).select('_id');
+
+        if (!destino) {
+            return res.status(400).json({
+                code: 'INVALID_TRANSFER_TARGET',
+                message: 'O destino da transferência precisa ter vínculo ativo com esta empresa.'
+            });
+        }
+
+        const resultado = await Contact.updateMany(
+            { businessId, assignedTo: fromUserId },
+            { $set: { assignedTo: destino._id, assignedAt: new Date() } }
+        );
+
+        res.json({
+            message: `${resultado.modifiedCount} lead(s) transferido(s).`,
+            transferred: resultado.modifiedCount,
+            fromUserId,
+            toUserId: destino._id
+        });
+    } catch (error) {
+        console.error('Error transferring contacts:', error);
+        res.status(500).json({ message: 'Erro ao transferir contatos' });
+    }
+};
+
 const deleteContact = async (req, res) => {
     try {
         const { id } = req.params;
@@ -976,6 +1031,7 @@ export {
     deleteContact,
     bulkDeleteContacts,
     bulkAddTags,
+    bulkTransferContacts,
     getContacts,
     getContact,
     createContact,

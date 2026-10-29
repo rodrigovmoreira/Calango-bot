@@ -6,7 +6,7 @@ import {
   useDisclosure, FormControl, FormLabel, Select, Input, InputGroup, InputRightElement, IconButton,
   Spinner, Center
 } from '@chakra-ui/react';
-import { AddIcon, CopyIcon } from '@chakra-ui/icons';
+import { AddIcon, CopyIcon, DeleteIcon } from '@chakra-ui/icons';
 import { useApp } from '../../context/AppContext';
 import { authAPI, businessAPI } from '../../services/api';
 
@@ -23,20 +23,27 @@ const TeamTab = () => {
   const [inviteLink, setInviteLink] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
 
-  useEffect(() => {
-    const fetchTeam = async () => {
-      try {
-        setIsLoading(true);
-        const response = await businessAPI.getTeam();
-        setMembers(response.data);
-      } catch (error) {
-        console.error('Erro ao buscar equipe:', error);
-        toast({ title: 'Erro ao buscar equipe', status: 'error' });
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  // Desligamento de membro (Ponto 6.4)
+  const [removingMember, setRemovingMember] = useState(null);
+  const [leadCount, setLeadCount] = useState(null);
+  const [isCountingLeads, setIsCountingLeads] = useState(false);
+  const [transferTo, setTransferTo] = useState('');
+  const [isDeactivating, setIsDeactivating] = useState(false);
 
+  const fetchTeam = async () => {
+    try {
+      setIsLoading(true);
+      const response = await businessAPI.getTeam();
+      setMembers(response.data);
+    } catch (error) {
+      console.error('Erro ao buscar equipe:', error);
+      toast({ title: 'Erro ao buscar equipe', status: 'error' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     if (!state.user?.activeBusinessId) {
       // Sem negócio ativo não há equipe para buscar. Sem isso o spinner ficava
       // girando para sempre (isLoading iniciava true e nunca era liberado).
@@ -96,6 +103,53 @@ const TeamTab = () => {
 
   const isAdmin = userRole === 'admin';
 
+  const openRemoveModal = async (member) => {
+    setRemovingMember(member);
+    setLeadCount(null);
+    setTransferTo('');
+    setIsCountingLeads(true);
+    try {
+      const { data } = await businessAPI.getMemberLeadCount(member.id);
+      setLeadCount(data.totalLeads);
+    } catch (error) {
+      console.error('Erro ao contar leads:', error);
+      setLeadCount(0);
+    } finally {
+      setIsCountingLeads(false);
+    }
+  };
+
+  const closeRemoveModal = () => {
+    setRemovingMember(null);
+    setLeadCount(null);
+    setTransferTo('');
+  };
+
+  const handleDeactivate = async () => {
+    if (!removingMember) return;
+    setIsDeactivating(true);
+    try {
+      const { data } = await businessAPI.deactivateMember(removingMember.id, transferTo || undefined);
+      toast({
+        title: 'Acesso inativado',
+        description: data.message || 'O vínculo foi encerrado.',
+        status: 'success'
+      });
+      closeRemoveModal();
+      await fetchTeam();
+    } catch (error) {
+      toast({
+        title: 'Não foi possível remover',
+        description: error.response?.data?.message || 'Tente novamente.',
+        status: 'error'
+      });
+    } finally {
+      setIsDeactivating(false);
+    }
+  };
+
+  const possibleTransferTargets = members.filter(m => m.id !== removingMember?.id);
+
   if (isLoading) {
     return (
       <Center p={10}>
@@ -123,6 +177,7 @@ const TeamTab = () => {
                 <Th>Email</Th>
                 <Th>Cargo</Th>
                 <Th>Status</Th>
+                {isAdmin && <Th textAlign="right">Ações</Th>}
               </Tr>
             </Thead>
             <Tbody>
@@ -142,6 +197,21 @@ const TeamTab = () => {
                     </Badge>
                   </Td>
                   <Td>Ativo</Td>
+                  {isAdmin && (
+                    <Td textAlign="right">
+                      {!member.isMe && (
+                        <Button
+                          size="xs"
+                          variant="ghost"
+                          colorScheme="red"
+                          leftIcon={<DeleteIcon />}
+                          onClick={() => openRemoveModal(member)}
+                        >
+                          Remover
+                        </Button>
+                      )}
+                    </Td>
+                  )}
                 </Tr>
               ))}
             </Tbody>
@@ -194,6 +264,57 @@ const TeamTab = () => {
                 Concluído
               </Button>
             )}
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal isOpen={Boolean(removingMember)} onClose={closeRemoveModal} isCentered>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Remover {removingMember?.name}</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={4} align="stretch">
+              <Text fontSize="sm" color="gray.600">
+                O acesso de <strong>{removingMember?.name}</strong> a esta empresa será
+                inativado. O histórico de vínculos é preservado — nada é apagado do banco.
+              </Text>
+
+              {isCountingLeads ? (
+                <Center py={2}>
+                  <Spinner size="sm" mr={3} />
+                  <Text fontSize="sm">Contando leads...</Text>
+                </Center>
+              ) : (
+                <Text fontSize="sm" fontWeight="medium">
+                  {leadCount
+                    ? `Este usuário possui ${leadCount} lead(s) atribuído(s).`
+                    : 'Este usuário não possui leads atribuídos.'}
+                </Text>
+              )}
+
+              {leadCount > 0 && (
+                <FormControl>
+                  <FormLabel fontSize="sm">Deseja transferi-los para:</FormLabel>
+                  <Select value={transferTo} onChange={(e) => setTransferTo(e.target.value)}>
+                    <option value="">Manter comigo (você)</option>
+                    {possibleTransferTargets.map(member => (
+                      <option key={member.id} value={member.id}>
+                        {member.name} ({member.role === 'admin' ? 'Administrador' : 'Operador'})
+                      </option>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={closeRemoveModal}>
+              Cancelar
+            </Button>
+            <Button colorScheme="red" onClick={handleDeactivate} isLoading={isDeactivating}>
+              Remover acesso
+            </Button>
           </ModalFooter>
         </ModalContent>
       </Modal>

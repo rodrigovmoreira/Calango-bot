@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import SystemUser from '../models/SystemUser.js';
 import BusinessConfig from '../models/BusinessConfig.js';
 import { activeMemberships } from '../utils/membership.js';
+import { setAuditActor } from '../utils/auditContext.js';
 
 // Slug desta aplicação no ecossistema (usado para validar o token SSO).
 const APP_SLUG = 'calango-bot';
@@ -107,6 +108,11 @@ export const authenticateToken = async (req, res, next) => {
       role,
       squamataUid: decoded.uid
     };
+
+    // Ponto 5.2: a partir daqui toda escrita nos modelos auditados registra
+    // este usuário como autor.
+    setAuditActor(user._id);
+
     return next();
   } catch (err) {
     if (err.name === 'TokenExpiredError') {

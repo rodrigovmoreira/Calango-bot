@@ -135,19 +135,40 @@ router.get('/team', authenticateToken, async (req, res) => {
 });
 
 // ============================================================================
+// GET /api/business/team/:userId/lead-count — leads atribuídos a um membro
+// Alimenta o modal de desligamento (Ponto 6.4): "Este usuário possui X leads".
+// ============================================================================
+router.get('/team/:userId/lead-count', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const businessId = req.user.activeBusinessId;
+    const totalLeads = await Contact.countDocuments({
+      businessId,
+      assignedTo: req.params.userId
+    });
+
+    res.json({ userId: req.params.userId, totalLeads });
+  } catch (error) {
+    console.error('Erro GET /team/:userId/lead-count:', error);
+    res.status(500).json({ message: 'Erro ao contar leads do usuário' });
+  }
+});
+
+// ============================================================================
 // PATCH /api/business/team/:userId/deactivate — offboarding (Ponto 6.1)
 // ----------------------------------------------------------------------------
 // Inativa o VÍNCULO do usuário com a empresa ativa. Regras (ADR 004):
 //  - não apaga nada: marca status='inactive' + deactivatedAt/deactivatedBy;
 //  - não mexe em `isActive` do usuário (é global e o deixaria fora do próprio negócio);
 //  - não permite inativar a si mesmo nem o último admin ativo (evita lockout);
-//  - transfere os leads do inativado para o admin que executou a ação.
+//  - transfere os leads do inativado: para `transferTo` (opcional, precisa ser
+//    membro ativo) ou, por padrão, para o admin que executou a ação.
 // ============================================================================
 router.patch('/team/:userId/deactivate', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { userId } = req.params;
     const businessId = req.user.activeBusinessId;
     const adminId = req.user.userId;
+    const { transferTo } = req.body || {};
 
     if (String(userId) === String(adminId)) {
       return res.status(400).json({ message: 'Você não pode inativar o seu próprio acesso.' });
@@ -155,6 +176,29 @@ router.patch('/team/:userId/deactivate', authenticateToken, requireAdmin, async 
 
     const target = await SystemUser.findById(userId);
     if (!target) return res.status(404).json({ message: 'Usuário não encontrado.' });
+
+    // Destino da herança de leads (Ponto 6.4 permite escolher no modal).
+    let herdeiroId = adminId;
+    if (transferTo) {
+      if (String(transferTo) === String(userId)) {
+        return res.status(400).json({ message: 'O destino da transferência não pode ser o próprio usuário inativado.' });
+      }
+
+      // `_id` fica no nível do documento — dentro do $elemMatch ele apontaria
+      // para o subdocumento do vínculo, não para o usuário.
+      const herdeiro = await SystemUser.findOne({
+        _id: transferTo,
+        ...activeMembershipQuery(businessId)
+      }).select('_id');
+
+      if (!herdeiro) {
+        return res.status(400).json({
+          code: 'INVALID_TRANSFER_TARGET',
+          message: 'O destino da transferência precisa ter vínculo ativo com esta empresa.'
+        });
+      }
+      herdeiroId = herdeiro._id;
+    }
 
     const membership = target.businesses.find(
       (b) => b.businessId.toString() === businessId.toString()
@@ -195,14 +239,15 @@ router.patch('/team/:userId/deactivate', authenticateToken, requireAdmin, async 
 
     await target.save();
 
-    // Herança dos leads: tudo que estava com o inativado passa para quem inativou.
+    // Herança dos leads: tudo que estava com o inativado passa para o herdeiro
+    // (o admin que executou ou o membro escolhido no modal de desligamento).
     const transferencia = await Contact.updateMany(
       { businessId, assignedTo: target._id },
-      { $set: { assignedTo: adminId, assignedAt: new Date() } }
+      { $set: { assignedTo: herdeiroId, assignedAt: new Date() } }
     );
 
     console.log(
-      `🚪 [offboarding] ${target.email} inativado em ${businessId} por ${adminId} · ${transferencia.modifiedCount} lead(s) transferido(s)`
+      `🚪 [offboarding] ${target.email} inativado em ${businessId} por ${adminId} · ${transferencia.modifiedCount} lead(s) transferido(s) para ${herdeiroId}`
     );
 
     res.json({
@@ -210,7 +255,8 @@ router.patch('/team/:userId/deactivate', authenticateToken, requireAdmin, async 
       userId: target._id,
       businessId,
       deactivatedAt: membership.deactivatedAt,
-      transferredLeads: transferencia.modifiedCount
+      transferredLeads: transferencia.modifiedCount,
+      transferredTo: herdeiroId
     });
   } catch (error) {
     console.error('Erro no offboarding:', error);

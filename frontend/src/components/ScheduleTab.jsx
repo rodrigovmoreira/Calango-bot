@@ -11,6 +11,7 @@ import {
 } from '@chakra-ui/react';
 import { DeleteIcon, ChevronDownIcon, CheckIcon, AddIcon, TimeIcon, SettingsIcon } from '@chakra-ui/icons';
 import { businessAPI } from '../services/api';
+import AuditTrail from './AuditTrail';
 import { useApp } from '../context/AppContext';
 
 // Configura o Moment para Português 
@@ -574,6 +575,8 @@ const ScheduleTab = () => {
                   <option value="retorno">Retorno</option>
                 </Select>
               </FormControl>
+
+              {selectedEvent && <AuditTrail documento={selectedEvent} />}
             </VStack>
           </ModalBody>
 

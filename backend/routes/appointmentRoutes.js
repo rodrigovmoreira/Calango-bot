@@ -15,7 +15,9 @@ router.get('/', authenticateToken, async (req, res) => {
       query.start = { $gte: new Date(start), $lte: new Date(end) };
     }
 
-    const appointments = await Appointment.find(query).sort({ start: 1 });
+    const appointments = await Appointment.find(query)
+      .sort({ start: 1 })
+      .populate('createdBy lastUpdatedBy', 'name email');
     res.json(appointments);
   } catch (error) {
     console.error(error);

@@ -65,6 +65,9 @@ router.post('/bulk-delete', authenticateToken, contactController.bulkDeleteConta
 // Bulk add tags
 router.post('/bulk-tags', authenticateToken, contactController.bulkAddTags);
 
+// Bulk transfer leads between operators (Roadmap 1, Ponto 6.3)
+router.post('/bulk-transfer', authenticateToken, requireAdmin, contactController.bulkTransferContacts);
+
 // Get single contact
 router.get('/:id', authenticateToken, contactController.getContact);
 
