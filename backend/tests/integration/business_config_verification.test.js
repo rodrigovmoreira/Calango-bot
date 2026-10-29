@@ -1,100 +1,92 @@
-const request = require('supertest');
-const express = require('express');
-const mongoose = require('mongoose');
-const businessRoutes = require('../../routes/businessRoutes');
-const BusinessConfig = require('../../models/BusinessConfig');
-const { clearDatabase } = require('../setup');
+import request from 'supertest';
+import express from 'express';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { jest } from '@jest/globals';
+import { clearDatabase } from '../setup.js';
 
-const userId = '507f1f77bcf86cd799439011';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const USER_ID = '507f1f77bcf86cd799439011';
 
-// Mock middlewares
-const authenticateToken = (req, res, next) => {
-  req.user = { /* removed userId */ };
-  next();
-};
+// O negócio ativo é dinâmico: cada teste cria o seu e o middleware mockado lê
+// daqui. Antes o `req.user` era fixo e sem `activeBusinessId`, o que fazia a
+// rota responder 404 ("Business not found") em vez de exercitar a persistência.
+let activeBusinessId = null;
 
-const app = express();
-app.use(express.json());
-
-// Inject mock auth middleware before defining routes
-app.use((req, res, next) => {
-  next();
-});
-
-jest.mock('../../middleware/auth', () => (req, res, next) => {
-  req.user = { userId: '507f1f77bcf86cd799439011' };
-  next();
-});
-
-// Mock services that might be called
-jest.mock('../../services/message', () => ({
-  getConversations: jest.fn(),
-  getMessagesForContact: jest.fn(),
-  deleteMessages: jest.fn(),
-}));
-
-jest.mock('../../config/upload', () => ({
-  upload: { single: () => (req, res, next) => next() },
-  bucket: {
-      file: () => ({
-          createWriteStream: () => ({
-              on: (evt, cb) => { if (evt === 'finish') cb(); return { end: () => {} }; }
-          })
-      })
+jest.unstable_mockModule(path.resolve(__dirname, '../../middleware/auth.js'), () => ({
+  default: (req, res, next) => {
+    req.user = { userId: USER_ID, activeBusinessId, role: 'admin' };
+    next();
+  },
+  requireAdmin: (req, res, next) => next(),
+  authenticateToken: (req, res, next) => {
+    req.user = { userId: USER_ID, activeBusinessId, role: 'admin' };
+    next();
   }
 }));
 
+jest.unstable_mockModule(path.resolve(__dirname, '../../services/message.js'), () => ({
+  getConversations: jest.fn(async () => []),
+  getMessagesForContact: jest.fn(async () => []),
+  deleteMessages: jest.fn(async () => ({ deletedCount: 0 })),
+  saveMessage: jest.fn(),
+  getLastMessages: jest.fn(async () => [])
+}));
+
+jest.unstable_mockModule(path.resolve(__dirname, '../../services/wwebjsService.js'), () => ({
+  sendWWebJSMessage: jest.fn(async () => true),
+  getClientSession: jest.fn(() => null)
+}));
+
+const { default: businessRoutes } = await import('../../routes/businessRoutes.js');
+const { default: BusinessConfig } = await import('../../models/BusinessConfig.js');
+
+const app = express();
+app.use(express.json());
 app.use('/api/v1/business', businessRoutes);
 
 describe('Business Config Persistence (Integration)', () => {
   beforeEach(async () => {
     await clearDatabase();
-    // Create initial config
-    await BusinessConfig.create({
-      /* removed userId */,
+
+    const config = await BusinessConfig.create({
       businessName: 'Test Biz',
-      followUpSteps: [
-        { delayMinutes: 30, message: 'Initial Step', useAI: false }
-      ]
+      followUpSteps: [{ delayMinutes: 30, message: 'Initial Step', useAI: false }]
     });
+    activeBusinessId = String(config._id);
   });
 
   it('should overwrite followUpSteps when updating config via PUT /config', async () => {
-    // 1. Verify initial state
-    let config = await BusinessConfig.findOne({ /* removed userId */ });
+    let config = await BusinessConfig.findById(activeBusinessId);
     expect(config.followUpSteps).toHaveLength(1);
     expect(config.followUpSteps[0].message).toBe('Initial Step');
 
-    // 2. Prepare payload with NEW followUpSteps
     const newSteps = [
       { delayMinutes: 60, message: 'Updated Step 1', useAI: true },
       { delayMinutes: 120, message: 'Updated Step 2', useAI: false }
     ];
 
     const payload = {
-        ...config.toObject(),
-        followUpSteps: newSteps
+      ...config.toObject(),
+      followUpSteps: newSteps
     };
 
-    // 3. Send PUT request
     const res = await request(app)
       .put('/api/v1/business/config')
       .send(payload)
       .expect(200);
 
-    // 4. Verify response
     expect(res.body.followUpSteps).toHaveLength(2);
     expect(res.body.followUpSteps[0].message).toBe('Updated Step 1');
 
-    // 5. Verify database state
-    const updatedConfig = await BusinessConfig.findOne({ /* removed userId */ });
+    const updatedConfig = await BusinessConfig.findById(activeBusinessId);
     expect(updatedConfig.followUpSteps).toHaveLength(2);
     expect(updatedConfig.followUpSteps[0].message).toBe('Updated Step 1');
     expect(updatedConfig.followUpSteps[1].message).toBe('Updated Step 2');
 
-    // Explicitly check that it didn't merge (length is 2, not 3)
+    // Confirma que substituiu em vez de mesclar (2 passos, não 3).
     expect(updatedConfig.followUpSteps).not.toEqual(expect.arrayContaining([
-        expect.objectContaining({ message: 'Initial Step' })
+      expect.objectContaining({ message: 'Initial Step' })
     ]));
   });
 });
