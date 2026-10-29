@@ -1,4 +1,26 @@
 🧪 Roadmap Calango Bot Testes Automatizados e Qualidade (QA)
+
+> **Status verificado em 2026-10-29 — 2/12 itens concluídos, com diagnóstico completo.**
+>
+> **Causa raiz das falhas (não era "teste desatualizado", era ambiente):** o `package.json` declara `"type": "module"`, mas **7 das 16 suítes eram CommonJS** (`const x = require(...)`). Rodando com `--experimental-vm-modules`, `.js` é tratado como ESM → **`ReferenceError: require is not defined`** e a suíte nem carrega. Essas suítes estavam mortas há tempo; não era um problema de asserção.
+>
+> **Baseline medido e progresso:**
+>
+> | Momento | Suítes passando | Suítes falhando | Testes |
+> | :--- | :--- | :--- | :--- |
+> | Antes | 6 / 16 | 10 / 16 | 31 passando, 5 falhando |
+> | Depois (2026-10-29) | **9 / 16** | **7 / 16** | **46 passando, 5 falhando** |
+>
+> **Corrigidas:**
+> - `unit/messageFilter.test.js` → **11/11**. Os mocks estavam desatualizados: faltava `processConversation` no mock de `aiService` (o `messageHandler` migrou de `callDeepSeek` para `processConversation`) e as asserções apontavam para a função antiga — ou seja, os `not.toHaveBeenCalled()` passavam por **falso positivo**.
+> - `tag_protection.test.js` → **3/3**. Convertida para ESM; `req.user` corrigido para incluir `activeBusinessId` (o controller resolve o negócio por ele, não por `userId`); mock de `wwebjsService` removido (o `tagController` não depende dele).
+> - `integration/business_config_verification.test.js` → **1/1**. Convertida para ESM; a auth mockada agora injeta `activeBusinessId` dinâmico (antes era fixo e ausente → 404).
+>
+> **Pendentes (7 suítes):**
+> - **ESM com falha de lógica (2):** `unit/sync_verification` (o mock devolve objetos com `phone/name` enquanto o controller lê `chat.id._serialized` — contrato mudou no refactor do Sync) e `unit/campaignScheduler` (4 falhas de agendamento).
+> - **CommonJS a converter (5):** `integration/flow`, `integration/import`, `integration/crm`, `automation`, `agent_chat`. **Atenção:** `import`, `crm` e `agent_chat` fazem `require('../server')`, o que **sobe o servidor de verdade** (porta + banco real). Precisam ser reescritas montando os routers num app Express mínimo — o padrão já validado em `tests/integration/membership_offboarding.test.js`.
+>
+> **Achado operacional:** rodar as suítes de integração em paralelo faz **3+ instâncias do `mongodb-memory-server`** subirem ao mesmo tempo e algumas estouram o timeout de 10s ("Instance failed to start"). Use `npm test -- --runInBand`, ou compartilhe uma única instância no `setup.js`.
 🧹 Ponto 1: Auditoria e Revitalização do Legado (A Limpeza da Casa)
 Objetivo: Fazer os testes atuais voltarem a passar antes de criar coisas novas, garantindo que o ambiente Jest esteja saudável.
 
