@@ -249,6 +249,8 @@ O objetivo declarado: **código mais limpo e segregado**, reusando os microsserv
 
 ### Sai (deletado do repositório)
 
+> Inventário completo, ordem de execução e critérios de aceite (`grep`) da limpeza: `PLANEJAMENTO.md` §15, no repo `Squamata-whatsapp`.
+
 | Item | Substituído por |
 | :--- | :--- |
 | `services/wwebjsService.js` (854 linhas) | cliente HTTP do `squamata-whatsapp` |
@@ -304,6 +306,8 @@ Como o **`Session` deixa de existir no Mongo** (passa a viver no SQLite do servi
 ---
 
 ## 9. Fases de execução
+
+> Planejamento operacional detalhado do serviço (contrato HTTP, envelope de eventos, matriz de paridade e decisões fechadas): `PLANEJAMENTO.md` no repo `Squamata-whatsapp`.
 
 | Fase | Entrega | Critério de aceite |
 | :--- | :--- | :--- |
