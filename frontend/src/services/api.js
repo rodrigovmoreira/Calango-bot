@@ -60,6 +60,9 @@ export const businessAPI = {
   getConfig: () => api.get('/api/v1/business/config'),
   updateConfig: (data) => api.put('/api/v1/business/config', data),
   getTeam: () => api.get('/api/v1/business/team'),
+  getMemberLeadCount: (userId) => api.get(`/api/v1/business/team/${userId}/lead-count`),
+  deactivateMember: (userId, transferTo) =>
+    api.patch(`/api/v1/business/team/${userId}/deactivate`, transferTo ? { transferTo } : {}),
   
   // 2. Controle do WhatsApp (Atualizado para /api/whatsapp)
   getWhatsAppStatus: () => api.get('/api/v1/whatsapp/status'),
@@ -126,6 +129,8 @@ export const businessAPI = {
   deleteContact: (id) => api.delete(`/api/v1/contacts/${id}`),
   bulkDeleteContacts: (ids) => api.post('/api/v1/contacts/bulk-delete', { ids }),
   bulkAddTags: (ids, tags) => api.post('/api/v1/contacts/bulk-tags', { ids, tags }),
+  bulkTransferContacts: (fromUserId, toUserId) =>
+    api.post('/api/v1/contacts/bulk-transfer', { fromUserId, toUserId }),
   assignContact: (id, userId, __v) => api.patch(`/api/v1/contacts/${id}/assign`, { assignedTo: userId, __v }), // <--- NOVO: Atribuir contato (Ponto 3)
   importContacts: (formData) => api.post('/api/v1/contacts/import', formData),
   syncContacts: () => api.post('/api/v1/contacts/sync'), // <--- FIXED: Correct sync endpoint

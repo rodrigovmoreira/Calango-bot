@@ -212,9 +212,16 @@ async function getLastMessages(identifier, limit = 15, businessId, channel = 'wh
 async function getConversations(businessId) {
   try {
     // Busca contatos do negócio ordenados por última interação
+    // `createdBy`/`lastUpdatedBy` alimentam o rodapé de rastreabilidade (Ponto 5.3).
+    // Sem o `select` destes campos o `populate` não tem o que resolver.
     const contacts = await Contact.find({ businessId })
       .sort({ lastInteraction: -1 })
-      .select('_id name phone channel lastInteraction sessionId avatarUrl tags isHandover funnelStage dealValue notes __v assignedTo') // Projection
+      .select(
+        '_id name phone channel lastInteraction sessionId avatarUrl tags isHandover funnelStage dealValue notes __v assignedTo ' +
+          'createdBy lastUpdatedBy lastUpdatedAt lastUpdatedOrigin createdAt'
+      )
+      .populate('assignedTo', 'name email avatarUrl')
+      .populate('createdBy lastUpdatedBy', 'name email')
       .lean();
 
     return contacts;

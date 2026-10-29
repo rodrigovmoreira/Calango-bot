@@ -1,5 +1,21 @@
 # 🗺️ Roadmap de Integração: Squamata-Login 🤝 Calango-Bot
 
+> **✅ CONCLUÍDO — verificado no código em 2026-10-29.**
+>
+> | Checkpoint | Situação | Evidência |
+> | :--- | :--- | :--- |
+> | 0. Infra + `JWT_SECRET_LOGIN` + `REACT_APP_LOGIN_URL` | ✅ | `.env` / `.env.example` com a chave compartilhada e a URL do IdP |
+> | 1. Backend SSO (`authenticateToken` só Squamata) | ✅ | `middleware/auth.js` — sem modo dual, sem fallback de token antigo |
+> | 1.3 `GET /api/auth/profile` | ✅ | registrado em `routes/authRoutes.js` |
+> | 2. Frontend SSO (`Login.jsx`, `AuthCallback.jsx`) | ✅ | redireciona ao portal central e hidrata o perfil no retorno |
+> | 3. Rotas antigas desativadas (410 Gone) | ✅ | `/login`, `/register`, `/verify-email` → 410 com `redirectUrl`; `/google*` → redirect ao IdP |
+> | 3.3 Passport removido | ✅ | nenhuma referência a `passport` no backend |
+> | 3.4 `GoogleCallback.jsx` removido | ✅ | arquivo não existe |
+> | 4.1 Modo dual removido de `auth.js` | ✅ | apenas fluxo Squamata |
+> | 4.2 Dependências removidas | ✅ | `bcryptjs`, `passport*` ausentes do `package.json` |
+>
+> **Observação:** o documento abaixo é o **plano original** e foi mantido como registro histórico das decisões. Trechos que falam em "modo dual" descrevem um estado intermediário que já não existe.
+
 > **Modelo de referência**: A integração já funciona no **Calango-food**. Este roadmap replica o mesmo padrão SSO, adaptado às particularidades do Calango-Bot (multi-tenancy, roles, invites).
 
 ---

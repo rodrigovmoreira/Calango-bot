@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import auditPlugin from '../utils/auditPlugin.js';
 
 const appointmentSchema = new mongoose.Schema({
   businessId: {
@@ -74,5 +75,8 @@ appointmentSchema.index({ businessId: 1, status: 1, start: 1 });
 
 // Optimization: Operator filtering (find appointments assigned to user or unassigned)
 appointmentSchema.index({ businessId: 1, assignedTo: 1 });
+
+// Rastreabilidade (Roadmap 1, Ponto 5): createdBy / lastUpdatedBy / lastUpdatedAt
+appointmentSchema.plugin(auditPlugin);
 
 export default mongoose.model('Appointment', appointmentSchema);

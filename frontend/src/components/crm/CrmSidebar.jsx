@@ -7,6 +7,7 @@ import {
 } from '@chakra-ui/react';
 import { SmallCloseIcon, CloseIcon } from '@chakra-ui/icons';
 import TagAutocomplete from '../Tags/TagAutocomplete';
+import AuditTrail from '../AuditTrail';
 
 const CrmSidebar = ({ contact, onUpdate, availableTags, onAddTag, onRemoveTag, tagColors, onClose }) => {
   const [dealValue, setDealValue] = useState('0.00');
@@ -177,6 +178,8 @@ const CrmSidebar = ({ contact, onUpdate, availableTags, onAddTag, onRemoveTag, t
         >
           Salvar Dados
         </Button>
+
+        <AuditTrail documento={contact} />
 
       </VStack>
     </Box>

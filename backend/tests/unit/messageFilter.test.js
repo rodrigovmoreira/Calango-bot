@@ -1,4 +1,4 @@
-import { jest } from '@jest/globals';
+﻿import { jest } from '@jest/globals';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -22,7 +22,10 @@ jest.unstable_mockModule(path.resolve(__dirname, '../../services/aiService.js'),
     buildSystemPrompt: jest.fn(),
     callDeepSeek: jest.fn(),
     getFunnelStagePrompt: jest.fn(),
-    formatHistoryText: jest.fn()
+    formatHistoryText: jest.fn(),
+    // messageHandler importa `processConversation` — sem esta exportação o
+    // módulo ESM nem chega a ser ligado e a suíte inteira falha.
+    processConversation: jest.fn()
 }));
 jest.unstable_mockModule(path.resolve(__dirname, '../../services/visionService.js'), () => ({
     analyzeImage: jest.fn()
@@ -61,7 +64,9 @@ describe('Message Handler Audience Filtering', () => {
         messageService.saveMessage.mockResolvedValue();
         messageService.getLastMessages.mockResolvedValue([]);
         aiService.buildSystemPrompt.mockResolvedValue('System Prompt');
-        aiService.callDeepSeek.mockResolvedValue('AI Response');
+        // O messageHandler passou a usar `processConversation` (que devolve o
+        // texto final) em vez de `callDeepSeek` direto.
+        aiService.processConversation.mockResolvedValue('AI Response');
     });
 
     afterEach(() => {
@@ -95,7 +100,7 @@ describe('Message Handler Audience Filtering', () => {
         const result = await promise;
 
         expect(result).toEqual({ text: 'AI Response' });
-        expect(aiService.callDeepSeek).toHaveBeenCalled();
+        expect(aiService.processConversation).toHaveBeenCalled();
     });
 
     test('Mode "new_contacts": Should respond if contact is NULL (Brand New)', async () => {
@@ -143,7 +148,7 @@ describe('Message Handler Audience Filtering', () => {
         const result = await promise;
 
         expect(result).toEqual({ text: "" }); // Empty response = Blocked
-        expect(aiService.callDeepSeek).not.toHaveBeenCalled();
+        expect(aiService.processConversation).not.toHaveBeenCalled();
     });
 
     test('Mode "new_contacts": Should BLOCK if contact is OLD', async () => {
@@ -164,7 +169,7 @@ describe('Message Handler Audience Filtering', () => {
         const result = await promise;
 
         expect(result).toEqual({ text: "" });
-        expect(aiService.callDeepSeek).not.toHaveBeenCalled();
+        expect(aiService.processConversation).not.toHaveBeenCalled();
     });
 
     test('Mode "whitelist": Should BLOCK if whitelist is empty', async () => {
@@ -178,7 +183,7 @@ describe('Message Handler Audience Filtering', () => {
         const result = await promise;
 
         expect(result).toEqual({ text: "" });
-        expect(aiService.callDeepSeek).not.toHaveBeenCalled();
+        expect(aiService.processConversation).not.toHaveBeenCalled();
     });
 
     test('Mode "whitelist": Should BLOCK if tag missing', async () => {
@@ -192,7 +197,7 @@ describe('Message Handler Audience Filtering', () => {
         const result = await promise;
 
         expect(result).toEqual({ text: "" });
-        expect(aiService.callDeepSeek).not.toHaveBeenCalled();
+        expect(aiService.processConversation).not.toHaveBeenCalled();
     });
 
     test('Mode "whitelist": Should ALLOW if tag present', async () => {
@@ -219,7 +224,7 @@ describe('Message Handler Audience Filtering', () => {
         const result = await promise;
 
         expect(result).toEqual({ text: "" });
-        expect(aiService.callDeepSeek).not.toHaveBeenCalled();
+        expect(aiService.processConversation).not.toHaveBeenCalled();
     });
 
     test('Mode "blacklist": Should ALLOW if tag missing', async () => {

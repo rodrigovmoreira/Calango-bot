@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import auditPlugin from '../utils/auditPlugin.js';
 
 const businessConfigSchema = new mongoose.Schema({
 
@@ -149,5 +150,8 @@ businessConfigSchema.index(
   { phoneNumber: 1 },
   { unique: true, partialFilterExpression: { phoneNumber: { $type: 'string' } } }
 );
+
+// Rastreabilidade (Roadmap 1, Ponto 5): createdBy / lastUpdatedBy / lastUpdatedAt
+businessConfigSchema.plugin(auditPlugin);
 
 export default mongoose.model('BusinessConfig', businessConfigSchema);

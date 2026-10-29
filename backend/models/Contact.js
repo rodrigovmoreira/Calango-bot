@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import auditPlugin from '../utils/auditPlugin.js';
 
 const contactSchema = new mongoose.Schema({
   // VÍNCULO DE SEGURANÇA (Multi-tenant)
@@ -101,5 +102,8 @@ contactSchema.index({ businessId: 1, followUpActive: 1 });
 
 // Optimization: Operator filtering (find contacts assigned to user or unassigned)
 contactSchema.index({ businessId: 1, assignedTo: 1 });
+
+// Rastreabilidade (Roadmap 1, Ponto 5): createdBy / lastUpdatedBy / lastUpdatedAt
+contactSchema.plugin(auditPlugin);
 
 export default mongoose.model('Contact', contactSchema);
