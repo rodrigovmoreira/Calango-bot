@@ -1,4 +1,4 @@
-# 📱 Roadmap 2 — Squamata-whats: conexão de WhatsApp como microsserviço
+﻿# 📱 Roadmap 2 — Squamata-whatsapp: conexão de WhatsApp como microsserviço
 
 > **Status:** 🔵 **reescrito em 2026-10-29** — substitui integralmente a versão anterior (preservada em [Roadmap 2 - Calango Bot Múltiplos WhatsApps.LEGADO.md](./Roadmap%202%20-%20Calango%20Bot%20M%C3%BAltiplos%20WhatsApps.LEGADO.md)).
 > **Decisão:** a conexão de WhatsApp deixa de ser uma biblioteca embutida no Calango-bot e passa a ser um **microsserviço próprio em Go, usando `whatsmeow`**, com **múltiplas sessões desde o primeiro dia**.
@@ -44,18 +44,45 @@ Além disso, `whatsapp-web.js` + `puppeteer` trazem um **Chromium** para a image
 | Item | Decisão |
 | :--- | :--- |
 | **Tecnologia** | Go + [`whatsmeow`](https://github.com/tulir/whatsmeow) (protocolo WhatsApp Web *multidevice*, nativo, sem navegador) |
-| **Nome do serviço** | `squamata-whats` (repositório `Squamata-whats`, container `squamata-whats`) |
+| **Nome do serviço** | `squamata-whatsapp` (repositório `Squamata-whatsapp`, container `squamata-whatsapp`) |
 | **Camada no ecossistema** | **Domínio (crítico)** — a capacidade "WhatsApp" para; o CRM, funil e agenda do Calango-bot continuam |
 | **Porta** | `3006` (3005 = `squamata-upload`) |
 | **Contrato** | `GET /api/v1/health` + `/api/v1/...` (ADR 002). **Webhooks não versionados** (`/webhooks/...`) |
 | **Rede** | `squamata-global` |
-| **Banco do serviço** | PostgreSQL — store do `whatsmeow` (`sqlstore`), **não** MongoDB |
-| **Auth entre serviços** | Token interno (`SQUAMATA_INTERNAL_TOKEN`). **O `squamata-whats` NÃO depende do Squamata-Login** |
-| **Mídia** | Baixada/enviada pelo `squamata-whats`, mas **armazenada no `squamata-upload`** |
+| **Banco do serviço** | **SQL** (store oficial do `whatsmeow`), **não** MongoDB — ver §2.1 |
+| **Auth entre serviços** | Token interno (`SQUAMATA_INTERNAL_TOKEN`). **O `squamata-whatsapp` NÃO depende do Squamata-Login** |
+| **Mídia** | Baixada/enviada pelo `squamata-whatsapp`, mas **armazenada no `squamata-upload`** |
+
+### 2.1 O banco não pode ser MongoDB (decisão fundamentada)
+
+A pergunta natural é: o ecossistema já roda MongoDB, por que não guardar as sessões lá?
+
+**O que o `whatsmeow` guarda não é "dado de sessão", é estado criptográfico do protocolo Signal:** identity keys, pre-keys, signed pre-keys, sender keys, sessões por dispositivo remoto, MACs de mutação de app state. Perder ou corromper isso = mensagens que **não decifram**, com erro opaco e difícil de diagnosticar.
+
+Verificado nas fontes:
+
+- O pacote `go.mau.fi/whatsmeow/store` define **interfaces** (`AllStores`, `AllGlobalStores`, `AllSessionSpecificStores`, `Device`, `AppStateStore`, `ContactStore`, `ChatSettingsStore`) e o `Device` aceita `SetAllStores(...)`. Ou seja: **implementar um store customizado é possível e oficialmente suportado**.
+- Mas a implementação pronta é o `sqlstore`: `sqlstore.New(ctx, dialect, address, log)` — **SQL apenas** (dialeto do `dbutil`: postgres, mysql/mariadb, sqlite).
+- **Não existe adapter MongoDB** para o `whatsmeow` (busca no GitHub por repositórios: 0 resultados).
+
+Seria preciso escrever e **manter para sempre** ~20 métodos de estado criptográfico. Isso não é "reaproveitar a infra que já existe" — é assumir a parte mais delicada da biblioteca. **Decisão: usar o `sqlstore` oficial.**
+
+**MongoDB tem "schema"?** Não no sentido SQL. O equivalente mais próximo seria um database ou um prefixo de coleção — mas o ponto acima torna a pergunta irrelevante: o estado criptográfico precisa do `sqlstore`.
+
+**Escolha do dialeto — `postgres` (não SQLite):**
+
+| | SQLite por sessão | Postgres |
+| :--- | :--- | :--- |
+| Infra nova | ✅ nenhuma | 🟡 uma peça a mais |
+| N sessões no mesmo banco | 🟡 um arquivo por sessão | ✅ nativo |
+| Backup | cópia de arquivo | point-in-time |
+| **Trocar de dialeto depois** | ⚠️ **exige reparear todos os números** | — |
+
+O último item decide. O `sqlstore` **não converte entre dialetos**: mudar de SQLite para Postgres mais tarde significa perder as chaves e **parear todo número de novo**. Como não há número em produção hoje, escolher Postgres agora custa uma peça de infra; escolher SQLite agora pode custar um repareamento geral depois.
 
 ### Por que não depende do Squamata-Login
 
-O `squamata-whats` não tem usuário logado: quem o chama é o **backend** do Calango-bot, server-to-server. Se ele exigisse JWT do usuário, ele viraria dependente da camada **Plataforma** — e uma regra do ecossistema é que a queda do Login não pode derrubar conexões já estabelecidas. Com isso, o `squamata-whats` continua **plataforma-independente**: sessões de WhatsApp sobrevivem a uma queda do Login.
+O `squamata-whatsapp` não tem usuário logado: quem o chama é o **backend** do Calango-bot, server-to-server. Se ele exigisse JWT do usuário, ele viraria dependente da camada **Plataforma** — e uma regra do ecossistema é que a queda do Login não pode derrubar conexões já estabelecidas. Com isso, o `squamata-whatsapp` continua **plataforma-independente**: sessões de WhatsApp sobrevivem a uma queda do Login.
 
 > Trade-off assumido: mais um segredo para gerenciar (`SQUAMATA_INTERNAL_TOKEN`). Ver Riscos §9.
 
@@ -81,7 +108,7 @@ Consequência direta para o produto: o disparo de campanhas precisa ser **mensag
 │  (CRM, funil, agenda)    │                  └────────────────────────┘
 │                          │
 │  services/whatsapp/      │  HTTP interno    ┌────────────────────────┐
-│   ├── client.js ─────────┼─────────────────▶│  squamata-whats  (Go)  │
+│   ├── client.js ─────────┼─────────────────▶│  squamata-whatsapp  (Go)  │
 │   └── inbound.js  ◀──────┼──── webhook ─────│  whatsmeow · N sessões │
 └──────────────────────────┘                  └───────────┬────────────┘
                                                           │ mídia
@@ -124,7 +151,25 @@ SessionRegistry (map[sessionID]*Session, protegido por RWMutex)
 
 ### Storage
 
-`whatsmeow` exige persistência das chaves de criptografia. Sem isso, cada restart = novo pareamento. **PostgreSQL** (e não SQLite) porque: backup já existe na infra, sobrevive a reinício de container e permite N sessões num único banco (as tabelas são por dispositivo).
+`whatsmeow` exige persistência das chaves de criptografia. Sem isso, cada restart = novo pareamento. **Postgres** (ver §2.1) porque: sobrevive a reinício de container, aceita N sessões num único banco (as tabelas são por dispositivo) e não exige repareamento se um dia precisarmos mudar de plano.
+
+### Propriedade da sessão (escopo "ambos")
+
+Requisito de produto: a sessão pode pertencer à **empresa** (setor: vendas, suporte) **ou** a um **usuário** (profissional: "Tatuador A"). O modelo já nasce com os dois:
+
+```go
+type Session struct {
+    ID          string   // UUID — é o sessionId que o Calango-bot guarda
+    TenantID    string   // businessId (sempre presente)
+    OwnerUserID string   // opcional: vazio = sessão do setor/empresa
+    Name        string
+    Phone       string
+    Status      string
+    ...
+}
+```
+
+Isso muda a autorização no Calango-bot: sessão com `OwnerUserID` vazio é visível para todos os membros ativos do tenant; sessão com `OwnerUserID` só é visível para aquele usuário e para os admins. **O isolamento entre tenants é sempre pelo `TenantID` do caminho**, nunca pelo `OwnerUserID`.
 
 ---
 
@@ -161,7 +206,7 @@ PATCH  /api/v1/tenants/:tenantId/sessions/:id/labels/:labelId
 DELETE /api/v1/tenants/:tenantId/sessions/:id/labels/:labelId
 
 # Entrada (não versionado — webhook)
-POST   /api/v1/webhooks/whatsapp        ← squamata-whats → Calango-bot (HMAC assinado)
+POST   /api/v1/webhooks/whatsapp        ← squamata-whatsapp → Calango-bot (HMAC assinado)
 ```
 
 > **`pairing-code` é uma melhoria de produto**, não só técnica: hoje o usuário precisa escanear um QR. Com `PairPhone` do `whatsmeow`, ele digita o número e recebe um código de 8 dígitos — funciona no celular, sem outra tela.
@@ -173,7 +218,7 @@ POST   /api/v1/webhooks/whatsapp        ← squamata-whats → Calango-bot (HMAC
 Hoje o `wwebjsService` chama `messageHandler` **dentro do mesmo processo**. Com o microsserviço, a mensagem vem por HTTP.
 
 ```
-WhatsApp → squamata-whats (events.Message)
+WhatsApp → squamata-whatsapp (events.Message)
               │ normaliza
               ▼
 POST /api/v1/webhooks/whatsapp     (HMAC-SHA256 em X-Signature)
@@ -203,7 +248,7 @@ O objetivo declarado: **código mais limpo e segregado**, reusando os microsserv
 
 | Item | Substituído por |
 | :--- | :--- |
-| `services/wwebjsService.js` (854 linhas) | cliente HTTP do `squamata-whats` |
+| `services/wwebjsService.js` (854 linhas) | cliente HTTP do `squamata-whatsapp` |
 | `client.pupPage.evaluate(...)` em `contactController` | `POST .../contacts/sync` |
 | `killOrphanedBrowser`, `cleanupTempFolders`, `startGlobalHealthCheck` | state machine do Go |
 | `initializeWWebJS(io)` no `server.js` | nada (sem Chromium no boot) |
@@ -231,7 +276,7 @@ O objetivo declarado: **código mais limpo e segregado**, reusando os microsserv
 
 ```
 backend/services/whatsapp/
-  ├── client.js   ← HTTP para squamata-whats (timeouts, retry, auth interna)
+  ├── client.js   ← HTTP para squamata-whatsapp (timeouts, retry, auth interna)
   └── inbound.js  ← recebe o webhook, valida HMAC, garante idempotência
 ```
 
@@ -260,13 +305,13 @@ Como o **`Session` deixa de existir no Mongo** (passa a viver no Postgres do ser
 | Fase | Entrega | Critério de aceite |
 | :--- | :--- | :--- |
 | **F0 — Spike** | Binário Go pareado com um número de teste; recebe e ecoa mensagem | Mensagem real vai e volta sem Chromium |
-| **F1 — Esqueleto** | Repo, `/api/v1/health`, Postgres, `sqlstore`, auth interna, `/sessions` CRUD | `docker compose up` sobe e responde health |
+| **F1 — Esqueleto** | Repo, `/api/v1/health`, Postgres + `sqlstore`, auth interna, `/sessions` CRUD | `docker compose up` sobe, responde health e persiste uma sessão |
 | **F2 — Pareamento** | QR + **pairing code**; state machine; reconexão automática | Reiniciar o container mantém a sessão (chaves persistidas) |
 | **F3 — Entrada** | Webhook assinado + idempotência no bot | Reenvio do mesmo `messageId` não duplica |
 | **F4 — Saída** | Texto, mídia (via `squamata-upload`), presença | Chat do painel envia e recebe pelo serviço novo |
 | **F5 — Contatos** | `contacts/sync` substituindo o scraping | Sync do painel funciona sem Puppeteer |
 | **F6 — Labels** | app state: ler/criar/editar/excluir | `tagService` sincroniza |
-| **F7 — Multi-sessão na UI** | Criar sessão nomeada, badge por canal, filtro por sessão, envio pelo canal escolhido | Duas sessões simultâneas, contextos isolados |
+| **F7 — Multi-sessão na UI** | Criar sessão nomeada (do setor **ou** de um usuário), badge por canal, filtro por sessão, envio pelo canal escolhido; autorização por `OwnerUserID` | Duas sessões simultâneas, contextos isolados |
 | **F8 — Desligamento** | Remover `whatsapp-web.js`/`puppeteer` e o `wwebjsService` | `grep` de aceite do §7 vazio; imagem Docker menor |
 | **F9 — Observabilidade** | Métricas por sessão, logs estruturados, alerta de sessão caída | Dashboard mostra sessão desconectada em < 1 min |
 
@@ -280,8 +325,8 @@ Como o **`Session` deixa de existir no Mongo** (passa a viver no Postgres do ser
 | :--- | :--- | :--- |
 | **`whatsmeow` é protocolo não oficial** — risco de banimento do número | 🔴 Alto | Mesma classe de risco do `whatsapp-web.js` atual (não é um risco *novo*). Mitigar com: rate limit por sessão, sem comportamento de spam, número dedicado de teste antes de produção, aviso no onboarding |
 | Pareamento perdido a cada deploy | 🟠 Médio | Chaves no Postgres com volume persistente; teste de "reiniciar container mantém sessão" no aceite da F2 |
-| **Credenciais atuais não são migráveis** — hoje o `whatsapp-web.js` guarda a sessão em `RemoteAuth` + `UnifiedMongoStore` (GridFS). Esse formato é incompatível com o `sqlstore` do `whatsmeow` | 🟠 Médio | Todo número precisa ser **pareado de novo**. Planejar janela e responsável (§12, item 3) |
-| **Big-bang quebra o WhatsApp em produção** | 🔴 Alto | **Feature flag por `businessId`**: o adaptador escolhe entre `squamata-whats` e o `wwebjsService` legado. O legado só é removido na F8, depois de todas as sessões reais migradas |
+| **Credenciais atuais não são migráveis** — hoje o `whatsapp-web.js` guarda a sessão em `RemoteAuth` + `UnifiedMongoStore` (GridFS), formato incompatível com o `sqlstore` | ⚪ **não se aplica hoje** | **Não há número real em produção** (confirmado em 2026-10-29): não há repareamento a fazer. Se surgir número real antes da F8, o repareamento precisa entrar no plano |
+| **Big-bang quebra o WhatsApp** | ⚪ **risco baixo** | Sem número em produção, **não precisamos de dupla execução nem feature flag**. A virada é direta; o `wwebjsService` é removido na F8 sem conviver com o novo |
 | Perda de mensagem entre o serviço e o bot | 🟠 Médio | Retry com backoff + idempotência por `messageId` + fila de saída persistida no Go |
 | **Labels podem não estar totalmente cobertas** | 🟡 Baixo | O README cita "app state" genérico. **Validar na F0**; se não cobrir, o fallback é manter labels só na UI (funcionalidade degradada, não quebrada) |
 | Mídia trafegando em base64 estoura memória | 🟠 Médio | Sempre por URL assinada do `squamata-upload`; base64 só para arquivos pequenos |
@@ -297,20 +342,27 @@ Como o **`Session` deixa de existir no Mongo** (passa a viver no Postgres do ser
 | **R1 (multi-usuários) — ✅ concluído** | **Nenhum conflito.** Offboarding, transferência de leads, auditoria e concorrência otimista continuam válidos: são escopo por `businessId`, e a sessão é uma dimensão adicional | Nenhuma |
 | **R3 (testes)** | 🟠 **Direto.** Vários mocks de `wwebjsService` vão desaparecer. Os testes que mockam `sendWWebJSMessage`/`getClientSession` precisam passar a mockar o adaptador | Planejar junto com a F4 |
 | **R5 (landing/SEO)** | Nenhum | — |
-| **Smoke test (Calango-docs)** | 🟠 Precisa de manifest novo: health do `squamata-whats` + ausência do antigo | Atualizar na F1 |
+| **Smoke test (Calango-docs)** | 🟠 Precisa de manifest novo: health do `squamata-whatsapp` + ausência do antigo | Atualizar na F1 |
 | **`constitution.md` / `Architecture.md`** | 🟠 O serviço precisa entrar na tabela de camadas, portas e ordem de subida | Atualizar na F1 (ADR 005) |
 | **Calango-food** | Nenhum hoje. **Oportunidade futura**: notificação de status do pedido por WhatsApp usando o mesmo serviço — é o argumento de reutilização | — |
 | **marianos-meat / gateway** | Nenhum | — |
 
 ---
 
-## 12. Decisões abertas (precisam de resposta antes da F1)
+## 12. Decisões fechadas em 2026-10-29
 
-1. **Nome do repositório:** `Squamata-whats` (segue `Squamata-*`) ou `Squamata-whatsapp` (mais explícito)?
-2. **Postgres:** um banco novo dedicado ao `squamata-whats`, ou um schema dentro de um Postgres já existente no ecossistema?
-3. **Migração das sessões reais:** o pareamento atual (`whatsapp-web.js`, credenciais em `RemoteAuth`) **não é transferível** para o `whatsmeow`. Cada número precisará ser **pareado de novo** (QR ou código). Quantos números reais existem hoje e quem opera esse repareamento?
-4. **Número de teste:** existe um chip dedicado para o spike da F0? Não dá para arriscar um número de cliente.
-5. **Escopo de F7:** o produto quer "múltiplos profissionais" (cada tatuador com seu número) ou "múltiplos setores" (vendas/suporte)? Muda o modelo de permissão: sessão pertence à empresa ou a um usuário?
+| # | Pergunta | Resposta |
+| :--- | :--- | :--- |
+| 1 | Nome do repositório | **`Squamata-whatsapp`** |
+| 2 | Banco das sessões | **SQL do `sqlstore`, com Postgres.** MongoDB foi descartado com evidência (§2.1) |
+| 3 | Sessões: profissionais ou setores? | **Ambos** — `OwnerUserID` opcional (§4) |
+| 4 | Existe número real em produção? | **Não.** Sem repareamento e sem dupla execução; virada direta na F8 |
+
+### Ainda em aberto (não bloqueiam a F1)
+
+1. **Chip de teste para a F0.** O spike precisa de um número dedicado — não usar número de cliente.
+2. **Onde o Postgres roda:** container novo no compose do `squamata-whatsapp`, ou um Postgres compartilhado do ecossistema com database dedicado?
+3. **Quem opera o primeiro pareamento** de cada empresa quando isso for ao ar.
 
 ---
 
