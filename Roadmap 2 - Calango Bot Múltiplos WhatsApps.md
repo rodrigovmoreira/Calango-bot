@@ -49,7 +49,7 @@ Além disso, `whatsapp-web.js` + `puppeteer` trazem um **Chromium** para a image
 | **Porta** | `3006` (3005 = `squamata-upload`) |
 | **Contrato** | `GET /api/v1/health` + `/api/v1/...` (ADR 002). **Webhooks não versionados** (`/webhooks/...`) |
 | **Rede** | `squamata-global` |
-| **Banco do serviço** | **SQL** (store oficial do `whatsmeow`), **não** MongoDB — ver §2.1 |
+| **Banco do serviço** | **SQLite embarcado** (arquivo em volume) via `sqlstore` oficial — sem servidor de banco. Ver §2.1 e [ADR 005](../Calango-docs/docs/ADRs/005-armazenamento-sessoes-whatsapp.md) |
 | **Auth entre serviços** | Token interno (`SQUAMATA_INTERNAL_TOKEN`). **O `squamata-whatsapp` NÃO depende do Squamata-Login** |
 | **Mídia** | Baixada/enviada pelo `squamata-whatsapp`, mas **armazenada no `squamata-upload`** |
 
@@ -69,16 +69,19 @@ Seria preciso escrever e **manter para sempre** ~20 métodos de estado criptogr�
 
 **MongoDB tem "schema"?** Não no sentido SQL. O equivalente mais próximo seria um database ou um prefixo de coleção — mas o ponto acima torna a pergunta irrelevante: o estado criptográfico precisa do `sqlstore`.
 
-**Escolha do dialeto — `postgres` (não SQLite):**
+**Escolha do dialeto — SQLite embarcado, não Postgres** (decisão registrada em [ADR 005](../Calango-docs/docs/ADRs/005-armazenamento-sessoes-whatsapp.md)):
 
-| | SQLite por sessão | Postgres |
+| | **SQLite embarcado** | Postgres/MySQL |
 | :--- | :--- | :--- |
-| Infra nova | ✅ nenhuma | 🟡 uma peça a mais |
-| N sessões no mesmo banco | 🟡 um arquivo por sessão | ✅ nativo |
-| Backup | cópia de arquivo | point-in-time |
-| **Trocar de dialeto depois** | ⚠️ **exige reparear todos os números** | — |
+| Servidor de banco novo | ✅ **nenhum** (é biblioteca, não processo) | ❌ um servidor a mais |
+| Backup | cópia de arquivo (`VACUUM INTO`) | dump / PITR |
+| Multi-réplica | ❌ single-node | ✅ |
+| **Multi-réplica importa aqui?** | — | ⚠️ **Não.** A sessão é *stateful e presa ao processo*: o `Client` do `whatsmeow` vive numa réplica específica, então réplicas atrás de load balancer **não** distribuem sessões |
+| Testes | `:memory:` / arquivo temporário | exige infraestrutura |
 
-O último item decide. O `sqlstore` **não converte entre dialetos**: mudar de SQLite para Postgres mais tarde significa perder as chaves e **parear todo número de novo**. Como não há número em produção hoje, escolher Postgres agora custa uma peça de infra; escolher SQLite agora pode custar um repareamento geral depois.
+O critério decisivo não é "qual é mais robusto", é **"quantos processos escrevem este estado?"**. **Um só.** SQLite é o padrão para agentes stateful single-node exatamente por isso.
+
+> **Correção de uma avaliação anterior:** eu havia tratado "migrar de dialeto depois exige reparear" como fator decisivo. É exagero: o `dbutil` (base do `sqlstore`) tem migrações por dialeto (`-- only: sqlite`) e as tabelas são SQL genérico, então um dump/restore entre dialetos é viável — e, com dezenas de sessões, reparear custa um QR. O risco de lock-in é **baixo**.
 
 ### Por que não depende do Squamata-Login
 
@@ -151,7 +154,7 @@ SessionRegistry (map[sessionID]*Session, protegido por RWMutex)
 
 ### Storage
 
-`whatsmeow` exige persistência das chaves de criptografia. Sem isso, cada restart = novo pareamento. **Postgres** (ver §2.1) porque: sobrevive a reinício de container, aceita N sessões num único banco (as tabelas são por dispositivo) e não exige repareamento se um dia precisarmos mudar de plano.
+`whatsmeow` exige persistência das chaves de criptografia. Sem isso, cada restart = novo pareamento. **SQLite em volume persistente** (ver §2.1 e ADR 005): um arquivo para todas as sessões, porque o `sqlstore` chaveia as tabelas por dispositivo. Sem servidor de banco, sem dump lógico — backup é `VACUUM INTO` ou snapshot do volume.
 
 ### Propriedade da sessão (escopo "ambos")
 
@@ -252,7 +255,7 @@ O objetivo declarado: **código mais limpo e segregado**, reusando os microsserv
 | `client.pupPage.evaluate(...)` em `contactController` | `POST .../contacts/sync` |
 | `killOrphanedBrowser`, `cleanupTempFolders`, `startGlobalHealthCheck` | state machine do Go |
 | `initializeWWebJS(io)` no `server.js` | nada (sem Chromium no boot) |
-| `services/UnifiedMongoStore.js` (credenciais em GridFS) | `sqlstore` no Postgres do serviço Go |
+| `services/UnifiedMongoStore.js` (credenciais em GridFS) | `sqlstore` (SQLite em volume) do serviço Go |
 | `adaptWWebJSMessage` em `providerAdapter.js` | `adaptSquamataMessage` |
 | Pastas `.wwebjs_auth/`, `.wwebjs_cache/` e os ZIPs de `RemoteAuth` | — |
 | Dependências `whatsapp-web.js`, `puppeteer`, `qrcode-terminal` | — |
@@ -290,7 +293,7 @@ backend/services/whatsapp/
 
 `Contact.whatsappSessionId`, `Message.whatsappSessionId`, `Appointment.whatsappSessionId` e `BusinessConfig.whatsappSessionId` hoje são `ObjectId` com `ref: 'Session'`.
 
-Como o **`Session` deixa de existir no Mongo** (passa a viver no Postgres do serviço), esses campos viram **`String`** (ID externo opaco). É uma migração de schema:
+Como o **`Session` deixa de existir no Mongo** (passa a viver no SQLite do serviço), esses campos viram **`String`** (ID externo opaco). É uma migração de schema:
 
 - Campos são **opcionais** → documentos antigos continuam válidos (`null`).
 - Nenhum `populate` os usa hoje (verifiquei) → **não há quebra** na leitura.
@@ -305,7 +308,7 @@ Como o **`Session` deixa de existir no Mongo** (passa a viver no Postgres do ser
 | Fase | Entrega | Critério de aceite |
 | :--- | :--- | :--- |
 | **F0 — Spike** | Binário Go pareado com um número de teste; recebe e ecoa mensagem | Mensagem real vai e volta sem Chromium |
-| **F1 — Esqueleto** | Repo, `/api/v1/health`, Postgres + `sqlstore`, auth interna, `/sessions` CRUD | `docker compose up` sobe, responde health e persiste uma sessão |
+| **F1 — Esqueleto** | Repo, `/api/v1/health`, `sqlstore` em SQLite + volume, auth interna, `/sessions` CRUD | `docker compose up` sobe, responde health e uma sessão criada sobrevive ao restart |
 | **F2 — Pareamento** | QR + **pairing code**; state machine; reconexão automática | Reiniciar o container mantém a sessão (chaves persistidas) |
 | **F3 — Entrada** | Webhook assinado + idempotência no bot | Reenvio do mesmo `messageId` não duplica |
 | **F4 — Saída** | Texto, mídia (via `squamata-upload`), presença | Chat do painel envia e recebe pelo serviço novo |
@@ -324,7 +327,7 @@ Como o **`Session` deixa de existir no Mongo** (passa a viver no Postgres do ser
 | Risco | Severidade | Mitigação |
 | :--- | :--- | :--- |
 | **`whatsmeow` é protocolo não oficial** — risco de banimento do número | 🔴 Alto | Mesma classe de risco do `whatsapp-web.js` atual (não é um risco *novo*). Mitigar com: rate limit por sessão, sem comportamento de spam, número dedicado de teste antes de produção, aviso no onboarding |
-| Pareamento perdido a cada deploy | 🟠 Médio | Chaves no Postgres com volume persistente; teste de "reiniciar container mantém sessão" no aceite da F2 |
+| Pareamento perdido a cada deploy | 🟠 Médio | Arquivo SQLite em volume persistente + `journal_mode=WAL` + `busy_timeout`; teste de "reiniciar container mantém sessão" é o aceite da F2 |
 | **Credenciais atuais não são migráveis** — hoje o `whatsapp-web.js` guarda a sessão em `RemoteAuth` + `UnifiedMongoStore` (GridFS), formato incompatível com o `sqlstore` | ⚪ **não se aplica hoje** | **Não há número real em produção** (confirmado em 2026-10-29): não há repareamento a fazer. Se surgir número real antes da F8, o repareamento precisa entrar no plano |
 | **Big-bang quebra o WhatsApp** | ⚪ **risco baixo** | Sem número em produção, **não precisamos de dupla execução nem feature flag**. A virada é direta; o `wwebjsService` é removido na F8 sem conviver com o novo |
 | Perda de mensagem entre o serviço e o bot | 🟠 Médio | Retry com backoff + idempotência por `messageId` + fila de saída persistida no Go |
@@ -354,14 +357,14 @@ Como o **`Session` deixa de existir no Mongo** (passa a viver no Postgres do ser
 | # | Pergunta | Resposta |
 | :--- | :--- | :--- |
 | 1 | Nome do repositório | **`Squamata-whatsapp`** |
-| 2 | Banco das sessões | **SQL do `sqlstore`, com Postgres.** MongoDB foi descartado com evidência (§2.1) |
+| 2 | Banco das sessões | **SQLite embarcado** (arquivo em volume) via `sqlstore`. MongoDB descartado com evidência (ADR 005); Postgres descartado porque a sessão é pinada ao processo, então multi-réplica não agrega |
 | 3 | Sessões: profissionais ou setores? | **Ambos** — `OwnerUserID` opcional (§4) |
 | 4 | Existe número real em produção? | **Não.** Sem repareamento e sem dupla execução; virada direta na F8 |
 
 ### Ainda em aberto (não bloqueiam a F1)
 
 1. **Chip de teste para a F0.** O spike precisa de um número dedicado — não usar número de cliente.
-2. **Onde o Postgres roda:** container novo no compose do `squamata-whatsapp`, ou um Postgres compartilhado do ecossistema com database dedicado?
+2. **Driver SQLite:** `modernc.org/sqlite` (puro Go, imagem sem CGO) ou `mattn/go-sqlite3` (CGO)? Validar na F0 qual identificador de dialeto o `sqlstore` aceita.
 3. **Quem opera o primeiro pareamento** de cada empresa quando isso for ao ar.
 
 ---
