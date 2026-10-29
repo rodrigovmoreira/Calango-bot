@@ -1,4 +1,14 @@
 📱 Roadmap Calango Bot Múltiplos WhatsApps (Multi-Profissionais / Setores)
+
+> **Status verificado no código em 2026-10-29 — 4/17 itens realmente feitos.**
+>
+> ⚠️ **Correção importante:** os itens 2.1–2.4 estavam marcados como concluídos, mas a verificação encontrou:
+> - **2.1 está INCORRETO.** `backend/models/Session.js` usa sintaxe ESM (`export { ... }`) mas começa com `require('mongoose')` — em um pacote `"type": "module"` isso lança `require is not defined` no primeiro import. Além disso **nenhum arquivo importa esse model**, então é código morto. Pior: `getOrCreateSession(phone)` não define `businessId`, que é `required` — a criação falharia na validação.
+> - **2.2 / 2.3 / 2.4 estão corretos no schema**, mas os campos `whatsappSessionId` nunca são preenchidos por nenhum writer (messageHandler, aiTools, controllers). São campos órfãos hoje.
+>
+> **Consequência:** o Ponto 1 (base de sessões) é pré-requisito real de todo o resto e ainda não existe. `wwebjsService` mantém `sessions` como `Map` indexado por **`businessId`** (`getClientSession(businessId)`), não por `sessionId`.
+>
+> **Análise de impacto:** este é o roadmap de **maior risco** do Calango-bot — ele troca o contrato do serviço de conexão do WhatsApp, que é o núcleo do produto e está em uso. Ver a análise de conflitos entre roadmaps no fim do `Roadmap 1`.
 🔌 Ponto 1: Arquitetura Base e Sessões (Backend / whatsapp-web.js)
 Objetivo: O servidor precisa rodar múltiplos WhatsApps do mesmo negócio, sabendo exatamente quem é quem.
 
