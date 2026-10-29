@@ -11,13 +11,14 @@ import {
   Menu, MenuButton, MenuList, MenuItem, Flex
 } from '@chakra-ui/react';
 import { ChatIcon, LinkIcon, DeleteIcon, ArrowBackIcon, InfoIcon, ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
-import { FaRobot, FaUser, FaTags, FaSync, FaEdit, FaFileImport } from 'react-icons/fa';
+import { FaRobot, FaUser, FaTags, FaSync, FaEdit, FaFileImport, FaExchangeAlt } from 'react-icons/fa';
 import { IoMdSend } from 'react-icons/io';
 import { businessAPI, tagAPI } from '../../services/api';
 import { useApp } from '../../context/AppContext';
 import CrmSidebar from '../crm/CrmSidebar';
 import ImportModal from '../crm/ImportModal';
 import TagManagerModal from '../Tags/TagManagerModal';
+import AssignmentModal from '../assignment/AssignmentModal';
 import ContactItem from '../ContactItem';
 import axios from 'axios';
 
@@ -42,6 +43,40 @@ const LiveChatTab = () => {
 
   // Tag Manager State
   const { isOpen: isTagManagerOpen, onOpen: onTagManagerOpen, onClose: onTagManagerClose } = useDisclosure();
+
+  // Assignment (Ponto 4.4) — "Passar a bola"
+  const { isOpen: isAssignOpen, onOpen: onAssignOpen, onClose: onAssignClose } = useDisclosure();
+  const [assignTarget, setAssignTarget] = useState(null);
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [isLoadingTeam, setIsLoadingTeam] = useState(false);
+
+  // Só admin pode transferir (a rota /contacts/:id/assign exige requireAdmin).
+  const myRole = (state.user?.businesses || []).find((b) => {
+    const id = b.businessId?._id || b.businessId;
+    return String(id) === String(state.user?.activeBusinessId);
+  })?.role || state.user?.role;
+  const isAdmin = myRole === 'admin';
+
+  const openAssign = async () => {
+    setAssignTarget(selectedContact);
+    onAssignOpen();
+    try {
+      setIsLoadingTeam(true);
+      const { data } = await businessAPI.getTeam();
+      setTeamMembers(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Erro ao carregar equipe:', error);
+    } finally {
+      setIsLoadingTeam(false);
+    }
+  };
+
+  const handleAssignSuccess = (updatedContact) => {
+    if (!updatedContact) return;
+    setSelectedContact((prev) => (prev ? { ...prev, ...updatedContact } : prev));
+    setConversations((prev) => prev.map((c) => (c._id === updatedContact._id ? { ...c, ...updatedContact } : c)));
+    setAllContacts((prev) => prev.map((c) => (c._id === updatedContact._id ? { ...c, ...updatedContact } : c)));
+  };
 
   // Mobile View State
   const [showMobileChat, setShowMobileChat] = useState(false);
@@ -520,6 +555,24 @@ const LiveChatTab = () => {
                                 />
                               </Tooltip>
 
+                              {isAdmin && (
+                                <Tooltip label={
+                                  selectedContact.assignedTo?.name
+                                    ? `Responsável: ${selectedContact.assignedTo.name}`
+                                    : 'Passar a bola (atribuir responsável)'
+                                }>
+                                  <IconButton
+                                    icon={<FaExchangeAlt />}
+                                    onClick={openAssign}
+                                    variant="ghost"
+                                    colorScheme={selectedContact.assignedTo ? 'green' : 'gray'}
+                                    aria-label="Passar a bola"
+                                    size="sm"
+                                    isLoading={isLoadingTeam}
+                                  />
+                                </Tooltip>
+                              )}
+
                               <Tooltip label="Limpar Histórico">
                                 <Button
                                   leftIcon={<DeleteIcon />}
@@ -701,6 +754,15 @@ const LiveChatTab = () => {
             loadAllContacts();
             loadConversations();
         }}
+      />
+
+      {/* Assignment Modal — "Passar a bola" (Ponto 4.4) */}
+      <AssignmentModal
+        isOpen={isAssignOpen}
+        onClose={onAssignClose}
+        contact={assignTarget}
+        teamMembers={teamMembers}
+        onAssignSuccess={handleAssignSuccess}
       />
 
       {/* Tag Manager Modal */}

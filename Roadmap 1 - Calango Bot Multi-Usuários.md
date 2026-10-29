@@ -81,19 +81,17 @@ Objetivo: Organizar quem atende quem e evitar colisões no funil de vendas.
 
 [x] 4.3 Endpoints de Atribuição (Node.js): Criar a rota PATCH /api/contacts/:id/assign no contactRoutes.js para atribuir ou trocar o dono de um contato.
 
-[ ] 4.4 Interface do Kanban (React/Chakra UI): No componente FunnelCard.jsx, exibir um Avatar pequeno com as iniciais do responsável. Dentro dos detalhes do contato, adicionar um Dropdown/Select para "Passar a bola" para outro vendedor.
+[x] 4.4 Interface do Kanban (React/Chakra UI): No componente FunnelCard.jsx, exibir um Avatar pequeno com as iniciais do responsável. Dentro dos detalhes do contato, adicionar um Dropdown/Select para "Passar a bola" para outro vendedor.
 
-   **PARCIAL — o que já existe:**
-   - Avatar do responsável no Kanban: ✅ [`FunnelCard.jsx:47`](frontend/src/components/funnel/FunnelCard.jsx) (com Tooltip e `contact.assignedTo` populado).
-   - Componente de troca: ✅ [`AssignmentModal.jsx`](frontend/src/components/assignment/AssignmentModal.jsx) já trata 409 e envia `__v`.
-
-   **O que falta:**
-   - O `AssignmentModal` **não está importado em lugar nenhum** (código órfão). Falta renderizá-lo nos detalhes do contato (LiveChatTab/ContactTab) com um botão "Passar a bola", passando `teamMembers` (via `businessAPI.getTeam()`) e `onAssignSuccess`.
-
-   **Viabilidade:** alta, risco baixo.
-   - Tudo que ele precisa já existe: `PATCH /api/v1/contacts/:id/assign` (com `requireAdmin`), `GET /api/v1/business/team`, e o contato já traz `__v` e `assignedTo` populado.
-   - **Atenção de produto:** a rota exige `requireAdmin`, ou seja, **operador não consegue passar a bola** — só admin. Se a intenção é que o vendedor transfira o próprio lead, é preciso decidir: (a) manter admin-only, ou (b) permitir que o dono atual transfira (`assignedTo === req.user.userId`). Sem essa decisão, o item não deve ser marcado como concluído.
-   - Não altera esquema nem dados → não quebra nada existente.
+   **CONCLUÍDO em 2026-10-28.** Avatar do responsável no Kanban já existia (`FunnelCard.jsx`).
+   - **"Passar a bola"** agora está no cabeçalho da conversa (`LiveChatTab.jsx`): ícone de troca, visível **apenas para admin** (a rota é `requireAdmin`), abrindo o `AssignmentModal` com a equipe carregada de `/business/team`. Tooltip mostra o responsável atual e o contato é atualizado nas três listas sem recarregar a página.
+   - **Bugs que precisaram ser corrigidos para funcionar:**
+     - `AssignmentModal` mantinha o responsável do contato anterior ao reabrir (state não resetava).
+     - `onAssignSuccess` recebia o `AxiosResponse` inteiro em vez do contato (`response.data`).
+     - `/business/team` devolve `{ id }`, não `{ _id }` — o modal não encontrava os membros.
+     - `PATCH /contacts/:id/assign` devolvia `assignedTo` como ObjectId cru; sem `populate` a UI não tinha o nome.
+     - `getConversations` não projetava `__v` nem `assignedTo`, então o contato selecionado chegava sem versão (quebrando a concorrência otimista do assign).
+   - Verificado: admin atribui (200, `assignedTo` populado, `__v` incrementa) · versão antiga → 409 · operador → 403 · desatribuir (null) → 200.
 
 🕵️‍♂️ Ponto 5: Rastreabilidade Básica (Log Versão Lite)
 Objetivo: Saber quem fez o que no sistema em caso de erros ou auditorias rápidas.
@@ -150,14 +148,14 @@ Objetivo: Remover usuários sem quebrar a rastreabilidade e redistribuir os clie
 
 📈 Plano de Execução (verificado em 2026-10-28)
 
-Resumo: **26 de 32 itens concluídos (81%)**. Restam 1 item parcial + 5 itens.
+Resumo: **27 de 32 itens concluídos (84%)**. Restam 5 itens (Ponto 5 e 6.3/6.4).
 
 | Ponto | Feito | Pendente | Situação |
 | :--- | :--- | :--- | :--- |
 | 1. Concorrência otimista | 5/5 | — | ✅ concluído |
 | 2. Convites / hierarquia | 6/6 | — | ✅ concluído (adaptado ao SSO) |
 | 3. Gestão de empresas | 10/10 | — | ✅ concluído |
-| 4. Responsável pelo lead | 3/4 | 4.4 (parte final) | 🟡 quase concluído |
+| 4. Responsável pelo lead | 4/4 | — | ✅ concluído |
 | 5. Rastreabilidade | 0/3 | 5.1, 5.2, 5.3 | ⬜ pendente |
 | 6. Offboarding | 2/4 | 6.3, 6.4 | 🟡 em andamento |
 
@@ -165,7 +163,7 @@ Resumo: **26 de 32 itens concluídos (81%)**. Restam 1 item parcial + 5 itens.
 
 1. ~~**6.2 (contexto revogado)**~~ — ✅ **concluído**.
 2. ~~**6.1 (endpoint de revogação)**~~ — ✅ **concluído** com soft delete, herança de leads e proteção de lockout ([ADR 004](../Calango-docs/docs/ADRs/004-vinculo-usuario-empresa.md)).
-3. **4.4 (fechar a atribuição)** — o modal já existe; falta renderizar. Decisão já tomada: **admin-only**.
+3. ~~**4.4 (fechar a atribuição)**~~ — ✅ **concluído** em 2026-10-28. Botão "Passar a bola" no cabeçalho da conversa, admin-only, `AssignmentModal` integrado.
 4. **5.1 → 5.2 → 5.3 (rastreabilidade)** — aditivo e independente. Escopo: **Contact, Appointment e BusinessConfig**. Faz sentido emendar antes do 6.4: o offboarding hoje só registra `deactivatedBy`; o Ponto 5 dá o rastro completo.
 5. **6.3 + 6.4 (transferência em lote + UI)** — a rota de inativação já transfere os leads do inativado; falta o `bulk-transfer` avulso e o modal de demissão com a contagem de leads.
 
@@ -174,7 +172,7 @@ Resumo: **26 de 32 itens concluídos (81%)**. Restam 1 item parcial + 5 itens.
 - **6.1 depende de 6.2** para ser efetivo (sem o 403, remover do array não corta o acesso na sessão corrente).
 - **6.4 depende de 6.3** (o modal precisa do endpoint de transferência e de uma contagem de leads por usuário).
 - **5.2 e 6.3 mexem no mesmo `contactController`** — se feitos em paralelo por engano, geram conflito de merge.
-- **4.4 depende de decisão de produto**, não de código.
+- **4.4 depende de decisão de produto**, não de código. Decisão tomada (admin-only) e item concluído.
 
 ### Evidências usadas na verificação
 

@@ -1,7 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal,  ModalOverlay,  ModalContent,  ModalHeader,  ModalFooter,  ModalBody,  ModalCloseButton,
-  Button,  Select,  VStack,  Text,  useToast,  Spinner } from '@chakra-ui/react';
+  Button,  Select,  VStack,  Text,  useToast } from '@chakra-ui/react';
 import { businessAPI } from '../../services/api';
+
+// O time vem de /business/team como { id, name, email, role } e o contato
+// pode trazer assignedTo populado ({_id,name}) ou como ObjectId.
+const memberId = (m) => m?._id || m?.id;
+const assignedId = (contact) => contact?.assignedTo?._id || contact?.assignedTo || '';
 
 /**
  * AssignmentModal - Modal for assigning a contact to a team member
@@ -15,8 +20,15 @@ import { businessAPI } from '../../services/api';
  */
 const AssignmentModal = ({ isOpen, onClose, contact, teamMembers = [], onAssignSuccess }) => {
   const toast = useToast();
-  const [selectedUserId, setSelectedUserId] = useState(contact?.assignedTo?._id || '');
+  const [selectedUserId, setSelectedUserId] = useState(assignedId(contact));
   const [isLoading, setIsLoading] = useState(false);
+
+  // O modal é montado uma vez e reutilizado para contatos diferentes:
+  // sem este reset ele abriria com o responsável do contato anterior.
+  useEffect(() => {
+    if (isOpen) setSelectedUserId(assignedId(contact));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, contact?._id]);
 
   const handleAssign = async () => {
     try {
@@ -25,7 +37,7 @@ const AssignmentModal = ({ isOpen, onClose, contact, teamMembers = [], onAssignS
       // assignedTo can be null (to unassign) or a userId
       const assignTo = selectedUserId || null;
 
-      const updatedContact = await businessAPI.assignContact(
+      const { data: updatedContact } = await businessAPI.assignContact(
         contact._id,
         assignTo,
         contact.__v
@@ -34,7 +46,7 @@ const AssignmentModal = ({ isOpen, onClose, contact, teamMembers = [], onAssignS
       toast({
         title: 'Sucesso',
         description: assignTo
-          ? `Contato atribuído a ${selectedUserId ? teamMembers.find(m => m._id === selectedUserId)?.name : 'ninguém'}`
+          ? `Contato atribuído a ${teamMembers.find(m => memberId(m) === selectedUserId)?.name || 'membro'}`
           : 'Contato desatribuído',
         status: 'success',
         duration: 3,
@@ -89,7 +101,7 @@ const AssignmentModal = ({ isOpen, onClose, contact, teamMembers = [], onAssignS
                 isDisabled={isLoading}
               >
                 {teamMembers.map((member) => (
-                  <option key={member._id} value={member._id}>
+                  <option key={memberId(member)} value={memberId(member)}>
                     {member.name} ({member.email})
                   </option>
                 ))}
@@ -100,7 +112,7 @@ const AssignmentModal = ({ isOpen, onClose, contact, teamMembers = [], onAssignS
               <Text fontSize="sm" color="gray.600">
                 Atualmente atribuído a:{' '}
                 <strong>
-                  {teamMembers.find((m) => m._id === selectedUserId)?.name}
+                  {teamMembers.find((m) => memberId(m) === selectedUserId)?.name}
                 </strong>
               </Text>
             )}
@@ -129,7 +141,7 @@ const AssignmentModal = ({ isOpen, onClose, contact, teamMembers = [], onAssignS
           <Button
             colorScheme="brand"
             onClick={handleAssign}
-            isDisabled={!selectedUserId && !contact?.assignedTo}
+            isDisabled={!selectedUserId && !assignedId(contact)}
             isLoading={isLoading}
             loadingText="Atribuindo..."
           >

@@ -76,6 +76,8 @@ const assignContact = async (req, res) => {
             return res.status(404).json({ message: 'Contact not found' });
         }
 
+        // Popula para o frontend exibir o nome do responsável sem recarregar.
+        await updatedContact.populate('assignedTo', 'name email avatarUrl');
         res.json(updatedContact);
     } catch (error) {
         console.error('Error assigning contact:', error);
@@ -155,6 +157,7 @@ const assignAppointment = async (req, res) => {
             return res.status(404).json({ message: 'Appointment not found' });
         }
 
+        await updatedAppointment.populate('assignedTo', 'name email avatarUrl');
         res.json(updatedAppointment);
     } catch (error) {
         console.error('Error assigning appointment:', error);
