@@ -62,6 +62,7 @@ import contactRoutes from './routes/contactRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import tagRoutes from './routes/tagRoutes.js';
 import metaWebhookRoutes from './routes/metaWebhookRoutes.js';
+import squamataWebhookRoutes from './routes/squamataWebhookRoutes.js';
 import { auditContextMiddleware } from './utils/auditContext.js';
 
 // Carregar Models (Garantia de registro)
@@ -108,6 +109,11 @@ const corsOriginDelegate = (origin, callback) => {
 const io = new Server(server, {
   cors: { origin: corsOriginDelegate, methods: ["GET", "POST"], credentials: true }
 });
+
+// O webhook do squamata-whatsapp é montado antes do express.json(): o HMAC é
+// calculado sobre o corpo bruto, e o parser global consumiria o stream.
+app.set('io', io);
+app.use('/api/v1/webhooks/whatsapp', squamataWebhookRoutes);
 
 // Middlewares Globais
 app.use(helmet({

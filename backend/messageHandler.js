@@ -45,7 +45,7 @@ async function processBufferedMessages(uniqueKey) {
 
     messageBuffer.delete(uniqueKey);
 
-    const { messages, from, rawFrom, waMessageId, name, activeBusinessId, provider, channel, resolve } = bufferData;
+    const { messages, from, rawFrom, waMessageId, name, activeBusinessId, provider, channel, resolve, timestamp } = bufferData;
 
     try {
         if (!activeBusinessId) {
@@ -114,7 +114,7 @@ async function processBufferedMessages(uniqueKey) {
         // observador (AI desligada), handover, horário comercial ou filtro de audiência.
         // O filtro abaixo só decide se o BOT responde; NÃO se a conversa é gravada.
         const userMessage = await parseMediaToText(messages, shouldProcessMedia, businessConfig);
-        await saveMessage(cleanFromForDb, 'user', userMessage, 'text', null, activeBusinessId, channel, name, rawFrom, contact?._id || null, waMessageId);
+        await saveMessage(cleanFromForDb, 'user', userMessage, 'text', null, activeBusinessId, channel, name, rawFrom, contact?._id || null, waMessageId, { timestamp });
 
         if (!shouldProcessMedia) {
             await handleBlockedMessage(blockReason, contact, businessConfig);
@@ -231,7 +231,12 @@ async function handleIncomingMessage(normalizedMsg, activeBusinessId) {
     
     // 🔧 Extrai o ID original da mensagem no WhatsApp (dedup)
     const originalMsg = normalizedMsg.originalEvent || normalizedMsg.msgInstance || null;
-    const waMessageId = originalMsg?.id?._serialized || originalMsg?.id?.id || null;
+    const waMessageId =
+        normalizedMsg.messageId ||
+        originalMsg?.messageId ||
+        originalMsg?.id?._serialized ||
+        originalMsg?.id?.id ||
+        null;
 
     if (from && channel !== 'web') {
         const isInvalidSource =
@@ -276,12 +281,17 @@ async function handleIncomingMessage(normalizedMsg, activeBusinessId) {
         clearTimeout(buffer.timer);
         buffer.messages.push(msgItem);
         buffer.lastActiveBusinessId = activeBusinessId;
+        // Guarda o horário mais antigo do lote: é a posição real da conversa.
+        if (normalizedMsg.timestamp && (!buffer.timestamp || normalizedMsg.timestamp < buffer.timestamp)) {
+            buffer.timestamp = normalizedMsg.timestamp;
+        }
     } else {
         buffer = {
             messages: [msgItem],
             from,
             rawFrom: rawFrom || from,  // ✅ WhatsApp ID original (@c.us) para lookup preciso
             waMessageId,               // 🔧 ID original da msg (dedup)
+            timestamp: normalizedMsg.timestamp || null,
             name,
             activeBusinessId,
             provider,

@@ -146,3 +146,37 @@ Auditoria solicitada para confirmar se chaves/parâmetros do IdP estavam correto
 - `businessRoutes.js` usa `uuidv4()` sem import no handler de notificações — bug
   pré-existente, fora do escopo deste roadmap.
 - O campo `googleId` do `SystemUser` foi mantido por retrocompatibilidade (inofensivo).
+
+---
+
+## 2026-10-30 — Recebimento de eventos do Squamata-whatsapp (F3, lado bot)
+
+**Branch:** `implementacao-login-squamata`
+**Referência:** `PLANEJAMENTO.md` §5 e §15 (repo `Squamata-whatsapp`)
+
+### O que entrou
+
+| Arquivo | Papel |
+| --- | --- |
+| `routes/squamataWebhookRoutes.js` | `POST /api/v1/webhooks/whatsapp`, montado **antes** do `express.json()` (HMAC sobre corpo bruto), `express.raw` com limite de 12 MB só nesta rota, `202` imediato |
+| `services/whatsapp/inbound.js` | valida `X-Signature`, dedup por `waMessageId` **na entrada** (antes do buffer/IA), adapta o payload e reemite eventos de sessão no socket |
+| `services/providerAdapter.js` | novo `adaptSquamataMessage`, no mesmo formato do `adaptWWebJSMessage` |
+| `services/message.js` | `saveMessage(..., { timestamp })` — grava o horário original do WhatsApp (D8) |
+| `messageHandler.js` | usa o `messageId` do payload e propaga o timestamp pelo buffer |
+| `server.js` | `app.set('io', io)` + webhook montado antes do parser global |
+| `frontend/AppContext.jsx` | escuta `whatsapp_qr` / `whatsapp_status`; o bot ainda emite `wwebjs_*` como ponte até a F8 |
+| `.env.example` | `SQUAMATA_WHATSAPP_URL`, `SQUAMATA_INTERNAL_TOKEN`, `SQUAMATA_WEBHOOK_SECRET` |
+
+### Verificado
+
+- `tests/unit/squamata_inbound.test.js` (14 casos) e `squamata_webhook_route.test.js` (5 casos) verdes.
+- Teste cruzado real: o serviço Go emitiu eventos e **este** webhook validou o HMAC e emitiu
+  `whatsapp_status`, `whatsapp_qr` e `whatsapp_qr_image` no socket.
+- Nenhuma mensagem real ainda: depende de número pareado.
+
+### Pendências
+
+- `MongoMemoryServer` não sobe nesta máquina (`Instance failed to start within 10000ms`), então
+  `sync_verification` e `campaignScheduler` falham por ambiente — **pré-existente**, não é regressão.
+- Falta a F4 (envio pelo serviço) para o ciclo completo responder pelo número novo.
+- O driver antigo (`wwebjsService`) continua ativo até a F8; por isso os eventos usam ponte dupla.

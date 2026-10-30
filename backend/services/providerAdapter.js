@@ -85,4 +85,33 @@ const adaptWWebJSMessage = async (msg) => {
     };
 };
 
-export { normalizePhone, adaptTwilioMessage, adaptWWebJSMessage };
+// --- TRADUTOR DO SQUAMATA-WHATSAPP (serviço Go) ---
+// Recebe o envelope do webhook (PLANEJAMENTO.md §3.2) e entrega o mesmo formato
+// que o messageHandler já entende, para a lógica de negócio não mudar.
+const adaptSquamataMessage = (payload) => {
+    const media = payload.media || null;
+    const mediaData = media?.base64
+        ? {
+            mimetype: media.mime || 'application/octet-stream',
+            data: media.base64,
+            filename: media.filename || null,
+        }
+        : null;
+
+    return {
+        from: normalizePhone(payload.from),
+        rawFrom: payload.rawFrom || payload.from,
+        body: payload.text || '',
+        name: payload.pushName || 'Cliente',
+        type: payload.type || 'text',
+        mediaData,
+        provider: 'squamata',
+        messageId: payload.messageId,
+        // Timestamp original do WhatsApp: sem ele, mensagem reenviada pelo
+        // outbox apareceria no fim da conversa (D8).
+        timestamp: payload.timestamp ? new Date(payload.timestamp) : null,
+        originalEvent: payload,
+    };
+};
+
+export { normalizePhone, adaptTwilioMessage, adaptWWebJSMessage, adaptSquamataMessage };

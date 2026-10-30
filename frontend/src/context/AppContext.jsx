@@ -123,11 +123,11 @@ export const AppProvider = ({ children }) => {
       socket.emit('join_session', state.user.activeBusinessId);
     });
 
-    socket.on('wwebjs_qr', (qr) => {
+    socket.on('whatsapp_qr', (qr) => {
       dispatch({ type: 'SET_QR_CODE', payload: qr });
     });
 
-    socket.on('wwebjs_status', (status) => {
+    socket.on('whatsapp_status', (status) => {
       let isConnected = false;
       let mode = 'Desconectado';
       let error = null;

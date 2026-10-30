@@ -3,7 +3,7 @@ import Contact from '../models/Contact.js';
 import Message from '../models/Message.js';
 import { normalizePhone } from '../utils/phoneUtils.js';
 
-async function saveMessage(identifier, role, content, messageType = 'text', visionResult = null, businessId, channel = 'whatsapp', pushName = null, whatsappId = null, contactIdOverride = null, waMessageId = null) {
+async function saveMessage(identifier, role, content, messageType = 'text', visionResult = null, businessId, channel = 'whatsapp', pushName = null, whatsappId = null, contactIdOverride = null, waMessageId = null, options = {}) {
   try {
     if (!businessId) {
       console.error("❌ ERRO GRAVE: Tentativa de salvar mensagem sem businessId!");
@@ -136,6 +136,12 @@ async function saveMessage(identifier, role, content, messageType = 'text', visi
         console.log(`🔁 [saveMessage] Mensagem ${waMessageId} já salva — ignorando duplicata.`);
         return;
       }
+    }
+
+    // Horário original do WhatsApp (D8). O schema usa Date.now() por padrão,
+    // então só sobrescrevemos quando quem chamou sabe o horário real.
+    if (options.timestamp instanceof Date && !Number.isNaN(options.timestamp.getTime())) {
+      msgData.timestamp = options.timestamp;
     }
 
     if (visionResult) {
