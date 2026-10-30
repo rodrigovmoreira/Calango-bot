@@ -5,7 +5,7 @@ import Message from '../../models/Message.js';
 import { adaptSquamataMessage } from '../providerAdapter.js';
 import { handleIncomingMessage } from '../../messageHandler.js';
 import { saveMessage } from '../message.js';
-import { normalizePhone } from '../../utils/phoneUtils.js';
+import { normalizePhone, canonicalWhatsAppId, whatsAppIdCandidates } from '../../utils/phoneUtils.js';
 
 const SIGNATURE_PREFIX = 'sha256=';
 
@@ -92,11 +92,12 @@ async function handleOutgoing(payload, businessId) {
     if (await alreadyProcessed(payload.messageId)) return;
 
     const phone = normalizePhone(payload.from);
-    const whatsappId = payload.rawFrom || payload.from;
+    const whatsappId = canonicalWhatsAppId(payload.rawFrom || payload.from);
 
+    // Consulta aceita o formato canônico (@s.whatsapp.net) e o legado (@c.us) — D15.
     let contact = await Contact.findOne({
         businessId,
-        $or: [{ whatsappId }, { phone }],
+        $or: [{ whatsappId: { $in: whatsAppIdCandidates(whatsappId) } }, { phone }],
     });
 
     if (!contact) {

@@ -9,7 +9,7 @@ import SystemUser from '../models/SystemUser.js';
 import authenticateToken, { requireAdmin } from '../middleware/auth.js';
 import { formatBusinesses, activeMembershipQuery, isActiveMembership, MEMBERSHIP_STATUS } from '../utils/membership.js';
 import * as messageService from '../services/message.js';
-import { sendWWebJSMessage } from '../services/wwebjsService.js';
+import { sendText } from '../services/whatsapp/client.js';
 import axios from 'axios';
 
 // === CONFIGURAÇÕES GERAIS ===
@@ -573,7 +573,7 @@ router.post('/conversations/:contactId/messages', authenticateToken, async (req,
     // 2. Enviar Mensagem
     let sent = false;
     if (contact.channel === 'whatsapp') {
-      sent = await sendWWebJSMessage(req.user.activeBusinessId, contact.phone, message);
+      sent = await sendText(req.user.activeBusinessId, contact.phone, message);
       if (!sent) {
         // Se falhar o envio (WhatsApp desconectado, etc), avisa o front mas salva?
         // Melhor retornar erro para o agente saber.

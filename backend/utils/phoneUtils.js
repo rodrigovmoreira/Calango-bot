@@ -92,14 +92,45 @@ function normalizePhone(rawPhone) {
 
 /**
  * Converte um número nacional para o formato de ID do WhatsApp.
- * 
+ *
  * @param {string} nationalPhone - Número nacional (ex: '11999999999')
  * @param {string} countryCode - Código do país (default: '55' para Brasil)
- * @returns {string} - WhatsApp ID (ex: '5511999999999@c.us')
+ * @returns {string} - WhatsApp ID (ex: '5511999999999@s.whatsapp.net')
  */
 function toWhatsAppId(nationalPhone, countryCode = '55') {
   const clean = String(nationalPhone).replace(/\D/g, '');
-  return `${countryCode}${clean}@c.us`;
+  return `${countryCode}${clean}@s.whatsapp.net`;
+}
+
+/**
+ * Formato canônico do `whatsappId` no banco (D15): sempre `<dígitos>@s.whatsapp.net`.
+ * Antes da migração o whatsapp-web.js gravava `@c.us`; o whatsmeow usa
+ * `@s.whatsapp.net`. Sem canonicalizar, a mesma pessoa vira dois contatos.
+ */
+function canonicalWhatsAppId(rawId) {
+  if (!rawId) return '';
+
+  const value = String(rawId).trim();
+  // @lid é identificador de privacidade, não telefone: preservado como veio.
+  if (value.includes('@lid') || value.includes('@g.us') || value.includes('@broadcast')) {
+    return value;
+  }
+
+  const digits = value.split('@')[0].replace(/\D/g, '');
+  if (!digits) return value;
+  return `${digits}@s.whatsapp.net`;
+}
+
+/**
+ * Variantes a consultar no Mongo: a canônica e a legada `@c.us`.
+ * A leitura aceita as duas (D15); a escrita usa sempre a canônica.
+ */
+function whatsAppIdCandidates(rawId) {
+  const canonical = canonicalWhatsAppId(rawId);
+  if (!canonical || !canonical.endsWith('@s.whatsapp.net')) return canonical ? [canonical] : [];
+
+  const digits = canonical.split('@')[0];
+  return [canonical, `${digits}@c.us`];
 }
 
 /**
@@ -125,6 +156,8 @@ function parseWhatsAppId(waId) {
 export {
   normalizePhone,
   toWhatsAppId,
+  canonicalWhatsAppId,
+  whatsAppIdCandidates,
   parseWhatsAppId,
   detectCountryCode,
   COUNTRY_CODES,

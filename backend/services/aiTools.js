@@ -2,6 +2,7 @@ import Appointment from '../models/Appointment.js';
 import BusinessConfig from '../models/BusinessConfig.js';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import * as wwebjsService from './wwebjsService.js';
+import * as whatsappClient from './whatsapp/client.js';
 import { sendUnifiedMessage } from './responseService.js';
 import Contact from '../models/Contact.js';
 
@@ -261,9 +262,9 @@ export const executeAITool = async (command, contextData) => {
                     if (p.imageUrls && p.imageUrls.length > 0) {
                         if (channel === 'web') { /* Logica web */ }
                         else {
-                            await wwebjsService.sendImage(businessConfig._id, from, p.imageUrls[0], caption);
+                            await whatsappClient.sendMedia(businessConfig._id, from, p.imageUrls[0], caption);
                             for (let i = 1; i < p.imageUrls.length; i++) {
-                                await wwebjsService.sendImage(businessConfig._id, from, p.imageUrls[i], "");
+                                await whatsappClient.sendMedia(businessConfig._id, from, p.imageUrls[i], "");
                             }
                         }
                         count++;
@@ -280,7 +281,7 @@ export const executeAITool = async (command, contextData) => {
         } else if (command.action === 'send_visual_guide') {
             if (command.url) {
                 if (channel !== 'web') {
-                    await wwebjsService.sendImage(businessConfig._id, from, command.url, command.message || "Aqui está o guia visual principal.");
+                    await whatsappClient.sendMedia(businessConfig._id, from, command.url, command.message || "Aqui está o guia visual principal.");
                 }
                 toolResult = "SUCESSO: Primeira imagem do guia visual enviada. Aguarde o cliente escolher a opção ou pedir mais imagens se houver.";
             } else {
@@ -294,7 +295,7 @@ export const executeAITool = async (command, contextData) => {
                         await sendUnifiedMessage(from, command.message, provider, businessConfig._id);
                     }
                     for (let url of urlsToSend) {
-                        await wwebjsService.sendImage(businessConfig._id, from, url, "");
+                        await whatsappClient.sendMedia(businessConfig._id, from, url, "");
                     }
                 }
                 toolResult = `SUCESSO: ${Math.min(command.urls.length, 5)} imagens adicionais do guia visual enviadas.`;

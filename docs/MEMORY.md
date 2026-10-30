@@ -180,3 +180,14 @@ Auditoria solicitada para confirmar se chaves/parâmetros do IdP estavam correto
   `sync_verification` e `campaignScheduler` falham por ambiente — **pré-existente**, não é regressão.
 - Falta a F4 (envio pelo serviço) para o ciclo completo responder pelo número novo.
 - O driver antigo (`wwebjsService`) continua ativo até a F8; por isso os eventos usam ponte dupla.
+
+---
+
+## Armadilhas da F4 (envio pelo serviço) — registro mínimo, só o que afeta a próxima etapa
+
+> A regra do `ai-rules.md` §4 pede **uma** entrada consolidada ao fim do plano. Como a migração ainda tem F5–F8, aqui ficam apenas os fatos que, se esquecidos, quebram a etapa seguinte. O detalhe da F4 está no corpo do PR.
+
+- **PowerShell 5.1 corrompe acentos** ao reescrever arquivo com `Set-Content`/`Out-File` (`Get-Content` lê como ANSI e grava como UTF-8 → dupla codificação). Aconteceu com `server.js` e `aiTools.js`, ambos revertidos. Editar sempre pela ferramenta de edição, nunca por round-trip de `Get-Content`/`Set-Content`.
+- **Duas suítes já falhavam antes da F4** e continuam falhando: `campaignScheduler` (`BusinessConfig.findById is not a function` — o mock de `tests/unit/campaignScheduler.test.js:34` só expõe `findOne`) e `sync_verification` (`MongoMemoryServer` não sobe nesta máquina). Confirmado com `git stash` + execução baseline. Não é regressão da migração.
+- **F5 (contatos) e F6 (labels) respondem 503** a partir de agora: o boot não inicia mais sessão wwebjs (D7), então `getClientSession` não devolve nada. É consequência esperada, não bug — as duas rotas voltam quando forem migradas.
+- **`BusinessConfig.whatsappSessionId` como `String`** (campo novo, D13). `Contact`/`Message`/`Appointment.whatsappSessionId` continuam `ObjectId` e **não devem ser carimbados** antes da F8, sob pena de `CastError`.
