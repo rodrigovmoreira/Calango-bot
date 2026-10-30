@@ -140,3 +140,92 @@ describe('cliente do squamata-whatsapp — com configuração', () => {
         await expect(client.sendPresence('empresa-1', '11999999999', 'typing')).resolves.toBe(false);
     });
 });
+
+describe('cliente do squamata-whatsapp — F5 e F6', () => {
+    beforeEach(() => {
+        process.env.SQUAMATA_WHATSAPP_URL = 'http://servico:3006';
+        process.env.SQUAMATA_INTERNAL_TOKEN = 'token-interno';
+        findById.mockReturnValue(chain({ whatsappSessionId: 'sessao-1' }));
+    });
+
+    test('syncContacts devolve os contatos do serviço', async () => {
+        jest.spyOn(global, 'fetch').mockResolvedValue({
+            ok: true,
+            status: 200,
+            text: async () => '{"contacts":[{"jid":"5511999999999@s.whatsapp.net","phone":"5511999999999","name":"Ana","pushName":"Ana"}],"total":1,"truncated":false}',
+        });
+
+        const result = await client.syncContacts('empresa-1');
+
+        expect(result.contacts).toHaveLength(1);
+        expect(result.contacts[0]).toEqual({
+            jid: '5511999999999@s.whatsapp.net',
+            phone: '5511999999999',
+            name: 'Ana',
+            pushName: 'Ana',
+        });
+    });
+
+    test('syncContacts sem sessão criada falha com SESSION_NOT_FOUND', async () => {
+        findById.mockReturnValue(chain({ whatsappSessionId: null }));
+
+        await expect(client.syncContacts('empresa-1')).rejects.toMatchObject({
+            code: 'SESSION_NOT_FOUND',
+        });
+    });
+
+    test('listLabels traduz labelId/color para o formato do bot', async () => {
+        jest.spyOn(global, 'fetch').mockResolvedValue({
+            ok: true,
+            status: 200,
+            text: async () => '[{"labelId":"1","name":"Cliente","color":3}]',
+        });
+
+        await expect(client.listLabels('empresa-1')).resolves.toEqual([
+            { id: '1', name: 'Cliente', colorIndex: 3 },
+        ]);
+    });
+
+    test('createLabel faz POST no caminho de labels', async () => {
+        const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
+            ok: true,
+            status: 201,
+            text: async () => '{"labelId":"99","name":"VIP","color":0}',
+        });
+
+        const created = await client.createLabel('empresa-1', 'VIP');
+
+        expect(fetchSpy.mock.calls[0][0]).toBe(
+            'http://servico:3006/api/v1/tenants/empresa-1/sessions/sessao-1/labels'
+        );
+        expect(created).toEqual({ id: '99', name: 'VIP', colorIndex: 0 });
+    });
+
+    test('setChatLabels envia a lista desejada', async () => {
+        const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
+            ok: true,
+            status: 200,
+            text: async () => '{"updated":true}',
+        });
+
+        const ok = await client.setChatLabels('empresa-1', '5511999999999@s.whatsapp.net', ['1', '2']);
+
+        expect(ok).toBe(true);
+        expect(JSON.parse(fetchSpy.mock.calls[0][1].body)).toEqual({ labelIds: ['1', '2'] });
+    });
+
+    test('labelChats devolve a lista de JIDs', async () => {
+        jest.spyOn(global, 'fetch').mockResolvedValue({
+            ok: true,
+            status: 200,
+            text: async () => '{"chats":["5511999999999@s.whatsapp.net"],"total":1}',
+        });
+
+        await expect(client.labelChats('empresa-1', '1')).resolves.toEqual(['5511999999999@s.whatsapp.net']);
+    });
+
+    test('sem configuração, listLabels devolve lista vazia', async () => {
+        delete process.env.SQUAMATA_WHATSAPP_URL;
+        await expect(client.listLabels('empresa-1')).resolves.toEqual([]);
+    });
+});

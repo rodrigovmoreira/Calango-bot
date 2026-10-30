@@ -198,6 +198,87 @@ async function sendPresence(businessId, to, type = 'typing') {
     }
 }
 
+// --- F5: contatos ---------------------------------------------------------
+
+/**
+ * Lista os contatos conhecidos pelo WhatsApp (substitui o scraping de pupPage).
+ * Devolve `{ contacts: [{ jid, phone, name, pushName }], truncated }`.
+ */
+async function syncContacts(businessId) {
+    const sessionId = await existingSession(businessId);
+    if (!sessionId) {
+        const error = new Error('Sessão de WhatsApp ainda não criada.');
+        error.code = 'SESSION_NOT_FOUND';
+        throw error;
+    }
+    return request('POST', `/tenants/${businessId}/sessions/${sessionId}/contacts/sync`, null, 60000);
+}
+
+// --- F6: etiquetas --------------------------------------------------------
+// O serviço devolve `{ labelId, name, color }`; aqui expomos `{ id, name, colorIndex }`
+// para o restante do bot. A cor do WhatsApp é um índice com paleta própria —
+// não é o hex do painel, por isso não é convertida (Tag.color é da UI).
+
+function toLabel(raw) {
+    return { id: raw.labelId, name: raw.name, colorIndex: raw.color };
+}
+
+async function listLabels(businessId) {
+    if (!isEnabled()) return [];
+    const sessionId = await existingSession(businessId);
+    if (!sessionId) return [];
+    const labels = await request('GET', `/tenants/${businessId}/sessions/${sessionId}/labels`, null, 15000);
+    return (labels || []).map(toLabel);
+}
+
+async function createLabel(businessId, name) {
+    const sessionId = await ensureSession(businessId);
+    const created = await request('POST', `/tenants/${businessId}/sessions/${sessionId}/labels`, { name }, 15000);
+    return toLabel(created);
+}
+
+async function updateLabel(businessId, labelId, name) {
+    const sessionId = await existingSession(businessId);
+    if (!sessionId) throw new Error('Sessão de WhatsApp não criada.');
+    const updated = await request(
+        'PATCH',
+        `/tenants/${businessId}/sessions/${sessionId}/labels/${labelId}`,
+        { name },
+        15000
+    );
+    return toLabel(updated);
+}
+
+async function deleteLabel(businessId, labelId) {
+    const sessionId = await existingSession(businessId);
+    if (!sessionId) return;
+    await request('DELETE', `/tenants/${businessId}/sessions/${sessionId}/labels/${labelId}`, null, 15000);
+}
+
+async function labelChats(businessId, labelId) {
+    const sessionId = await existingSession(businessId);
+    if (!sessionId) return [];
+    const result = await request(
+        'GET',
+        `/tenants/${businessId}/sessions/${sessionId}/labels/${labelId}/chats`,
+        null,
+        20000
+    );
+    return result?.chats || [];
+}
+
+async function setChatLabels(businessId, chatId, labelIds) {
+    const sessionId = await existingSession(businessId);
+    if (!sessionId) return false;
+    await request(
+        'PUT',
+        `/tenants/${businessId}/sessions/${sessionId}/chats/${encodeURIComponent(chatId)}/labels`,
+        { labelIds },
+        20000
+    );
+    return true;
+}
+
 export {
     isEnabled,
     ensureSession,
@@ -210,4 +291,11 @@ export {
     sendText,
     sendMedia,
     sendPresence,
+    syncContacts,
+    listLabels,
+    createLabel,
+    updateLabel,
+    deleteLabel,
+    labelChats,
+    setChatLabels,
 };

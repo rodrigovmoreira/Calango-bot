@@ -2,7 +2,7 @@ import Contact from '../models/Contact.js';
 import BusinessConfig from '../models/BusinessConfig.js';
 import SystemUser from '../models/SystemUser.js';
 import Tag from '../models/Tag.js'; // Kept if needed for future expansions
-import * as wwebjsService from '../services/wwebjsService.js';
+import * as whatsappClient from '../services/whatsapp/client.js';
 import { normalizePhone, toWhatsAppId } from '../utils/phoneUtils.js';
 import { isActiveMembership, activeMembershipQuery } from '../utils/membership.js';
 import xlsx from 'xlsx';
@@ -534,19 +534,25 @@ const syncContacts = async (req, res) => {
         }
 
         const businessId = config._id;
-        const client = wwebjsService.getClientSession(businessId);
 
-        if (!client || !client.info) {
+        // F5: os contatos vêm do serviço Go (Store.Contacts), sem scraping de página.
+        const status = await whatsappClient.getStatus(businessId);
+        if (!status.isConnected) {
             return res.status(503).json({ message: 'WhatsApp não está pronto. Aguarde a conexão.' });
         }
 
-        console.log('🔄 Iniciando Sincronização Segura (Via API Nativa)...');
+        console.log('🔄 Iniciando sincronização de contatos pelo squamata-whatsapp...');
 
-        // Puxa todos os chats com retry e fallback automáticos
-        const allChats = await fetchChatsWithRetry(client);
-        
-        // 🔧 Detecta qual estratégia foi usada (definida em fetchChatsWithRetry)
-        const strategy = allChats._strategy || 'unknown';
+        const sync = await whatsappClient.syncContacts(businessId);
+        // Mesma forma que o scraping produzia, para o restante da função não mudar.
+        const allChats = (sync.contacts || []).map((c) => ({
+            id: { _serialized: c.jid },
+            name: c.name,
+            pushname: c.pushName,
+        }));
+        allChats._strategy = 'squamata';
+
+        const strategy = allChats._strategy;
         console.log(`📌 [Sync] Estratégia utilizada: ${strategy} (${allChats.length} itens)`);
 
         // Filtramos do lado do Node (em vez de dentro do navegador)
@@ -994,31 +1000,30 @@ const bulkAddTags = async (req, res) => {
 const debugWhatsAppTags = async (req, res) => {
     try {
         const businessId = req.user.activeBusinessId;
-        const client = wwebjsService.getClientSession(businessId);
+        const status = await whatsappClient.getStatus(businessId);
 
-        if (!client || !client.info) {
+        if (!status.isConnected) {
             return res.status(400).json({ error: 'WhatsApp desconectado' });
         }
 
-        const labels = await client.getLabels();
+        const labels = await whatsappClient.listLabels(businessId);
         const debugPayload = [];
 
         for (const label of labels) {
-            const chats = await client.getChatsByLabelId(label.id);
-            
+            const chats = await whatsappClient.labelChats(businessId, label.id);
+
             debugPayload.push({
                 labelId: label.id,
                 labelName: label.name,
-                chatsAttached: chats.map(chat => ({
-                    rawId: chat.id?._serialized || chat.id,
-                    name: chat.name || chat.pushname,
-                    isGroup: chat.isGroup
+                chatsAttached: chats.map((jid) => ({
+                    rawId: jid,
+                    isGroup: jid.includes('@g.us'),
                 }))
             });
         }
 
         res.json({
-            businessInfo: client.info,
+            businessInfo: { phone: status.phone || null, mode: status.mode },
             labelsData: debugPayload
         });
 
