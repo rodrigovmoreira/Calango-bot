@@ -2,6 +2,7 @@ import BusinessConfig from '../models/BusinessConfig.js';
 import Tag from '../models/Tag.js';
 import Contact from '../models/Contact.js';
 import * as wwebjsService from './wwebjsService.js';
+import * as whatsappClient from './whatsapp/client.js';
 
 // Helper to escape Regex characters
 const escapeRegExp = (string) => {
@@ -76,7 +77,7 @@ const syncWithWhatsapp = async (businessId) => {
         // 2. Fetch Labels from WhatsApp (Safe Fail)
         let waLabels = [];
         try {
-            waLabels = await wwebjsService.getLabels(businessId);
+            waLabels = await whatsappClient.listLabels(businessId);
         } catch (e) {
             console.warn("WA Labels unavailable, skipping fetch.");
             return { warning: "WhatsApp offline", synced: 0 };
@@ -151,30 +152,13 @@ const createTag = async (businessId, tagData) => {
         let finalColor = color || '#A0AEC0';
 
         try {
-            // Check if service function exists
-            if (typeof wwebjsService.createLabel === 'function') {
-                waLabel = await wwebjsService.createLabel(config._id, name);
-            } else {
-                 // Fallback if service wrapper is missing method (e.g. mock or old version)
-                const client = wwebjsService.getClientSession(config._id);
-                if (client && typeof client.createLabel === 'function') {
-                     waLabel = await client.createLabel(name);
-                }
-            }
+            // F6: as etiquetas são criadas no serviço Go (app state do WhatsApp).
+            waLabel = await whatsappClient.createLabel(config._id, name);
 
             if (waLabel && waLabel.id) {
                 whatsappId = waLabel.id;
-                // Update color on WA if needed
-                if (color && waLabel.hexColor !== color) {
-                     try {
-                        if (typeof wwebjsService.updateLabel === 'function') {
-                             const updated = await wwebjsService.updateLabel(config._id, whatsappId, name, color);
-                             if(updated) finalColor = updated.hexColor || color;
-                        }
-                     } catch (e) { console.warn('Failed to update color on WA:', e.message); }
-                } else if (waLabel.hexColor) {
-                    finalColor = waLabel.hexColor;
-                }
+                // A cor do WhatsApp é um índice de paleta, não o hex do painel:
+                // `finalColor` continua sendo a cor escolhida na UI.
             }
         } catch (error) {
              console.warn(`⚠️ WA Label creation skipped: ${error.message}. Creating in CRM only.`);
@@ -228,7 +212,7 @@ const updateTag = async (businessId, tagId, updateData) => {
         if (tag.whatsappId) {
             const config = await BusinessConfig.findById(businessId);
             if (config && config._id) {
-                await wwebjsService.updateLabel(config._id, tag.whatsappId, name, color);
+                await whatsappClient.updateLabel(config._id, tag.whatsappId, name);
             }
         }
 
@@ -264,7 +248,7 @@ const deleteTag = async (businessId, tagId) => {
              const config = await BusinessConfig.findById(businessId);
              if (config && config._id) {
                  try {
-                    await wwebjsService.deleteLabel(config._id, tag.whatsappId);
+                    await whatsappClient.deleteLabel(config._id, tag.whatsappId);
                  } catch (e) {
                      console.warn(`Failed to delete label on WA: ${e.message}`);
                  }
