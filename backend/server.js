@@ -43,13 +43,7 @@ import * as tagController from './controllers/tagController.js';
 const { runGlobalTagSync } = tagController;
 import { adaptTwilioMessage } from './services/providerAdapter.js';
 import { handleIncomingMessage } from './messageHandler.js';
-import {
-  initializeWWebJS,
-  startSession,
-  getSessionStatus,
-  getSessionQR,
-  closeAllSessions
-} from './services/wwebjsService.js';
+import * as whatsappClient from './services/whatsapp/client.js';
 
 // --- IMPORTAÇÃO DOS NOVOS PLUGINS (ROTAS) ---
 import authRoutes from './routes/authRoutes.js';
@@ -234,16 +228,24 @@ io.on('connection', (socket) => {
   }
 
   // 2. Admin do Dashboard
-  socket.on('join_session', (businessId) => {
+  // O estado vive no squamata-whatsapp: a consulta é assíncrona (requisito 6 da 11.1).
+  socket.on('join_session', async (businessId) => {
     if (!businessId) return;
     socket.join(businessId);
 
-    // Envia estado atual imediato
-    const status = getSessionStatus(businessId);
-    socket.emit('wwebjs_status', status);
+    try {
+      const status = await whatsappClient.getStatus(businessId);
+      socket.emit('whatsapp_status', status.status);
+      socket.emit('wwebjs_status', status.status);
 
-    const qr = getSessionQR(businessId);
-    if (qr) socket.emit('wwebjs_qr', qr);
+      const qr = await whatsappClient.getQr(businessId);
+      if (qr) {
+        socket.emit('whatsapp_qr', qr);
+        socket.emit('wwebjs_qr', qr);
+      }
+    } catch (error) {
+      console.warn(`⚠️ [squamata] não foi possível ler o estado da sessão ${businessId}: ${error.message}`);
+    }
   });
 
   // 3. Admin trocando de empresa
@@ -252,45 +254,6 @@ io.on('connection', (socket) => {
     socket.leave(businessId);
   });
 });
-
-// ==========================================
-// 🔄 AUTO-START (RESSURREIÇÃO DE SESSÕES)
-// ==========================================
-// backend/server.js
-const restoreActiveSessions = async () => {
-  console.log('🔄 [Auto-Start] Verificando sessões para restaurar...');
-
-  try {
-    // Busca TODAS as configs do banco conectado.
-    const configs = await BusinessConfig.find().lean();
-
-    if (configs.length === 0) {
-      console.log('🤷‍♂️ [Auto-Start] Nenhuma empresa encontrada neste banco.');
-      return;
-    }
-
-    const db = mongoose.connection.db;
-    const collection = db.collection('wwebsessions.files');
-
-    for (const [index, config] of configs.entries()) {
-      const businessId = config._id;
-
-      const sessionFile = await collection.findOne({
-        filename: { $regex: new RegExp(businessId) }
-      });
-
-      if (sessionFile) {
-        console.log(`▶️ [${index + 1}/${configs.length}] Iniciando ${config.businessName}...`);
-        startSession(businessId);
-        await new Promise(resolve => setTimeout(resolve, 5000));
-      }
-    }
-    console.log('🏁 [Auto-Start] Finalizado.');
-
-  } catch (error) {
-    console.error('❌ [Auto-Start] Erro crítico:', error);
-  }
-};
 
 // ==========================================
 // INICIALIZAÇÃO
@@ -311,13 +274,9 @@ async function start() {
     startScheduler();
     initCampaignScheduler();
 
-    // Passamos o IO para o serviço WWebJS poder emitir eventos
-    initializeWWebJS(io);
-
-    // 👇 CHAMA A FUNÇÃO DE RESSURREIÇÃO AQUI 👇
-    if (process.env.NODE_ENV !== 'test') {
-      restoreActiveSessions();
-    }
+    // As sessões de WhatsApp vivem no squamata-whatsapp, que reconecta sozinho
+    // no boot (decisão D7). O bot NÃO inicia sessão: criaria duas conexões
+    // disputando o mesmo número.
 
     server.listen(BACKEND_PORT, '127.0.0.1', () => {
       console.log(`\n🚀 SERVIDOR SAAS ONLINE NA PORTA ${BACKEND_PORT} (localhost apenas)`);
@@ -330,7 +289,6 @@ async function start() {
 
 const cleanup = async () => {
   console.log('\n🛑 Encerrando servidor...');
-  await closeAllSessions();
   process.exit(0);
 };
 

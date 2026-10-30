@@ -1,23 +1,26 @@
 // IMPORTANTE: Importe a função SEGURA de envio, não o getClientSession
-import { sendWWebJSMessage } from './wwebjsService.js';
+import { sendText } from './whatsapp/client.js';
 import { sendWhatsAppMessage } from './twilioService.js'; // Se tiver o Twilio
 
 /* Envia uma mensagem unificada, independente do provedor.
    @param {string} to - Número de destino (ex: 5511999999999)
    @param {string} message - Texto da mensagem
-   @param {string} provider - 'wwebjs' ou 'twilio'
-   @param {string} businessId - ID da empresa (obrigatório para WWebJS)
+   @param {string} provider - 'wwebjs' (via squamata-whatsapp) ou 'twilio'
+   @param {string} businessId - ID da empresa (obrigatório para o serviço Go)
+
+   Nota (D14): durante a migração o valor persistido continua 'wwebjs', agora
+   significando "via squamata-whatsapp". O rename fica para a fase F8.
  */
 async function sendUnifiedMessage(to, message, provider, businessId) {
   try {
     // console.log(`📤 Enviando via [${provider.toUpperCase()}] para ${to}`);
 
-    if (provider === 'wwebjs') {
+    if (provider === 'wwebjs' || provider === 'squamata') {
       if (!businessId) {
-        console.error('❌ Erro: Tentativa de envio WWebJS sem businessId definido.');
+        console.error('❌ Erro: Tentativa de envio pelo squamata-whatsapp sem businessId definido.');
         return false;
       }
-      return await sendWWebJSMessage(businessId, to, message);
+      return await sendText(businessId, to, message);
     } 
     else if (provider === 'twilio') {
        return await sendWhatsAppMessage(to, message);

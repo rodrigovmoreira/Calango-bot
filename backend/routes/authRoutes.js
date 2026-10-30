@@ -5,7 +5,7 @@ import SystemUser from '../models/SystemUser.js';
 import BusinessConfig from '../models/BusinessConfig.js';
 import Invite from '../models/Invite.js';
 import { authenticateToken, requireAdmin } from '../middleware/auth.js';
-import { stopSession } from '../services/wwebjsService.js';
+import { disconnect } from '../services/whatsapp/client.js';
 import { formatBusinesses, isActiveMembership, MEMBERSHIP_STATUS } from '../utils/membership.js';
 
 // URL do Squamata-Login (portal central de autenticação / Identity Provider).
@@ -115,8 +115,8 @@ router.post('/switch-business', authenticateToken, async (req, res) => {
 // ROTA: /api/auth/logout — encerra a sessão do WhatsApp e limpa o cookie
 router.post('/logout', authenticateToken, async (req, res) => {
   try {
-    // Encerra sessão do WhatsApp para economizar recursos
-    await stopSession(req.user.activeBusinessId);
+    // Encerra a conexão do WhatsApp para economizar recursos (mantém o pareamento)
+    await disconnect(req.user.activeBusinessId).catch(() => {});
 
     res.clearCookie('auth_token');
     res.json({ message: 'Logout realizado e bot desligado.' });

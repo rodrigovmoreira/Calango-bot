@@ -1,4 +1,4 @@
-import { normalizePhone } from '../utils/phoneUtils.js';
+import { normalizePhone, canonicalWhatsAppId } from '../utils/phoneUtils.js';
 
 // --- TRADUTOR DO TWILIO (Mantido para compatibilidade) ---
 const adaptTwilioMessage = (twilioBody) => {
@@ -100,7 +100,9 @@ const adaptSquamataMessage = (payload) => {
 
     return {
         from: normalizePhone(payload.from),
-        rawFrom: payload.rawFrom || payload.from,
+        // Formato canônico (D15): @s.whatsapp.net. O valor bruto do serviço
+        // continua em originalEvent.rawFrom, para diagnóstico.
+        rawFrom: canonicalWhatsAppId(payload.rawFrom || payload.from),
         body: payload.text || '',
         name: payload.pushName || 'Cliente',
         type: payload.type || 'text',

@@ -2,6 +2,7 @@ import { saveMessage, getLastMessages } from './services/message.js';
 import { parseMediaToText } from './services/mediaProcessorService.js';
 import { sendUnifiedMessage } from './services/responseService.js';
 import * as wwebjsService from './services/wwebjsService.js';
+import * as whatsappClient from './services/whatsapp/client.js';
 import BusinessConfig from './models/BusinessConfig.js';
 import Contact from './models/Contact.js';
 import Message from './models/Message.js';
@@ -81,7 +82,9 @@ async function processBufferedMessages(uniqueKey) {
             if (rawFrom && rawFrom.includes('@lid')) {
                 try {
                     const client = wwebjsService.getClientSession(activeBusinessId);
-                    const lidMap = await client.getContactLidAndPhone([rawFrom]);
+                    // Sem sessão wwebjs (o serviço Go responde pela conexão): o
+                    // @lid já vem resolvido em `from` e o original em `rawFrom`.
+                    const lidMap = client ? await client.getContactLidAndPhone([rawFrom]) : null;
                     const pn = lidMap?.[0]?.pn;
                     if (pn) {
                         const cleanLidPhone = normalizePhone(pn);
@@ -166,7 +169,7 @@ async function processBufferedMessages(uniqueKey) {
         if (isMenuHandled) return;
 
         if (channel !== 'web') {
-            wwebjsService.sendStateTyping(activeBusinessId, from).catch(() => { });
+            whatsappClient.sendPresence(activeBusinessId, from, 'typing').catch(() => { });
         }
 
         let finalResponseText = "";
@@ -192,7 +195,7 @@ async function processBufferedMessages(uniqueKey) {
         }
 
         if (channel !== 'web') {
-            wwebjsService.sendStateTyping(activeBusinessId, from).catch(() => { });
+            whatsappClient.sendPresence(activeBusinessId, from, 'typing').catch(() => { });
             if (process.env.NODE_ENV !== 'test') {
                 const delay = Math.floor(Math.random() * (HUMAN_DELAY_MAX - HUMAN_DELAY_MIN + 1)) + HUMAN_DELAY_MIN;
                 await sleep(delay);
@@ -335,7 +338,7 @@ async function handleOutgoingMessage(msg, targetId, activeBusinessId) {
         if (targetId.includes('@lid')) {
             try {
                 const client = wwebjsService.getClientSession(activeBusinessId);
-                const lidMap = await client.getContactLidAndPhone([targetId]);
+                const lidMap = client ? await client.getContactLidAndPhone([targetId]) : null;
                 if (lidMap && lidMap[0] && lidMap[0].pn) {
                     phoneSource = lidMap[0].pn;
                 }

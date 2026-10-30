@@ -27,6 +27,10 @@ const businessConfigSchema = new mongoose.Schema({
   whatsappProvider: { type: String, enum: ['twilio', 'wwebjs'], default: 'wwebjs' },
   phoneNumber: { type: String }, // <--- ADICIONADO: Número do WhatsApp para roteamento de Webhook
 
+  // Id da sessão no squamata-whatsapp (serviço Go). String opaca: o bot guarda
+  // e nunca interpreta. Criado no primeiro connect (D13 do PLANEJAMENTO.md).
+  whatsappSessionId: { type: String },
+
   timezone: { type: String, default: 'America/Sao_Paulo' }, // <--- NOVO: Timezone do Negócio
   minSchedulingNoticeMinutes: { type: Number, default: 60 }, // <--- NOVO: Antecedência mínima para agendamento
 

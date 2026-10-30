@@ -7,7 +7,7 @@ import Appointment from '../models/Appointment.js';
 import BusinessConfig from '../models/BusinessConfig.js';
 import { callDeepSeek } from './aiService.js';
 import { sendUnifiedMessage } from './responseService.js';
-import { sendImage } from './wwebjsService.js';
+import { sendMedia } from './whatsapp/client.js';
 import { getLastMessages } from './message.js';
 import { normalizePhone } from '../utils/phoneUtils.js';
 
@@ -331,8 +331,8 @@ ${historyText || "No previous history."}
         if (i > 0) await wait(Math.floor(Math.random() * 2000) + 2000); // 2-4s delay between multiple images
         const caption = (withCaptionOnFirst && i === 0) ? messageToSend : undefined;
         try {
-          const imageSent = await sendImage(campaign.businessId, contact.phone, urls[i], caption);
-          if (!imageSent) throw new Error("sendImage returned false");
+          const imageSent = await sendMedia(campaign.businessId, contact.phone, urls[i], caption);
+          if (!imageSent) throw new Error("sendMedia returned false");
           if (caption) textAlreadySent = true;
         } catch (imageErr) {
           console.error(`⚠️ Erro ao enviar imagem ${urls[i]} para ${contact.phone}:`, imageErr);
